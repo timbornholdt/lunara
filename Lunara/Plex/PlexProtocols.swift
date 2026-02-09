@@ -13,6 +13,11 @@ protocol PlexAuthServicing {
     ) async throws -> String
 }
 
+protocol PlexPinServicing {
+    func createPin() async throws -> PlexPin
+    func checkPin(id: Int, code: String) async throws -> PlexPinStatus
+}
+
 protocol PlexLibraryServicing {
     func fetchLibrarySections() async throws -> [PlexLibrarySection]
     func fetchAlbums(sectionId: String) async throws -> [PlexAlbum]

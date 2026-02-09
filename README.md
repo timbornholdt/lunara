@@ -545,7 +545,7 @@ For development-only quick sign-in, you can provide a local plist that is ignore
 2. In Xcode, add `Lunara/LocalConfig.plist` to the app target (Debug only if you prefer).
 3. Launch the app in Debug and use the “Quick Sign-In (Debug)” button.
 
-The plist must include `PLEX_SERVER_URL`, `PLEX_USERNAME`, and `PLEX_PASSWORD`.
+The plist must include `PLEX_SERVER_URL`. Set `AUTO_START_AUTH` to `true` if you want to open the Plex auth flow automatically on launch.
 
 # Architecture Diagrams
 

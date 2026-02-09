@@ -4,9 +4,7 @@
 <dict>
     <key>PLEX_SERVER_URL</key>
     <string>https://your-server.example.com:32400</string>
-    <key>PLEX_USERNAME</key>
-    <string>you@example.com</string>
-    <key>PLEX_PASSWORD</key>
-    <string>your-password</string>
+    <key>AUTO_START_AUTH</key>
+    <true/>
 </dict>
 </plist>

@@ -4,13 +4,11 @@ import Foundation
 enum LocalPlexConfig {
     struct Credentials: Decodable {
         let serverURL: String
-        let username: String
-        let password: String
+        let autoStartAuth: Bool?
 
         enum CodingKeys: String, CodingKey {
             case serverURL = "PLEX_SERVER_URL"
-            case username = "PLEX_USERNAME"
-            case password = "PLEX_PASSWORD"
+            case autoStartAuth = "AUTO_START_AUTH"
         }
     }
 
