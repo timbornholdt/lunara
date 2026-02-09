@@ -9,16 +9,36 @@ final class AlbumDetailViewModel: ObservableObject {
     @Published var errorMessage: String?
 
     private let album: PlexAlbum
-    private let tokenStore: PlexAuthTokenStore
+    private let tokenStore: PlexAuthTokenStoring
+    private let serverStore: PlexServerAddressStoring
+    private let libraryServiceFactory: PlexLibraryServiceFactory
+    private let sessionInvalidationHandler: () -> Void
 
-    init(album: PlexAlbum, tokenStore: PlexAuthTokenStore = PlexAuthTokenStore(keychain: KeychainStore())) {
+    init(
+        album: PlexAlbum,
+        tokenStore: PlexAuthTokenStoring = PlexAuthTokenStore(keychain: KeychainStore()),
+        serverStore: PlexServerAddressStoring = UserDefaultsServerAddressStore(),
+        libraryServiceFactory: @escaping PlexLibraryServiceFactory = { serverURL, token in
+            let config = PlexDefaults.configuration()
+            let builder = PlexLibraryRequestBuilder(baseURL: serverURL, token: token, configuration: config)
+            return PlexLibraryService(
+                httpClient: PlexHTTPClient(),
+                requestBuilder: builder,
+                paginator: PlexPaginator(pageSize: 50)
+            )
+        },
+        sessionInvalidationHandler: @escaping () -> Void = {}
+    ) {
         self.album = album
         self.tokenStore = tokenStore
+        self.serverStore = serverStore
+        self.libraryServiceFactory = libraryServiceFactory
+        self.sessionInvalidationHandler = sessionInvalidationHandler
     }
 
     func loadTracks() async {
         errorMessage = nil
-        guard let serverURL = serverURL() else {
+        guard let serverURL = serverStore.serverURL else {
             errorMessage = "Missing server URL."
             return
         }
@@ -31,19 +51,16 @@ final class AlbumDetailViewModel: ObservableObject {
         defer { isLoading = false }
 
         do {
-            let config = PlexDefaults.configuration()
-            let builder = PlexLibraryRequestBuilder(baseURL: serverURL, token: token, configuration: config)
-            let service = PlexLibraryService(httpClient: PlexHTTPClient(), requestBuilder: builder, paginator: PlexPaginator(pageSize: 50))
+            let service = libraryServiceFactory(serverURL, token)
             tracks = try await service.fetchTracks(albumRatingKey: album.ratingKey)
         } catch {
-            errorMessage = "Failed to load tracks."
+            if PlexErrorHelpers.isUnauthorized(error) {
+                try? tokenStore.clear()
+                sessionInvalidationHandler()
+                errorMessage = "Session expired. Please sign in again."
+            } else {
+                errorMessage = "Failed to load tracks."
+            }
         }
-    }
-
-    private func serverURL() -> URL? {
-        guard let stored = UserDefaults.standard.string(forKey: "plex.server.baseURL") else {
-            return nil
-        }
-        return URL(string: stored)
     }
 }

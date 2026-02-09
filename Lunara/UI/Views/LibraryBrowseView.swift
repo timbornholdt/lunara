@@ -42,7 +42,7 @@ struct LibraryBrowseView: View {
                         LazyVGrid(columns: columns, spacing: 16) {
                             ForEach(viewModel.albums, id: \.ratingKey) { album in
                                 NavigationLink {
-                                    AlbumDetailView(album: album)
+                                    AlbumDetailView(album: album, sessionInvalidationHandler: signOut)
                                 } label: {
                                     AlbumCardView(album: album)
                                 }

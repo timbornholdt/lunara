@@ -11,21 +11,66 @@ final class AuthViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var isAuthenticated = false
 
-    private let tokenStore: PlexAuthTokenStore
+    private let tokenStore: PlexAuthTokenStoring
+    private var serverStore: PlexServerAddressStoring
+    private let authService: PlexAuthServicing
+    private let tokenValidator: PlexTokenValidating
+    private let loadOnInit: Bool
 
-    init(tokenStore: PlexAuthTokenStore = PlexAuthTokenStore(keychain: KeychainStore())) {
+    init(
+        tokenStore: PlexAuthTokenStoring = PlexAuthTokenStore(keychain: KeychainStore()),
+        serverStore: PlexServerAddressStoring = UserDefaultsServerAddressStore(),
+        authService: PlexAuthServicing = PlexAuthService(
+            httpClient: PlexHTTPClient(),
+            requestBuilder: PlexAuthRequestBuilder(
+                baseURL: PlexDefaults.authBaseURL,
+                configuration: PlexDefaults.configuration()
+            )
+        ),
+        tokenValidator: PlexTokenValidating = PlexTokenValidator(
+            libraryServiceFactory: { serverURL, token in
+                let config = PlexDefaults.configuration()
+                let builder = PlexLibraryRequestBuilder(baseURL: serverURL, token: token, configuration: config)
+                return PlexLibraryService(
+                    httpClient: PlexHTTPClient(),
+                    requestBuilder: builder,
+                    paginator: PlexPaginator(pageSize: 50)
+                )
+            }
+        ),
+        loadOnInit: Bool = true
+    ) {
         self.tokenStore = tokenStore
-        self.serverURLText = UserDefaults.standard.string(forKey: "plex.server.baseURL") ?? ""
-        Task {
-            await loadToken()
+        self.serverStore = serverStore
+        self.authService = authService
+        self.tokenValidator = tokenValidator
+        self.loadOnInit = loadOnInit
+        self.serverURLText = serverStore.serverURL?.absoluteString ?? ""
+        if loadOnInit {
+            Task {
+                await loadToken()
+            }
         }
     }
 
     func loadToken() async {
         do {
-            let token = try tokenStore.load()
-            if token != nil {
+            guard let token = try tokenStore.load() else { return }
+            guard let serverURL = serverStore.serverURL else {
+                errorMessage = "Missing server URL."
+                return
+            }
+            do {
+                try await tokenValidator.validate(serverURL: serverURL, token: token)
                 isAuthenticated = true
+            } catch {
+                if PlexErrorHelpers.isUnauthorized(error) {
+                    try? tokenStore.clear()
+                    errorMessage = "Session expired. Please sign in again."
+                } else {
+                    errorMessage = "Failed to validate session."
+                }
+                isAuthenticated = false
             }
         } catch {
             errorMessage = "Failed to load session."
@@ -43,11 +88,6 @@ final class AuthViewModel: ObservableObject {
         defer { isLoading = false }
 
         do {
-            let config = PlexDefaults.configuration()
-            let authService = PlexAuthService(
-                httpClient: PlexHTTPClient(),
-                requestBuilder: PlexAuthRequestBuilder(baseURL: PlexDefaults.authBaseURL, configuration: config)
-            )
             let token = try await authService.signIn(
                 login: login,
                 password: password,
@@ -55,7 +95,7 @@ final class AuthViewModel: ObservableObject {
                 rememberMe: true
             )
             try tokenStore.save(token: token)
-            UserDefaults.standard.set(serverURL.absoluteString, forKey: "plex.server.baseURL")
+            serverStore.serverURL = serverURL
             isAuthenticated = true
         } catch {
             errorMessage = "Sign in failed."

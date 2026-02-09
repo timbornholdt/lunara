@@ -6,7 +6,7 @@ protocol KeychainStoring {
     func delete(key: String) throws
 }
 
-struct PlexAuthTokenStore {
+struct PlexAuthTokenStore: PlexAuthTokenStoring {
     private let keychain: KeychainStoring
     private let tokenKey = "plex.auth.token"
 

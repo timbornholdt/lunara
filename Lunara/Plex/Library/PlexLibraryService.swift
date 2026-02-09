@@ -1,7 +1,7 @@
 import Foundation
 
-struct PlexLibraryService {
-    let httpClient: PlexHTTPClient
+struct PlexLibraryService: PlexLibraryServicing {
+    let httpClient: PlexHTTPClienting
     let requestBuilder: PlexLibraryRequestBuilder
     let paginator: PlexPaginator
 

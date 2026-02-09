@@ -1,6 +1,6 @@
 import Foundation
 
-struct PlexHTTPClient {
+struct PlexHTTPClient: PlexHTTPClienting {
     let session: URLSession
 
     init(session: URLSession = .shared) {
@@ -26,4 +26,19 @@ struct PlexHTTPClient {
 enum PlexHTTPError: Error {
     case invalidResponse
     case httpStatus(Int, Data)
+}
+
+extension PlexHTTPError {
+    var statusCode: Int? {
+        switch self {
+        case .httpStatus(let code, _):
+            return code
+        case .invalidResponse:
+            return nil
+        }
+    }
+
+    var isUnauthorized: Bool {
+        statusCode == 401
+    }
 }

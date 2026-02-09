@@ -2,11 +2,16 @@ import SwiftUI
 
 struct AlbumDetailView: View {
     let album: PlexAlbum
+    let sessionInvalidationHandler: () -> Void
     @StateObject private var viewModel: AlbumDetailViewModel
 
-    init(album: PlexAlbum) {
+    init(album: PlexAlbum, sessionInvalidationHandler: @escaping () -> Void = {}) {
         self.album = album
-        _viewModel = StateObject(wrappedValue: AlbumDetailViewModel(album: album))
+        self.sessionInvalidationHandler = sessionInvalidationHandler
+        _viewModel = StateObject(wrappedValue: AlbumDetailViewModel(
+            album: album,
+            sessionInvalidationHandler: sessionInvalidationHandler
+        ))
     }
 
     var body: some View {
