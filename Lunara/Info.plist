@@ -58,10 +58,10 @@
 	</array>
 	<key>UIAppFonts</key>
 	<array>
-		<string>Resources/Fonts/PlayfairDisplay/PlayfairDisplay-Regular.ttf</string>
-		<string>Resources/Fonts/PlayfairDisplay/PlayfairDisplay-SemiBold.ttf</string>
-		<string>Resources/Fonts/PlayfairDisplay/PlayfairDisplay-Bold.ttf</string>
-		<string>Resources/Fonts/PlayfairDisplay/PlayfairDisplay-Italic.ttf</string>
+		<string>PlayfairDisplay-Regular.ttf</string>
+		<string>PlayfairDisplay-SemiBold.ttf</string>
+		<string>PlayfairDisplay-Bold.ttf</string>
+		<string>PlayfairDisplay-Italic.ttf</string>
 	</array>
 </dict>
 </plist>
