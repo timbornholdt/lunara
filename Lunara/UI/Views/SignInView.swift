@@ -92,35 +92,37 @@ struct SignInView: View {
                 }
 
 #if DEBUG
-            if LocalPlexConfig.credentials != nil {
-                Button("Quick Sign-In (Debug)") {
-                    Task { await viewModel.signInWithLocalConfig() }
-                }
-                .buttonStyle(LunaraSecondaryButtonStyle(palette: palette))
-                .disabled(viewModel.isLoading)
-            }
-
-            if !viewModel.debugLog.isEmpty {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(viewModel.debugLog, id: \.self) { line in
-                            Text(line)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                Group {
+                    if LocalPlexConfig.credentials != nil {
+                        Button("Quick Sign-In (Debug)") {
+                            Task { await viewModel.signInWithLocalConfig() }
                         }
+                        .buttonStyle(LunaraSecondaryButtonStyle(palette: palette))
+                        .disabled(viewModel.isLoading)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    if !viewModel.debugLog.isEmpty {
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 6) {
+                                ForEach(viewModel.debugLog, id: \.self) { line in
+                                    Text(line)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .frame(maxHeight: 180)
+                        .padding(.horizontal, Layout.cardHorizontalPadding)
+                        .padding(.vertical, 8)
+                        .background(palette.raised)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Layout.cardCornerRadius)
+                                .stroke(palette.borderSubtle, lineWidth: 1)
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: Layout.cardCornerRadius))
+                    }
                 }
-                .frame(maxHeight: 180)
-                .padding(.horizontal, Layout.cardHorizontalPadding)
-                .padding(.vertical, 8)
-                .background(palette.raised)
-                .overlay(
-                    RoundedRectangle(cornerRadius: Layout.cardCornerRadius)
-                        .stroke(palette.borderSubtle, lineWidth: 1)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: Layout.cardCornerRadius))
-            }
 #endif
 
             Spacer()
@@ -145,4 +147,5 @@ struct SignInView: View {
             viewModel.authURL = nil
         }
     }
+}
 }
