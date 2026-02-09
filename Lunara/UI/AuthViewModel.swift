@@ -12,6 +12,10 @@ final class AuthViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var isAuthenticated = false
     @Published var authURL: URL?
+    @Published var statusMessage: String?
+#if DEBUG
+    @Published var debugLog: [String] = []
+#endif
 
     private let tokenStore: PlexAuthTokenStoring
     private var serverStore: PlexServerAddressStoring
@@ -84,8 +88,10 @@ final class AuthViewModel: ObservableObject {
 
     func signIn() async {
         errorMessage = nil
+        statusMessage = "Preparing sign-in..."
         guard let serverURL = URL(string: serverURLText), serverURL.scheme != nil else {
             errorMessage = "Enter a valid Plex server URL."
+            statusMessage = nil
             return
         }
 
@@ -93,14 +99,19 @@ final class AuthViewModel: ObservableObject {
         defer { isLoading = false }
 
         do {
+            log("Creating Plex PIN...")
             let pin = try await pinService.createPin()
+            log("PIN created. Building auth URL.")
             let config = PlexDefaults.configuration()
             if let url = authURLBuilder.makeAuthURL(
                 code: pin.code,
                 clientIdentifier: config.clientIdentifier,
-                product: config.product
+                product: config.product,
+                forwardURL: URL(string: "https://app.plex.tv/desktop/")
             ) {
                 authURL = url
+                statusMessage = "Waiting for authorization..."
+                log("Auth URL ready: \(url.absoluteString)")
             }
             await pollForToken(pin: pin, serverURL: serverURL)
         } catch {
@@ -109,6 +120,7 @@ final class AuthViewModel: ObservableObject {
                 .error("Sign in failed: \(String(describing: error))")
 #endif
             errorMessage = "Sign in failed."
+            statusMessage = nil
         }
     }
 
@@ -120,12 +132,14 @@ final class AuthViewModel: ObservableObject {
             errorMessage = "Failed to sign out."
         }
         isAuthenticated = false
+        statusMessage = nil
     }
 
 #if DEBUG
     func applyLocalConfigIfAvailable() {
         guard let config = LocalPlexConfig.credentials else { return }
         serverURLText = config.serverURL
+        log("Loaded LocalConfig.plist server URL.")
     }
 
     func signInWithLocalConfig() async {
@@ -137,26 +151,41 @@ final class AuthViewModel: ObservableObject {
     private func pollForToken(pin: PlexPin, serverURL: URL) async {
         pollTask?.cancel()
         pollTask = Task {
-            for _ in 0..<maxPollAttempts {
+            for attempt in 1...maxPollAttempts {
                 if Task.isCancelled { return }
                 do {
+                    if attempt == 1 || attempt % 5 == 0 {
+                        log("Polling for auth token (attempt \(attempt))...")
+                    }
                     let status = try await pinService.checkPin(id: pin.id, code: pin.code)
                     if let token = status.authToken {
+                        log("Authorization complete. Saving token.")
                         try tokenStore.save(token: token)
                         serverStore.serverURL = serverURL
                         isAuthenticated = true
+                        statusMessage = "Signed in."
                         return
                     }
                 } catch {
+                    log("Polling error: \(String(describing: error))")
                     if PlexErrorHelpers.isUnauthorized(error) {
                         errorMessage = "Session expired. Please sign in again."
+                        statusMessage = nil
                         return
                     }
                 }
                 try? await Task.sleep(nanoseconds: pollIntervalNanoseconds)
             }
             errorMessage = "Sign in timed out."
+            statusMessage = nil
         }
         await pollTask?.value
     }
+
+#if DEBUG
+    private func log(_ message: String) {
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+        debugLog.append("[\(timestamp)] \(message)")
+    }
+#endif
 }
