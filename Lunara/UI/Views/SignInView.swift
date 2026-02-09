@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct SignInView: View {
     @StateObject var viewModel: AuthViewModel
@@ -21,6 +22,11 @@ struct SignInView: View {
                     .textFieldStyle(.roundedBorder)
             }
 
+            if let status = viewModel.statusMessage {
+                Text(status)
+                    .foregroundStyle(.secondary)
+            }
+
             if let error = viewModel.errorMessage {
                 Text(error)
                     .foregroundStyle(.red)
@@ -40,6 +46,22 @@ struct SignInView: View {
             .buttonStyle(.borderedProminent)
             .disabled(viewModel.isLoading)
 
+            if let authURL = viewModel.authURL {
+                VStack(spacing: 8) {
+                    Text("If Safari doesn't open, copy this link:")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Text(authURL.absoluteString)
+                        .font(.footnote)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(3)
+                    Button("Copy Auth Link") {
+                        UIPasteboard.general.string = authURL.absoluteString
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+
 #if DEBUG
             if LocalPlexConfig.credentials != nil {
                 Button("Quick Sign-In (Debug)") {
@@ -47,6 +69,22 @@ struct SignInView: View {
                 }
                 .buttonStyle(.bordered)
                 .disabled(viewModel.isLoading)
+            }
+
+            if !viewModel.debugLog.isEmpty {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(viewModel.debugLog, id: \.self) { line in
+                            Text(line)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 180)
+                .background(Color.gray.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
             }
 #endif
 
