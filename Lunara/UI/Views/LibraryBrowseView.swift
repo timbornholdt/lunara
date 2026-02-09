@@ -3,53 +3,70 @@ import SwiftUI
 struct LibraryBrowseView: View {
     @StateObject var viewModel: LibraryViewModel
     let signOut: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
+
+    enum Layout {
+        static let globalPadding = LunaraTheme.Layout.globalPadding
+        static let columnSpacing: CGFloat = 16
+        static let rowSpacing: CGFloat = 18
+        static let cardCornerRadius = LunaraTheme.Layout.cardCornerRadius
+        static let cardShadowOpacity: Double = 0.08
+        static let cardShadowRadius: CGFloat = 8
+        static let cardShadowYOffset: CGFloat = 1
+    }
 
     private let columns = [
-        GridItem(.flexible(), spacing: 16),
-        GridItem(.flexible(), spacing: 16)
+        GridItem(.flexible(), spacing: Layout.columnSpacing),
+        GridItem(.flexible(), spacing: Layout.columnSpacing)
     ]
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                if viewModel.sections.count > 1 {
-                    Picker("Library", selection: Binding(
-                        get: { viewModel.selectedSection?.key ?? "" },
-                        set: { newValue in
-                            if let section = viewModel.sections.first(where: { $0.key == newValue }) {
-                                Task { await viewModel.selectSection(section) }
-                            }
-                        }
-                    )) {
-                        ForEach(viewModel.sections, id: \.key) { section in
-                            Text(section.title).tag(section.key)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .padding()
-                }
+        let palette = LunaraTheme.Palette.colors(for: colorScheme)
 
-                if viewModel.isLoading {
-                    ProgressView("Loading library...")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if let error = viewModel.errorMessage {
-                    Text(error)
-                        .foregroundStyle(.red)
-                        .padding()
-                    Spacer()
-                } else {
-                    ScrollView {
-                        LazyVGrid(columns: columns, spacing: 16) {
-                            ForEach(viewModel.albums, id: \.ratingKey) { album in
-                                NavigationLink {
-                                    AlbumDetailView(album: album, sessionInvalidationHandler: signOut)
-                                } label: {
-                                    AlbumCardView(album: album)
+        NavigationStack {
+            ZStack {
+                LinenBackgroundView(palette: palette)
+                VStack(spacing: 0) {
+                    if viewModel.sections.count > 1 {
+                        Picker("Library", selection: Binding(
+                            get: { viewModel.selectedSection?.key ?? "" },
+                            set: { newValue in
+                                if let section = viewModel.sections.first(where: { $0.key == newValue }) {
+                                    Task { await viewModel.selectSection(section) }
                                 }
-                                .buttonStyle(.plain)
+                            }
+                        )) {
+                            ForEach(viewModel.sections, id: \.key) { section in
+                                Text(section.title).tag(section.key)
                             }
                         }
-                        .padding()
+                        .pickerStyle(.segmented)
+                        .tint(palette.accentPrimary)
+                        .padding(Layout.globalPadding)
+                    }
+
+                    if viewModel.isLoading {
+                        ProgressView("Loading library...")
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else if let error = viewModel.errorMessage {
+                        Text(error)
+                            .foregroundStyle(palette.stateError)
+                            .padding(Layout.globalPadding)
+                        Spacer()
+                    } else {
+                        ScrollView {
+                            LazyVGrid(columns: columns, spacing: Layout.rowSpacing) {
+                                ForEach(viewModel.albums, id: \.ratingKey) { album in
+                                    NavigationLink {
+                                        AlbumDetailView(album: album, sessionInvalidationHandler: signOut)
+                                    } label: {
+                                        AlbumCardView(album: album, palette: palette)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(Layout.globalPadding)
+                        }
                     }
                 }
             }
@@ -68,36 +85,60 @@ struct LibraryBrowseView: View {
 
 private struct AlbumCardView: View {
     let album: PlexAlbum
+    let palette: LunaraTheme.PaletteColors
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            AlbumArtworkView(album: album)
+            AlbumArtworkView(album: album, palette: palette)
                 .frame(height: 160)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .clipShape(RoundedRectangle(cornerRadius: LibraryBrowseView.Layout.cardCornerRadius))
 
             Text(album.title)
-                .font(.headline)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(palette.textPrimary)
                 .lineLimit(2)
 
             if let year = album.year {
                 Text(String(year))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 13))
+                    .foregroundStyle(palette.textSecondary)
             }
         }
+        .padding(12)
+        .background(palette.raised)
+        .overlay(
+            RoundedRectangle(cornerRadius: LibraryBrowseView.Layout.cardCornerRadius)
+                .stroke(palette.borderSubtle, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: LibraryBrowseView.Layout.cardCornerRadius))
+        .shadow(
+            color: Color.black.opacity(LibraryBrowseView.Layout.cardShadowOpacity),
+            radius: LibraryBrowseView.Layout.cardShadowRadius,
+            x: 0,
+            y: LibraryBrowseView.Layout.cardShadowYOffset
+        )
     }
 }
 
 struct AlbumArtworkView: View {
     let album: PlexAlbum
+    let palette: LunaraTheme.PaletteColors?
+
+    init(album: PlexAlbum, palette: LunaraTheme.PaletteColors? = nil) {
+        self.album = album
+        self.palette = palette
+    }
 
     var body: some View {
+        let placeholder = palette?.raised ?? Color.gray.opacity(0.2)
+        let secondaryText = palette?.textSecondary ?? Color.secondary
+
         if let url = artworkURL() {
             AsyncImage(url: url) { phase in
                 switch phase {
                 case .empty:
                     ZStack {
-                        Color.gray.opacity(0.2)
+                        placeholder
                         ProgressView()
                     }
                 case .success(let image):
@@ -105,15 +146,15 @@ struct AlbumArtworkView: View {
                         .resizable()
                         .scaledToFill()
                 case .failure:
-                    Color.gray.opacity(0.2)
-                        .overlay(Text("No Art").font(.caption))
+                    placeholder
+                        .overlay(Text("No Art").font(.caption).foregroundStyle(secondaryText))
                 @unknown default:
-                    Color.gray.opacity(0.2)
+                    placeholder
                 }
             }
         } else {
-            Color.gray.opacity(0.2)
-                .overlay(Text("No Art").font(.caption))
+            placeholder
+                .overlay(Text("No Art").font(.caption).foregroundStyle(secondaryText))
         }
     }
 
