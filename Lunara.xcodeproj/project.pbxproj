@@ -21,9 +21,23 @@
 		F19129302F3997C800064746 /* LunaraTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LunaraTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		F1993B412F3A7CE900CE2BAB /* Exceptions for "Lunara" folder in "LunaraTests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"Resources/Fonts/PlayfairDisplay/PlayfairDisplay-Italic-VariableFont_wght.ttf",
+				"Resources/Fonts/PlayfairDisplay/PlayfairDisplay-VariableFont_wght.ttf",
+			);
+			target = F191292F2F3997C800064746 /* LunaraTests */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		F19129202F392CB800064746 /* Lunara */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				F1993B412F3A7CE900CE2BAB /* Exceptions for "Lunara" folder in "LunaraTests" target */,
+			);
 			path = Lunara;
 			sourceTree = "<group>";
 		};
@@ -341,6 +355,10 @@
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
+				INFOPLIST_KEY_UIAppFonts = (
+					"Resources/Fonts/PlayfairDisplay/PlayfairDisplay-VariableFont_wght.ttf",
+					"Resources/Fonts/PlayfairDisplay/PlayfairDisplay-Italic-VariableFont_wght.ttf",
+				);
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
@@ -385,6 +403,10 @@
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
+				INFOPLIST_KEY_UIAppFonts = (
+					"Resources/Fonts/PlayfairDisplay/PlayfairDisplay-VariableFont_wght.ttf",
+					"Resources/Fonts/PlayfairDisplay/PlayfairDisplay-Italic-VariableFont_wght.ttf",
+				);
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.2;

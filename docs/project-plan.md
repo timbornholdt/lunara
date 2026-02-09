@@ -18,7 +18,7 @@
 3. [x] Inventory current repo
    - Acceptance criteria:
      - Summary of existing code structure, current UI/architecture patterns, and gaps.
-4. [ ] Define UI design language + brand direction (requirements pending)
+4. [x] Define UI design language + brand direction (requirements pending)
    - Product requirements to define:
      - Brand direction: name usage, tone, and visual references.
      - Typography system: primary/secondary fonts and hierarchy rules.
@@ -34,15 +34,20 @@
    - Acceptance criteria:
      - Can authenticate to a Plex server.
      - Can fetch albums + tracks metadata.
-2. [ ] Playback engine v1 (AVPlayer)
+2. [ ] UI assets + sign-in refactor (brand compliance)
+   - Acceptance criteria:
+     - Playfair Display font asset added to the app and configured in Info.plist.
+     - Linen background texture generated on the fly (no static asset), adapts to theme changes.
+     - Sign-in screen updated to match `docs/ui-brand-guide.md` (typography, colors, pill buttons, card-style inputs).
+3. [ ] Playback engine v1 (AVPlayer)
    - Acceptance criteria:
      - Plays a full album sequentially.
      - No truncation on network changes.
-3. [ ] Offline manager v1
+4. [ ] Offline manager v1
    - Acceptance criteria:
      - Downloads complete files only.
      - Offline playback skips non-downloaded tracks immediately.
-4. [ ] Queue manager v1
+5. [ ] Queue manager v1
    - Acceptance criteria:
      - Play now/next/later works for album insertions.
      - Queue persists across app restarts.
