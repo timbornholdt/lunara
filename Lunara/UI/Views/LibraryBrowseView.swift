@@ -15,7 +15,7 @@ struct LibraryBrowseView: View {
         static let cardShadowYOffset: CGFloat = 1
         static let titleHeight: CGFloat = 40
         static let yearHeight: CGFloat = 16
-        static let verticalPadding: CGFloat = 24
+        static let verticalPadding: CGFloat = 12
         static let verticalSpacing: CGFloat = 16
 
         static func cardHeight(for width: CGFloat) -> CGFloat {
@@ -82,10 +82,16 @@ struct LibraryBrowseView: View {
                     }
                 }
             }
-            .navigationTitle("Library")
             .toolbar {
-                Button("Sign Out") {
-                    signOut()
+                ToolbarItem(placement: .principal) {
+                    Text("Library")
+                        .font(LunaraTheme.Typography.displayBold(size: 20))
+                        .foregroundStyle(palette.textPrimary)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Sign Out") {
+                        signOut()
+                    }
                 }
             }
         }
@@ -107,19 +113,22 @@ private struct AlbumCardView: View {
                 .clipShape(RoundedRectangle(cornerRadius: LibraryBrowseView.Layout.cardCornerRadius))
                 .clipped()
 
-            Text(album.title)
-                .font(LunaraTheme.Typography.display(size: 15))
-                .foregroundStyle(palette.textPrimary)
-                .lineLimit(2)
-                .frame(height: LibraryBrowseView.Layout.titleHeight, alignment: .topLeading)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(album.title)
+                    .font(LunaraTheme.Typography.displayBold(size: 15))
+                    .foregroundStyle(palette.textPrimary)
+                    .lineLimit(2)
+                    .frame(height: LibraryBrowseView.Layout.titleHeight, alignment: .topLeading)
 
-            Text(album.year.map(String.init) ?? " ")
-                .font(LunaraTheme.Typography.display(size: 13))
-                .foregroundStyle(palette.textSecondary)
-                .opacity(album.year == nil ? 0 : 1)
-                .frame(height: LibraryBrowseView.Layout.yearHeight, alignment: .topLeading)
+                Text(metadataText)
+                    .font(LunaraTheme.Typography.display(size: 13))
+                    .foregroundStyle(palette.textSecondary)
+                    .opacity(metadataText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0 : 1)
+                    .frame(height: LibraryBrowseView.Layout.yearHeight, alignment: .topLeading)
+            }
+            .padding(.horizontal, 12)
+            .padding(.bottom, 12)
         }
-        .padding(12)
         .frame(width: width, height: LibraryBrowseView.Layout.cardHeight(for: width), alignment: .top)
         .background(palette.raised)
         .overlay(
@@ -133,6 +142,21 @@ private struct AlbumCardView: View {
             x: 0,
             y: LibraryBrowseView.Layout.cardShadowYOffset
         )
+    }
+
+    private var metadataText: String {
+        let artist = album.artist?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let year = album.year.map(String.init)
+        switch (artist?.isEmpty == false ? artist : nil, year) {
+        case let (.some(name), .some(yearValue)):
+            return "\(name) — \(yearValue)"
+        case let (.some(name), .none):
+            return name
+        case let (.none, .some(yearValue)):
+            return yearValue
+        default:
+            return " "
+        }
     }
 }
 

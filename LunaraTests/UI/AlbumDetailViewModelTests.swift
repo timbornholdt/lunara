@@ -5,7 +5,7 @@ import Testing
 @MainActor
 struct AlbumDetailViewModelTests {
     @Test func loadsTracksForAlbum() async {
-        let album = PlexAlbum(ratingKey: "10", title: "Album", thumb: nil, art: nil, year: 2022, key: nil)
+        let album = PlexAlbum(ratingKey: "10", title: "Album", thumb: nil, art: nil, year: 2022, artist: nil, key: nil)
         let tokenStore = InMemoryTokenStore(token: "token")
         let serverStore = InMemoryServerStore(url: URL(string: "https://example.com:32400")!)
         let service = StubLibraryService(
@@ -29,7 +29,7 @@ struct AlbumDetailViewModelTests {
     }
 
     @Test func unauthorizedClearsTokenAndInvalidatesSession() async {
-        let album = PlexAlbum(ratingKey: "10", title: "Album", thumb: nil, art: nil, year: 2022, key: nil)
+        let album = PlexAlbum(ratingKey: "10", title: "Album", thumb: nil, art: nil, year: 2022, artist: nil, key: nil)
         let tokenStore = InMemoryTokenStore(token: "token")
         let serverStore = InMemoryServerStore(url: URL(string: "https://example.com:32400")!)
         let service = StubLibraryService(

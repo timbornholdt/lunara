@@ -17,6 +17,7 @@ struct PlexDecodingTests {
                 "thumb": "/library/metadata/265/thumb/1715112705",
                 "art": "/library/metadata/265/art/1716801576",
                 "year": 2014,
+                "parentTitle": "Weird Al Yankovic",
                 "key": "/library/metadata/265/children"
               }
             ]
@@ -30,6 +31,7 @@ struct PlexDecodingTests {
         #expect(album.ratingKey == "265")
         #expect(album.title == "Mandatory Fun")
         #expect(album.thumb != nil)
+        #expect(album.artist == "Weird Al Yankovic")
         #expect(album.key == "/library/metadata/265/children")
     }
 
