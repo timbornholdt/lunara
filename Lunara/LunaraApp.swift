@@ -11,6 +11,13 @@ import SwiftUI
 struct LunaraApp: App {
     init() {
         #if DEBUG
+        let appFonts = Bundle.main.object(forInfoDictionaryKey: "UIAppFonts") as? [String] ?? []
+        print("UIAppFonts from Info.plist:", appFonts)
+        let fontExistence = appFonts.map { font in
+            let exists = Bundle.main.url(forResource: font, withExtension: nil) != nil
+            return "\(font)=\(exists)"
+        }
+        print("UIAppFonts existence:", fontExistence)
         let playfairFonts = UIFont.familyNames
             .filter { $0.localizedCaseInsensitiveContains("Playfair") }
             .flatMap { family in
