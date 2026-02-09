@@ -11,8 +11,8 @@ struct LunaraThemeTests {
     }
 
     @Test func typographyUsesPlayfairDisplay() {
-        #expect(LunaraTheme.Typography.displayFontName == "PlayfairDisplay-VariableFont_wght")
-        #expect(LunaraTheme.Typography.displayItalicFontName == "PlayfairDisplay-Italic-VariableFont_wght")
+        #expect(LunaraTheme.Typography.displayFontName == "PlayfairDisplayRoman-SemiBold")
+        #expect(LunaraTheme.Typography.displayItalicFontName == "PlayfairDisplayItalic-SemiBold")
     }
 
     @Test func lightAndDarkPalettesDiffer() {
@@ -30,4 +30,3 @@ struct LunaraThemeTests {
         #expect(SignInView.Layout.cardCornerRadius == LunaraTheme.Layout.cardCornerRadius)
     }
 }
-

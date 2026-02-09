@@ -11,8 +11,8 @@ enum LunaraTheme {
     }
 
     enum Typography {
-        static let displayFontName = "PlayfairDisplay-VariableFont_wght"
-        static let displayItalicFontName = "PlayfairDisplay-Italic-VariableFont_wght"
+        static let displayFontName = "PlayfairDisplayRoman-SemiBold"
+        static let displayItalicFontName = "PlayfairDisplayItalic-SemiBold"
 
         static func display(size: CGFloat) -> Font {
             .custom(displayFontName, size: size)
@@ -85,4 +85,3 @@ extension UIColor {
         self.init(red: red, green: green, blue: blue, alpha: 1.0)
     }
 }
-

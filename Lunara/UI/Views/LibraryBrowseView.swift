@@ -13,12 +13,15 @@ struct LibraryBrowseView: View {
         static let cardShadowOpacity: Double = 0.08
         static let cardShadowRadius: CGFloat = 8
         static let cardShadowYOffset: CGFloat = 1
-    }
+        static let titleHeight: CGFloat = 40
+        static let yearHeight: CGFloat = 16
+        static let verticalPadding: CGFloat = 24
+        static let verticalSpacing: CGFloat = 16
 
-    private let columns = [
-        GridItem(.flexible(), spacing: Layout.columnSpacing),
-        GridItem(.flexible(), spacing: Layout.columnSpacing)
-    ]
+        static func cardHeight(for width: CGFloat) -> CGFloat {
+            width + titleHeight + yearHeight + verticalPadding + verticalSpacing
+        }
+    }
 
     var body: some View {
         let palette = LunaraTheme.Palette.colors(for: colorScheme)
@@ -54,18 +57,27 @@ struct LibraryBrowseView: View {
                             .padding(Layout.globalPadding)
                         Spacer()
                     } else {
-                        ScrollView {
-                            LazyVGrid(columns: columns, spacing: Layout.rowSpacing) {
-                                ForEach(viewModel.albums, id: \.ratingKey) { album in
-                                    NavigationLink {
-                                        AlbumDetailView(album: album, sessionInvalidationHandler: signOut)
-                                    } label: {
-                                        AlbumCardView(album: album, palette: palette)
+                        GeometryReader { proxy in
+                            let contentWidth = max(proxy.size.width - (Layout.globalPadding * 2), 0)
+                            let columnWidth = max((contentWidth - Layout.columnSpacing) / 2, 0)
+                            let columns = [
+                                GridItem(.fixed(columnWidth), spacing: Layout.columnSpacing),
+                                GridItem(.fixed(columnWidth), spacing: Layout.columnSpacing)
+                            ]
+
+                            ScrollView {
+                                LazyVGrid(columns: columns, spacing: Layout.rowSpacing) {
+                                    ForEach(viewModel.albums, id: \.ratingKey) { album in
+                                        NavigationLink {
+                                            AlbumDetailView(album: album, sessionInvalidationHandler: signOut)
+                                        } label: {
+                                            AlbumCardView(album: album, palette: palette, width: columnWidth)
+                                        }
+                                        .buttonStyle(.plain)
                                     }
-                                    .buttonStyle(.plain)
                                 }
+                                .padding(Layout.globalPadding)
                             }
-                            .padding(Layout.globalPadding)
                         }
                     }
                 }
@@ -86,12 +98,12 @@ struct LibraryBrowseView: View {
 private struct AlbumCardView: View {
     let album: PlexAlbum
     let palette: LunaraTheme.PaletteColors
+    let width: CGFloat
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             AlbumArtworkView(album: album, palette: palette)
-                .aspectRatio(1, contentMode: .fill)
-                .frame(maxWidth: .infinity)
+                .frame(width: width, height: width)
                 .clipShape(RoundedRectangle(cornerRadius: LibraryBrowseView.Layout.cardCornerRadius))
                 .clipped()
 
@@ -99,14 +111,17 @@ private struct AlbumCardView: View {
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(palette.textPrimary)
                 .lineLimit(2)
+                .frame(height: LibraryBrowseView.Layout.titleHeight, alignment: .topLeading)
 
             if let year = album.year {
                 Text(String(year))
                     .font(.system(size: 13))
                     .foregroundStyle(palette.textSecondary)
+                    .frame(height: LibraryBrowseView.Layout.yearHeight, alignment: .topLeading)
             }
         }
         .padding(12)
+        .frame(width: width, height: LibraryBrowseView.Layout.cardHeight(for: width), alignment: .top)
         .background(palette.raised)
         .overlay(
             RoundedRectangle(cornerRadius: LibraryBrowseView.Layout.cardCornerRadius)
