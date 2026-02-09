@@ -66,7 +66,7 @@ struct AlbumDetailView: View {
                         } else {
                             VStack(alignment: .leading, spacing: Layout.trackRowSpacing) {
                                 Text("Tracks")
-                                    .font(.system(size: 22, weight: .semibold))
+                                    .font(LunaraTheme.Typography.displayBold(size: 22))
                                     .foregroundStyle(palette.textPrimary)
 
                                 ForEach(viewModel.tracks, id: \.ratingKey) { track in
@@ -105,16 +105,24 @@ struct AlbumDetailView: View {
 
     @ViewBuilder
     private func titleBlock(palette: LunaraTheme.PaletteColors) -> some View {
-        VStack(alignment: .leading, spacing: Layout.titleSpacing) {
-            Text(album.title)
-                .font(LunaraTheme.Typography.displayBold(size: 28))
-                .foregroundStyle(palette.textPrimary)
-                .fixedSize(horizontal: false, vertical: true)
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: Layout.titleSpacing) {
+                Text(album.title)
+                    .font(LunaraTheme.Typography.displayBold(size: 28))
+                    .foregroundStyle(palette.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
 
-            Text(subtitleText)
-                .font(LunaraTheme.Typography.display(size: 15))
-                .foregroundStyle(palette.textSecondary)
-                .opacity(subtitleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0 : 1)
+                Text(subtitleText)
+                    .font(LunaraTheme.Typography.display(size: 15))
+                    .foregroundStyle(palette.textSecondary)
+                    .opacity(subtitleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0 : 1)
+            }
+
+            Spacer(minLength: 8)
+
+            if let userRating = album.userRating {
+                StarRatingView(ratingOutOfTen: userRating, palette: palette)
+            }
         }
     }
 
@@ -124,7 +132,7 @@ struct AlbumDetailView: View {
         if !metadataItems.isEmpty {
             VStack(alignment: .leading, spacing: Layout.metadataSpacing) {
                 Text("Details")
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(LunaraTheme.Typography.displayBold(size: 20))
                     .foregroundStyle(palette.textPrimary)
 
                 ForEach(metadataItems, id: \.title) { item in
@@ -187,19 +195,19 @@ private struct TrackRowCard: View {
     var body: some View {
         HStack(spacing: 10) {
             Text(track.index.map(String.init) ?? "-")
-                .font(.system(size: 13).monospacedDigit())
+                .font(LunaraTheme.Typography.display(size: 13).monospacedDigit())
                 .foregroundStyle(palette.textSecondary)
                 .frame(width: 22, alignment: .leading)
 
             Text(track.title)
-                .font(.system(size: 17))
+                .font(LunaraTheme.Typography.display(size: 17))
                 .foregroundStyle(palette.textPrimary)
 
             Spacer(minLength: 8)
 
             if let duration = track.duration {
                 Text(formatDuration(duration))
-                    .font(.system(size: 13).monospacedDigit())
+                    .font(LunaraTheme.Typography.display(size: 13).monospacedDigit())
                     .foregroundStyle(palette.textSecondary)
             }
         }
@@ -229,11 +237,11 @@ private struct MetadataCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title.uppercased())
-                .font(.system(size: 11, weight: .semibold))
+                .font(LunaraTheme.Typography.displayBold(size: 11))
                 .foregroundStyle(palette.textSecondary)
 
             Text(value)
-                .font(.system(size: 15))
+                .font(LunaraTheme.Typography.display(size: 15))
                 .foregroundStyle(palette.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -245,6 +253,33 @@ private struct MetadataCard: View {
                 .stroke(palette.borderSubtle, lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: AlbumDetailView.Layout.cardCornerRadius))
+    }
+}
+
+private struct StarRatingView: View {
+    let ratingOutOfTen: Double
+    let palette: LunaraTheme.PaletteColors
+
+    var body: some View {
+        let ratingOutOfFive = max(0, min(ratingOutOfTen / 2.0, 5))
+        let fullStars = Int(ratingOutOfFive)
+        let hasHalfStar = ratingOutOfFive - Double(fullStars) >= 0.5
+        let emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0)
+
+        HStack(spacing: 4) {
+            ForEach(0..<fullStars, id: \.self) { _ in
+                Image(systemName: "star.fill")
+            }
+            if hasHalfStar {
+                Image(systemName: "star.leadinghalf.filled")
+            }
+            ForEach(0..<emptyStars, id: \.self) { _ in
+                Image(systemName: "star")
+            }
+        }
+        .font(.system(size: 13, weight: .semibold))
+        .foregroundStyle(palette.accentSecondary)
+        .accessibilityLabel("\(ratingOutOfFive, specifier: "%.1f") out of 5 stars")
     }
 }
 
