@@ -35,6 +35,7 @@ This file captures how to work with me (the user) and how to build specialized C
 - Test execution: Prefer Codex running TDD tests (e.g., `xcodebuild test`) to verify compliance whenever possible.
 - PR workflow: Create a branch from `main`, commit changes, push, open a GitHub PR, and wait for approval before continuing.
 - PR formatting: Ensure PR bodies use proper newlines (not literal `\\n`) and include Summary + Testing sections.
+- Test gate: Always run tests and confirm they pass before opening or updating a PR. If tests cannot be run, stop and ask for approval with a clear rationale.
  - Project plan maintenance: Keep `docs/project-plan.md` updated with progress whenever work completes a phase item.
 
 ### Tooling

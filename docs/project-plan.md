@@ -18,7 +18,7 @@
 3. [x] Inventory current repo
    - Acceptance criteria:
      - Summary of existing code structure, current UI/architecture patterns, and gaps.
-4. [ ] Define UI design language + brand direction (requirements pending)
+4. [x] Define UI design language + brand direction (requirements pending)
    - Product requirements to define:
      - Brand direction: name usage, tone, and visual references.
      - Typography system: primary/secondary fonts and hierarchy rules.
@@ -34,15 +34,20 @@
    - Acceptance criteria:
      - Can authenticate to a Plex server.
      - Can fetch albums + tracks metadata.
-2. [ ] Playback engine v1 (AVPlayer)
+2. [x] UI assets + sign-in refactor (brand compliance)
+   - Acceptance criteria:
+     - Playfair Display font asset added to the app and configured in Info.plist.
+     - Linen background texture generated on the fly (no static asset), adapts to theme changes.
+     - Sign-in screen updated to match `docs/ui-brand-guide.md` (typography, colors, pill buttons, card-style inputs).
+3. [ ] Playback engine v1 (AVPlayer)
    - Acceptance criteria:
      - Plays a full album sequentially.
      - No truncation on network changes.
-3. [ ] Offline manager v1
+4. [ ] Offline manager v1
    - Acceptance criteria:
      - Downloads complete files only.
      - Offline playback skips non-downloaded tracks immediately.
-4. [ ] Queue manager v1
+5. [ ] Queue manager v1
    - Acceptance criteria:
      - Play now/next/later works for album insertions.
      - Queue persists across app restarts.
@@ -86,6 +91,12 @@
      - Cache library contents locally for fast diffing.
      - Selective sync uses cached index to minimize full refreshes.
      - Sync plans compute adds/removes without re-fetching the full library.
+
+## Future Ideas (Backlog)
+- Wikipedia album context (creation/history)
+  - Fetch Wikipedia content when an album is loaded.
+  - Cache locally with a 1-month expiry.
+  - Prioritize content about album creation and recording context.
 
 ## Phase 4 — Notes & Deletion Queue
 1. [ ] Personal notes

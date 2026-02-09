@@ -17,6 +17,20 @@ struct PlexDecodingTests {
                 "thumb": "/library/metadata/265/thumb/1715112705",
                 "art": "/library/metadata/265/art/1716801576",
                 "year": 2014,
+                "parentTitle": "Weird Al Yankovic",
+                "summary": "A parody-packed album.",
+                "rating": 8.5,
+                "userRating": 9.0,
+                "Genre": [
+                  { "tag": "Comedy" },
+                  { "tag": "Pop" }
+                ],
+                "Style": [
+                  { "tag": "Parody" }
+                ],
+                "Mood": [
+                  { "tag": "Playful" }
+                ],
                 "key": "/library/metadata/265/children"
               }
             ]
@@ -30,6 +44,13 @@ struct PlexDecodingTests {
         #expect(album.ratingKey == "265")
         #expect(album.title == "Mandatory Fun")
         #expect(album.thumb != nil)
+        #expect(album.artist == "Weird Al Yankovic")
+        #expect(album.summary == "A parody-packed album.")
+        #expect(album.genres?.first?.tag == "Comedy")
+        #expect(album.styles?.first?.tag == "Parody")
+        #expect(album.moods?.first?.tag == "Playful")
+        #expect(album.rating == 8.5)
+        #expect(album.userRating == 9.0)
         #expect(album.key == "/library/metadata/265/children")
     }
 
