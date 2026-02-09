@@ -11,8 +11,8 @@ enum LunaraTheme {
     }
 
     enum Typography {
-        static let displayFontName = "PlayfairDisplayRoman-SemiBold"
-        static let displayItalicFontName = "PlayfairDisplayItalic-SemiBold"
+        static let displayFontName = "PlayfairDisplay-SemiBold"
+        static let displayItalicFontName = "PlayfairDisplay-Italic"
 
         static func display(size: CGFloat) -> Font {
             .custom(displayFontName, size: size)

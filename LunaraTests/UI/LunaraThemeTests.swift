@@ -11,8 +11,8 @@ struct LunaraThemeTests {
     }
 
     @Test func typographyUsesPlayfairDisplay() {
-        #expect(LunaraTheme.Typography.displayFontName == "PlayfairDisplayRoman-SemiBold")
-        #expect(LunaraTheme.Typography.displayItalicFontName == "PlayfairDisplayItalic-SemiBold")
+        #expect(LunaraTheme.Typography.displayFontName == "PlayfairDisplay-SemiBold")
+        #expect(LunaraTheme.Typography.displayItalicFontName == "PlayfairDisplay-Italic")
     }
 
     @Test func lightAndDarkPalettesDiffer() {

@@ -108,17 +108,16 @@ private struct AlbumCardView: View {
                 .clipped()
 
             Text(album.title)
-                .font(.system(size: 15, weight: .semibold))
+                .font(LunaraTheme.Typography.display(size: 15))
                 .foregroundStyle(palette.textPrimary)
                 .lineLimit(2)
                 .frame(height: LibraryBrowseView.Layout.titleHeight, alignment: .topLeading)
 
-            if let year = album.year {
-                Text(String(year))
-                    .font(.system(size: 13))
-                    .foregroundStyle(palette.textSecondary)
-                    .frame(height: LibraryBrowseView.Layout.yearHeight, alignment: .topLeading)
-            }
+            Text(album.year.map(String.init) ?? " ")
+                .font(LunaraTheme.Typography.display(size: 13))
+                .foregroundStyle(palette.textSecondary)
+                .opacity(album.year == nil ? 0 : 1)
+                .frame(height: LibraryBrowseView.Layout.yearHeight, alignment: .topLeading)
         }
         .padding(12)
         .frame(width: width, height: LibraryBrowseView.Layout.cardHeight(for: width), alignment: .top)
@@ -162,6 +161,8 @@ struct AlbumArtworkView: View {
                     image
                         .resizable()
                         .scaledToFill()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .clipped()
                 case .failure:
                     placeholder
                         .overlay(Text("No Art").font(.caption).foregroundStyle(secondaryText))
