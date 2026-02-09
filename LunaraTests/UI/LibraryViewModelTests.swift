@@ -13,7 +13,23 @@ struct LibraryViewModelTests {
                 PlexLibrarySection(key: "1", title: "Video", type: "movie"),
                 PlexLibrarySection(key: "2", title: "Music", type: "artist")
             ],
-            albums: [PlexAlbum(ratingKey: "10", title: "Album", thumb: nil, art: nil, year: 2022, artist: nil, key: nil)],
+            albums: [
+                PlexAlbum(
+                    ratingKey: "10",
+                    title: "Album",
+                    thumb: nil,
+                    art: nil,
+                    year: 2022,
+                    artist: nil,
+                    summary: nil,
+                    genres: nil,
+                    styles: nil,
+                    moods: nil,
+                    rating: nil,
+                    userRating: nil,
+                    key: nil
+                )
+            ],
             tracks: []
         )
         var invalidated = false
@@ -43,7 +59,23 @@ struct LibraryViewModelTests {
                 PlexLibrarySection(key: "1", title: "Music", type: "artist"),
                 PlexLibrarySection(key: "2", title: "More", type: "music")
             ],
-            albums: [PlexAlbum(ratingKey: "99", title: "Alt", thumb: nil, art: nil, year: 2020, artist: nil, key: nil)],
+            albums: [
+                PlexAlbum(
+                    ratingKey: "99",
+                    title: "Alt",
+                    thumb: nil,
+                    art: nil,
+                    year: 2020,
+                    artist: nil,
+                    summary: nil,
+                    genres: nil,
+                    styles: nil,
+                    moods: nil,
+                    rating: nil,
+                    userRating: nil,
+                    key: nil
+                )
+            ],
             tracks: []
         )
         let viewModel = LibraryViewModel(
