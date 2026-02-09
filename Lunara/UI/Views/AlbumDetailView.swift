@@ -105,7 +105,7 @@ struct AlbumDetailView: View {
 
     @ViewBuilder
     private func titleBlock(palette: LunaraTheme.PaletteColors) -> some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
             VStack(alignment: .leading, spacing: Layout.titleSpacing) {
                 Text(album.title)
                     .font(LunaraTheme.Typography.displayBold(size: 28))
@@ -122,6 +122,9 @@ struct AlbumDetailView: View {
 
             if let userRating = album.userRating {
                 StarRatingView(ratingOutOfTen: userRating, palette: palette)
+                    .alignmentGuide(.firstTextBaseline) { dimensions in
+                        dimensions[.top]
+                    }
             }
         }
     }
@@ -195,19 +198,19 @@ private struct TrackRowCard: View {
     var body: some View {
         HStack(spacing: 10) {
             Text(track.index.map(String.init) ?? "-")
-                .font(LunaraTheme.Typography.display(size: 13).monospacedDigit())
+                .font(LunaraTheme.Typography.displayRegular(size: 13).monospacedDigit())
                 .foregroundStyle(palette.textSecondary)
                 .frame(width: 22, alignment: .leading)
 
             Text(track.title)
-                .font(LunaraTheme.Typography.display(size: 17))
+                .font(LunaraTheme.Typography.displayRegular(size: 17))
                 .foregroundStyle(palette.textPrimary)
 
             Spacer(minLength: 8)
 
             if let duration = track.duration {
                 Text(formatDuration(duration))
-                    .font(LunaraTheme.Typography.display(size: 13).monospacedDigit())
+                    .font(LunaraTheme.Typography.displayRegular(size: 13).monospacedDigit())
                     .foregroundStyle(palette.textSecondary)
             }
         }
@@ -241,7 +244,7 @@ private struct MetadataCard: View {
                 .foregroundStyle(palette.textSecondary)
 
             Text(value)
-                .font(LunaraTheme.Typography.display(size: 15))
+                .font(LunaraTheme.Typography.displayRegular(size: 15))
                 .foregroundStyle(palette.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
         }

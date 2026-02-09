@@ -14,9 +14,14 @@ enum LunaraTheme {
         static let displayFontName = "PlayfairDisplay-SemiBold"
         static let displayItalicFontName = "PlayfairDisplay-Italic"
         static let displayBoldFontName = "PlayfairDisplay-Bold"
+        static let displayRegularFontName = "PlayfairDisplay-Regular"
 
         static func display(size: CGFloat) -> Font {
             .custom(displayFontName, size: size)
+        }
+
+        static func displayRegular(size: CGFloat) -> Font {
+            .custom(displayRegularFontName, size: size)
         }
 
         static func displayBold(size: CGFloat) -> Font {
