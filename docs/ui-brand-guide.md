@@ -8,20 +8,20 @@
 
 ## Typography System
 - Display font: Playfair Display (serif, classic, editorial tone).
-- Body font: SF Pro (system).
+- Body font: Playfair Display Regular (custom).
 - Hierarchy rules:
-  - Display: `LargeTitle` for album title on detail pages (serif).
-  - Title: `Title2` for section headers and Now Playing title.
-  - Body: `Body` for track rows and metadata.
-  - Caption: `Caption` for secondary metadata (year, genre, duration).
-  - Mono: `MonospacedDigit` for timecodes and progress.
+- Display: `LargeTitle` for album title on detail pages (Playfair Bold).
+- Title: section headers and Now Playing title (Playfair Bold).
+- Body: track rows, metadata, and long-form text (Playfair Regular).
+- Caption: secondary metadata (Playfair Regular).
+- Mono: `MonospacedDigit` for timecodes and progress.
 
 Typography scale (iPhone 15 Pro, point sizes):
-- Display (album title): 34pt, Playfair Display Semibold, line height 1.15
-- Section title: 22pt, SF Pro Semibold, line height 1.2
-- Body: 17pt, SF Pro Regular, line height 1.3
-- Caption: 13pt, SF Pro Regular, line height 1.2
-- Timecode: 13pt, SF Pro Regular + `MonospacedDigit`
+- Display (album title): 34pt, Playfair Display Bold, line height 1.15
+- Section title: 22pt, Playfair Display Bold, line height 1.2
+- Body: 17pt, Playfair Display Regular, line height 1.3
+- Caption: 13pt, Playfair Display Regular, line height 1.2
+- Timecode: 13pt, Playfair Display Regular + `MonospacedDigit`
 
 ## Color System
 Base palette: warm neutral + muted green + deep dusk with gold highlight.
@@ -73,14 +73,15 @@ Layout spec (iPhone 15 Pro):
   - Row spacing: 18pt
   - Artwork card: square, 12pt radius
   - Title top padding: 10pt
-  - Title: 15pt SF Pro Semibold, 2-line max, tail truncation
-  - Subtitle (artist): 13pt SF Pro Regular, 1-line max, tail truncation
+  - Title: 15pt Playfair Display Bold, 2-line max, tail truncation
+  - Subtitle (artist): 13pt Playfair Display Regular, 1-line max, tail truncation
 - Album detail:
-  - Artwork size: full width minus padding (square)
+  - Artwork size: full width edge-to-edge (square)
   - Title block spacing: 10pt between title/artist, 6pt to metadata
+  - User rating: stars aligned to title baseline, shown only if present
   - Action row spacing: 12pt top margin, 12pt horizontal gaps between buttons
   - Track row card: 12pt vertical padding, 14pt horizontal padding, 10pt gap between rows
-  - Track row typography: title 17pt SF Pro Regular, secondary 13pt Caption
+  - Track row typography: title 17pt Playfair Display Regular, secondary 13pt Playfair Display Regular
   - Track number width: fixed 22pt, monospaced digit
   - Duration aligned trailing, monospaced digit
 

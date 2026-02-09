@@ -34,7 +34,7 @@
    - Acceptance criteria:
      - Can authenticate to a Plex server.
      - Can fetch albums + tracks metadata.
-2. [ ] UI assets + sign-in refactor (brand compliance)
+2. [x] UI assets + sign-in refactor (brand compliance)
    - Acceptance criteria:
      - Playfair Display font asset added to the app and configured in Info.plist.
      - Linen background texture generated on the fly (no static asset), adapts to theme changes.
@@ -91,6 +91,12 @@
      - Cache library contents locally for fast diffing.
      - Selective sync uses cached index to minimize full refreshes.
      - Sync plans compute adds/removes without re-fetching the full library.
+
+## Future Ideas (Backlog)
+- Wikipedia album context (creation/history)
+  - Fetch Wikipedia content when an album is loaded.
+  - Cache locally with a 1-month expiry.
+  - Prioritize content about album creation and recording context.
 
 ## Phase 4 — Notes & Deletion Queue
 1. [ ] Personal notes

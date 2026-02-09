@@ -14,7 +14,7 @@ Bring the sign-in experience into compliance with `docs/ui-brand-guide.md`, incl
 
 ## Requirements
 - Use Playfair Display for the "Lunara" title.
-- Use SF Pro for body text.
+- Use Playfair Display Regular for body text.
 - Apply the warm paper + moss palette from `docs/ui-brand-guide.md`.
 - Primary CTA uses pill styling.
 - Input field presented as a card (no default rounded border).
@@ -53,3 +53,6 @@ Generate a subtle linen texture procedurally in SwiftUI:
 - Linen background renders smoothly and adapts to color scheme changes.
 - No functional regressions in the sign-in flow.
 
+## Decisions Captured
+- Playfair Display is used as the primary font for both display and body text.
+- Linen background is generated procedurally and adapts to light/dark palettes.
