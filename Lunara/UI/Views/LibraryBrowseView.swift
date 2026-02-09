@@ -90,8 +90,10 @@ private struct AlbumCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             AlbumArtworkView(album: album, palette: palette)
-                .frame(height: 160)
+                .aspectRatio(1, contentMode: .fill)
+                .frame(maxWidth: .infinity)
                 .clipShape(RoundedRectangle(cornerRadius: LibraryBrowseView.Layout.cardCornerRadius))
+                .clipped()
 
             Text(album.title)
                 .font(.system(size: 15, weight: .semibold))
