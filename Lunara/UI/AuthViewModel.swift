@@ -1,6 +1,9 @@
 import Foundation
 import Combine
 import SwiftUI
+#if DEBUG
+import os
+#endif
 
 @MainActor
 final class AuthViewModel: ObservableObject {
@@ -98,6 +101,10 @@ final class AuthViewModel: ObservableObject {
             serverStore.serverURL = serverURL
             isAuthenticated = true
         } catch {
+#if DEBUG
+            Logger(subsystem: Bundle.main.bundleIdentifier ?? "Lunara", category: "Auth")
+                .error("Sign in failed: \(String(describing: error))")
+#endif
             errorMessage = "Sign in failed."
         }
     }
