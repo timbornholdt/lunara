@@ -33,6 +33,7 @@ This file captures how to work with me (the user) and how to build specialized C
 - Mainline health: `main` should remain buildable and usable at all times; keep changes incremental.
 - Test execution: Prefer Codex running TDD tests (e.g., `xcodebuild test`) to verify compliance whenever possible.
 - PR workflow: Create a branch from `main`, commit changes, push, open a GitHub PR, and wait for approval before continuing.
+- PR formatting: Ensure PR bodies use proper newlines (not literal `\\n`) and include Summary + Testing sections.
 
 ### Tooling
 - Package managers/build tools: Native iOS default tools only. Third-party dependencies require explicit approval.
