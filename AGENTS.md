@@ -16,6 +16,7 @@ This file captures how to work with me (the user) and how to build specialized C
 - UI assistance: If Xcode/UI clicks are needed, ask the user to perform them; user will intervene to speed progress.
 - Skill reminders: When a request would benefit from an available skill, explicitly remind the user and propose using it.
 - Prompt coaching: Provide occasional, high-impact recommendations on how to prompt effectively for the task at hand.
+ - Context loading: Always review project docs before planning or executing work (see “Required Context Docs”).
 
 ### Technical Preferences
 - Primary languages/frameworks: Modern native iOS development (Swift, Xcode toolchain).
@@ -34,6 +35,7 @@ This file captures how to work with me (the user) and how to build specialized C
 - Test execution: Prefer Codex running TDD tests (e.g., `xcodebuild test`) to verify compliance whenever possible.
 - PR workflow: Create a branch from `main`, commit changes, push, open a GitHub PR, and wait for approval before continuing.
 - PR formatting: Ensure PR bodies use proper newlines (not literal `\\n`) and include Summary + Testing sections.
+ - Project plan maintenance: Keep `docs/project-plan.md` updated with progress whenever work completes a phase item.
 
 ### Tooling
 - Package managers/build tools: Native iOS default tools only. Third-party dependencies require explicit approval.
@@ -73,3 +75,10 @@ This file captures how to work with me (the user) and how to build specialized C
 4. Validate the workflow on a real task and refine.
 5. For iOS modernization guidance, run targeted research and summarize current best practices for review.
 6. Deliver work in PR-sized increments with explicit architecture notes and an approval checkpoint.
+
+## Required Context Docs
+Review these before planning or implementing work:
+- `docs/project-plan.md`
+- `docs/scope-and-non-goals.md`
+- `docs/product-north-star.md`
+- `docs/repo-inventory.md`

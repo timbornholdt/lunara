@@ -19,6 +19,14 @@ It is intentionally tailored to a single user’s listening habits.
 
 ---
 
+# Working Docs (Must Read for New Work)
+- `docs/project-plan.md`
+- `docs/scope-and-non-goals.md`
+- `docs/product-north-star.md`
+- `docs/repo-inventory.md`
+
+---
+
 # Core Philosophy
 
 ## The Library as a Pool
