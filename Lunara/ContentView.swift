@@ -12,7 +12,7 @@ struct ContentView: View {
 
     var body: some View {
         if authViewModel.isAuthenticated {
-            LibraryBrowseView(viewModel: LibraryViewModel()) {
+            LibraryBrowseView(viewModel: LibraryViewModel(sessionInvalidationHandler: { authViewModel.signOut() })) {
                 authViewModel.signOut()
             }
         } else {

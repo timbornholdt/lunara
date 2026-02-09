@@ -11,9 +11,9 @@ This app is a specialized client that reads Plex metadata, plays audio reliably,
 This is not meant to be a general Plex client or a Plexamp replacement.
 It is intentionally tailored to a single user’s listening habits.
 
-## Active Next Steps
+## Next todo: 
 
-- [] Run this in codex: "help me build agents in a way that is most efficient to my preferred workflow. ask me a series of quesitons that would help you most in determining how you can adapt to the way i prefer to think about software (but also honors what is actually the professional way of doing it). the expected output is an AGENTS file and next steps for crafting any individual specialized agents that work best with codex."
+- Implement 1.1.
 
 ---
 

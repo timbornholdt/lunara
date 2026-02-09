@@ -1,7 +1,7 @@
 import Foundation
 
-struct PlexAuthService {
-    let httpClient: PlexHTTPClient
+struct PlexAuthService: PlexAuthServicing {
+    let httpClient: PlexHTTPClienting
     let requestBuilder: PlexAuthRequestBuilder
 
     func signIn(
