@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SignInView: View {
     @StateObject var viewModel: AuthViewModel
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         VStack(spacing: 24) {
@@ -14,16 +15,6 @@ struct SignInView: View {
             }
 
             VStack(spacing: 12) {
-                TextField("Email", text: $viewModel.login)
-                    .textContentType(.emailAddress)
-                    .keyboardType(.emailAddress)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .textFieldStyle(.roundedBorder)
-
-                SecureField("Password", text: $viewModel.password)
-                    .textFieldStyle(.roundedBorder)
-
                 TextField("Plex Server URL (https://...:32400)", text: $viewModel.serverURLText)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
@@ -42,7 +33,7 @@ struct SignInView: View {
                     ProgressView()
                         .frame(maxWidth: .infinity)
                 } else {
-                    Text("Sign In")
+                    Text("Sign In with Plex")
                         .frame(maxWidth: .infinity)
                 }
             }
@@ -62,5 +53,19 @@ struct SignInView: View {
             Spacer()
         }
         .padding(24)
+        .task {
+#if DEBUG
+            if LocalPlexConfig.credentials?.autoStartAuth == true {
+                await viewModel.signInWithLocalConfig()
+            } else {
+                viewModel.applyLocalConfigIfAvailable()
+            }
+#endif
+        }
+        .onChange(of: viewModel.authURL) { _, url in
+            guard let url else { return }
+            openURL(url)
+            viewModel.authURL = nil
+        }
     }
 }

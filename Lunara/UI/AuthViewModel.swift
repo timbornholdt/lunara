@@ -4,47 +4,49 @@ import SwiftUI
 
 @MainActor
 final class AuthViewModel: ObservableObject {
-    @Published var login: String = ""
-    @Published var password: String = ""
     @Published var serverURLText: String = ""
     @Published var errorMessage: String?
     @Published var isLoading = false
     @Published var isAuthenticated = false
+    @Published var authURL: URL?
 
     private let tokenStore: PlexAuthTokenStoring
     private var serverStore: PlexServerAddressStoring
-    private let authService: PlexAuthServicing
+    private let pinService: PlexPinServicing
+    private let authURLBuilder: PlexAuthURLBuilder
     private let tokenValidator: PlexTokenValidating
     private let loadOnInit: Bool
+    private let pollIntervalNanoseconds: UInt64
+    private let maxPollAttempts: Int
+    private var pollTask: Task<Void, Never>?
 
     init(
         tokenStore: PlexAuthTokenStoring = PlexAuthTokenStore(keychain: KeychainStore()),
         serverStore: PlexServerAddressStoring = UserDefaultsServerAddressStore(),
-        authService: PlexAuthServicing = PlexAuthService(
+        pinService: PlexPinServicing = PlexPinService(
             httpClient: PlexHTTPClient(),
-            requestBuilder: PlexAuthRequestBuilder(
+            requestBuilder: PlexPinRequestBuilder(
                 baseURL: PlexDefaults.authBaseURL,
                 configuration: PlexDefaults.configuration()
             )
         ),
+        authURLBuilder: PlexAuthURLBuilder = PlexAuthURLBuilder(),
         tokenValidator: PlexTokenValidating = PlexTokenValidator(
-            libraryServiceFactory: { serverURL, token in
-                let config = PlexDefaults.configuration()
-                let builder = PlexLibraryRequestBuilder(baseURL: serverURL, token: token, configuration: config)
-                return PlexLibraryService(
-                    httpClient: PlexHTTPClient(),
-                    requestBuilder: builder,
-                    paginator: PlexPaginator(pageSize: 50)
-                )
-            }
+            httpClient: PlexHTTPClient(),
+            configuration: PlexDefaults.configuration()
         ),
-        loadOnInit: Bool = true
+        loadOnInit: Bool = true,
+        pollIntervalNanoseconds: UInt64 = 1_000_000_000,
+        maxPollAttempts: Int = 120
     ) {
         self.tokenStore = tokenStore
         self.serverStore = serverStore
-        self.authService = authService
+        self.pinService = pinService
+        self.authURLBuilder = authURLBuilder
         self.tokenValidator = tokenValidator
         self.loadOnInit = loadOnInit
+        self.pollIntervalNanoseconds = pollIntervalNanoseconds
+        self.maxPollAttempts = maxPollAttempts
         self.serverURLText = serverStore.serverURL?.absoluteString ?? ""
         if loadOnInit {
             Task {
@@ -88,21 +90,23 @@ final class AuthViewModel: ObservableObject {
         defer { isLoading = false }
 
         do {
-            let token = try await authService.signIn(
-                login: login,
-                password: password,
-                verificationCode: nil,
-                rememberMe: true
-            )
-            try tokenStore.save(token: token)
-            serverStore.serverURL = serverURL
-            isAuthenticated = true
+            let pin = try await pinService.createPin()
+            let config = PlexDefaults.configuration()
+            if let url = authURLBuilder.makeAuthURL(
+                code: pin.code,
+                clientIdentifier: config.clientIdentifier,
+                product: config.product
+            ) {
+                authURL = url
+            }
+            await pollForToken(pin: pin, serverURL: serverURL)
         } catch {
             errorMessage = "Sign in failed."
         }
     }
 
     func signOut() {
+        pollTask?.cancel()
         do {
             try tokenStore.clear()
         } catch {
@@ -112,16 +116,40 @@ final class AuthViewModel: ObservableObject {
     }
 
 #if DEBUG
-    func applyLocalCredentialsIfAvailable() {
-        guard let credentials = LocalPlexConfig.credentials else { return }
-        login = credentials.username
-        password = credentials.password
-        serverURLText = credentials.serverURL
+    func applyLocalConfigIfAvailable() {
+        guard let config = LocalPlexConfig.credentials else { return }
+        serverURLText = config.serverURL
     }
 
     func signInWithLocalConfig() async {
-        applyLocalCredentialsIfAvailable()
+        applyLocalConfigIfAvailable()
         await signIn()
     }
 #endif
+
+    private func pollForToken(pin: PlexPin, serverURL: URL) async {
+        pollTask?.cancel()
+        pollTask = Task {
+            for _ in 0..<maxPollAttempts {
+                if Task.isCancelled { return }
+                do {
+                    let status = try await pinService.checkPin(id: pin.id, code: pin.code)
+                    if let token = status.authToken {
+                        try tokenStore.save(token: token)
+                        serverStore.serverURL = serverURL
+                        isAuthenticated = true
+                        return
+                    }
+                } catch {
+                    if PlexErrorHelpers.isUnauthorized(error) {
+                        errorMessage = "Session expired. Please sign in again."
+                        return
+                    }
+                }
+                try? await Task.sleep(nanoseconds: pollIntervalNanoseconds)
+            }
+            errorMessage = "Sign in timed out."
+        }
+        await pollTask?.value
+    }
 }
