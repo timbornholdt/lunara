@@ -8,13 +8,18 @@ struct AuthViewModelTests {
         let tokenStore = InMemoryTokenStore(token: "token")
         let serverStore = InMemoryServerStore(url: URL(string: "https://example.com:32400")!)
         let validator = StubTokenValidator(result: .success(()))
-        let authService = StubAuthService(result: .success("token"))
+        let pinService = StubPinService(
+            createResult: .success(PlexPin(id: 1, code: "abcd")),
+            checkResults: [PlexPinStatus(id: 1, code: "abcd", authToken: "token")]
+        )
         let viewModel = AuthViewModel(
             tokenStore: tokenStore,
             serverStore: serverStore,
-            authService: authService,
+            pinService: pinService,
             tokenValidator: validator,
-            loadOnInit: false
+            loadOnInit: false,
+            pollIntervalNanoseconds: 0,
+            maxPollAttempts: 1
         )
 
         await viewModel.loadToken()
@@ -27,13 +32,18 @@ struct AuthViewModelTests {
         let tokenStore = InMemoryTokenStore(token: "expired")
         let serverStore = InMemoryServerStore(url: URL(string: "https://example.com:32400")!)
         let validator = StubTokenValidator(result: .failure(PlexHTTPError.httpStatus(401, Data())))
-        let authService = StubAuthService(result: .success("token"))
+        let pinService = StubPinService(
+            createResult: .success(PlexPin(id: 1, code: "abcd")),
+            checkResults: []
+        )
         let viewModel = AuthViewModel(
             tokenStore: tokenStore,
             serverStore: serverStore,
-            authService: authService,
+            pinService: pinService,
             tokenValidator: validator,
-            loadOnInit: false
+            loadOnInit: false,
+            pollIntervalNanoseconds: 0,
+            maxPollAttempts: 1
         )
 
         await viewModel.loadToken()
@@ -47,16 +57,19 @@ struct AuthViewModelTests {
         let tokenStore = InMemoryTokenStore(token: nil)
         let serverStore = InMemoryServerStore(url: nil)
         let validator = StubTokenValidator(result: .success(()))
-        let authService = StubAuthService(result: .success("token-123"))
+        let pinService = StubPinService(
+            createResult: .success(PlexPin(id: 1, code: "abcd")),
+            checkResults: [PlexPinStatus(id: 1, code: "abcd", authToken: "token-123")]
+        )
         let viewModel = AuthViewModel(
             tokenStore: tokenStore,
             serverStore: serverStore,
-            authService: authService,
+            pinService: pinService,
             tokenValidator: validator,
-            loadOnInit: false
+            loadOnInit: false,
+            pollIntervalNanoseconds: 0,
+            maxPollAttempts: 1
         )
-        viewModel.login = "user@example.com"
-        viewModel.password = "secret"
         viewModel.serverURLText = "https://example.com:32400"
 
         await viewModel.signIn()
@@ -70,16 +83,19 @@ struct AuthViewModelTests {
         let tokenStore = InMemoryTokenStore(token: nil)
         let serverStore = InMemoryServerStore(url: nil)
         let validator = StubTokenValidator(result: .success(()))
-        let authService = StubAuthService(result: .failure(TestError()))
+        let pinService = StubPinService(
+            createResult: .failure(TestError()),
+            checkResults: []
+        )
         let viewModel = AuthViewModel(
             tokenStore: tokenStore,
             serverStore: serverStore,
-            authService: authService,
+            pinService: pinService,
             tokenValidator: validator,
-            loadOnInit: false
+            loadOnInit: false,
+            pollIntervalNanoseconds: 0,
+            maxPollAttempts: 1
         )
-        viewModel.login = "user@example.com"
-        viewModel.password = "secret"
         viewModel.serverURLText = "https://example.com:32400"
 
         await viewModel.signIn()
@@ -104,20 +120,26 @@ private struct StubTokenValidator: PlexTokenValidating {
     }
 }
 
-private struct StubAuthService: PlexAuthServicing {
-    let result: Result<String, Error>
+private final class StubPinService: PlexPinServicing {
+    private let createResult: Result<PlexPin, Error>
+    private var checkResults: [PlexPinStatus]
+    private var checkIndex = 0
 
-    func signIn(
-        login: String,
-        password: String,
-        verificationCode: String?,
-        rememberMe: Bool
-    ) async throws -> String {
-        switch result {
-        case .success(let token):
-            return token
-        case .failure(let error):
-            throw error
+    init(createResult: Result<PlexPin, Error>, checkResults: [PlexPinStatus]) {
+        self.createResult = createResult
+        self.checkResults = checkResults
+    }
+
+    func createPin() async throws -> PlexPin {
+        try createResult.get()
+    }
+
+    func checkPin(id: Int, code: String) async throws -> PlexPinStatus {
+        guard checkIndex < checkResults.count else {
+            return PlexPinStatus(id: id, code: code, authToken: nil)
         }
+        let status = checkResults[checkIndex]
+        checkIndex += 1
+        return status
     }
 }

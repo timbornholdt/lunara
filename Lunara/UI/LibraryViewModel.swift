@@ -75,7 +75,11 @@ final class LibraryViewModel: ObservableObject {
                 sessionInvalidationHandler()
                 errorMessage = "Session expired. Please sign in again."
             } else {
-                errorMessage = "Failed to load libraries."
+                if let statusCode = (error as? PlexHTTPError)?.statusCode {
+                    errorMessage = "Failed to load libraries (HTTP \(statusCode))."
+                } else {
+                    errorMessage = "Failed to load libraries."
+                }
             }
         }
     }
@@ -91,7 +95,11 @@ final class LibraryViewModel: ObservableObject {
                 sessionInvalidationHandler()
                 errorMessage = "Session expired. Please sign in again."
             } else {
-                errorMessage = "Failed to load albums."
+                if let statusCode = (error as? PlexHTTPError)?.statusCode {
+                    errorMessage = "Failed to load albums (HTTP \(statusCode))."
+                } else {
+                    errorMessage = "Failed to load albums."
+                }
             }
         }
     }
