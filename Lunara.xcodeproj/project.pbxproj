@@ -6,8 +6,19 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		F19129342F3997C800064746 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F19129162F392CB800064746 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F191291D2F392CB800064746;
+			remoteInfo = Lunara;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		F191291E2F392CB800064746 /* Lunara.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Lunara.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F19129302F3997C800064746 /* LunaraTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LunaraTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -16,10 +27,22 @@
 			path = Lunara;
 			sourceTree = "<group>";
 		};
+		F19129312F3997C800064746 /* LunaraTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = LunaraTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		F191291B2F392CB800064746 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F191292D2F3997C800064746 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -33,6 +56,7 @@
 			isa = PBXGroup;
 			children = (
 				F19129202F392CB800064746 /* Lunara */,
+				F19129312F3997C800064746 /* LunaraTests */,
 				F191291F2F392CB800064746 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -41,6 +65,7 @@
 			isa = PBXGroup;
 			children = (
 				F191291E2F392CB800064746 /* Lunara.app */,
+				F19129302F3997C800064746 /* LunaraTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -70,6 +95,29 @@
 			productReference = F191291E2F392CB800064746 /* Lunara.app */;
 			productType = "com.apple.product-type.application";
 		};
+		F191292F2F3997C800064746 /* LunaraTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F19129362F3997C800064746 /* Build configuration list for PBXNativeTarget "LunaraTests" */;
+			buildPhases = (
+				F191292C2F3997C800064746 /* Sources */,
+				F191292D2F3997C800064746 /* Frameworks */,
+				F191292E2F3997C800064746 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				F19129352F3997C800064746 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				F19129312F3997C800064746 /* LunaraTests */,
+			);
+			name = LunaraTests;
+			packageProductDependencies = (
+			);
+			productName = LunaraTests;
+			productReference = F19129302F3997C800064746 /* LunaraTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -82,6 +130,10 @@
 				TargetAttributes = {
 					F191291D2F392CB800064746 = {
 						CreatedOnToolsVersion = 26.2;
+					};
+					F191292F2F3997C800064746 = {
+						CreatedOnToolsVersion = 26.2;
+						TestTargetID = F191291D2F392CB800064746;
 					};
 				};
 			};
@@ -100,12 +152,20 @@
 			projectRoot = "";
 			targets = (
 				F191291D2F392CB800064746 /* Lunara */,
+				F191292F2F3997C800064746 /* LunaraTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		F191291C2F392CB800064746 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F191292E2F3997C800064746 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -122,7 +182,26 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F191292C2F3997C800064746 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		F19129352F3997C800064746 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			platformFilters = (
+				ios,
+				xros,
+			);
+			target = F191291D2F392CB800064746 /* Lunara */;
+			targetProxy = F19129342F3997C800064746 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		F19129272F392CB900064746 /* Debug */ = {
@@ -329,6 +408,57 @@
 			};
 			name = Release;
 		};
+		F19129372F3997C800064746 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = T67SG9765B;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = holdings.chinlock.LunaraTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = xros;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Lunara.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Lunara";
+				XROS_DEPLOYMENT_TARGET = 26.2;
+			};
+			name = Debug;
+		};
+		F19129382F3997C800064746 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = T67SG9765B;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = holdings.chinlock.LunaraTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = xros;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Lunara.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Lunara";
+				VALIDATE_PRODUCT = YES;
+				XROS_DEPLOYMENT_TARGET = 26.2;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -346,6 +476,15 @@
 			buildConfigurations = (
 				F191292A2F392CB900064746 /* Debug */,
 				F191292B2F392CB900064746 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F19129362F3997C800064746 /* Build configuration list for PBXNativeTarget "LunaraTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F19129372F3997C800064746 /* Debug */,
+				F19129382F3997C800064746 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
