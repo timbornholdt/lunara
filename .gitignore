@@ -71,6 +71,7 @@ fastlane/test_output/
 # Environment / secrets
 # =========================
 .env
+Lunara/LocalConfig.plist
 *.key
 *.p12
 *.mobileprovision

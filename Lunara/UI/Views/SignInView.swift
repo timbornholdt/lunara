@@ -49,6 +49,16 @@ struct SignInView: View {
             .buttonStyle(.borderedProminent)
             .disabled(viewModel.isLoading)
 
+#if DEBUG
+            if LocalPlexConfig.credentials != nil {
+                Button("Quick Sign-In (Debug)") {
+                    Task { await viewModel.signInWithLocalConfig() }
+                }
+                .buttonStyle(.bordered)
+                .disabled(viewModel.isLoading)
+            }
+#endif
+
             Spacer()
         }
         .padding(24)

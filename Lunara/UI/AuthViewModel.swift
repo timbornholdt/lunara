@@ -110,4 +110,18 @@ final class AuthViewModel: ObservableObject {
         }
         isAuthenticated = false
     }
+
+#if DEBUG
+    func applyLocalCredentialsIfAvailable() {
+        guard let credentials = LocalPlexConfig.credentials else { return }
+        login = credentials.username
+        password = credentials.password
+        serverURLText = credentials.serverURL
+    }
+
+    func signInWithLocalConfig() async {
+        applyLocalCredentialsIfAvailable()
+        await signIn()
+    }
+#endif
 }
