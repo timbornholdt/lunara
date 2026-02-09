@@ -72,14 +72,17 @@ final class AuthViewModel: ObservableObject {
             do {
                 try await tokenValidator.validate(serverURL: serverURL, token: token)
                 isAuthenticated = true
+                statusMessage = nil
             } catch {
                 if PlexErrorHelpers.isUnauthorized(error) {
                     try? tokenStore.clear()
                     errorMessage = "Session expired. Please sign in again."
+                    statusMessage = nil
+                    isAuthenticated = false
                 } else {
-                    errorMessage = "Failed to validate session."
+                    statusMessage = "Using saved session. Validation failed."
+                    isAuthenticated = true
                 }
-                isAuthenticated = false
             }
         } catch {
             errorMessage = "Failed to load session."
