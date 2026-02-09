@@ -2,6 +2,7 @@ import Foundation
 
 protocol PlexHTTPClienting {
     func send<T: Decodable>(_ request: URLRequest, decode type: T.Type) async throws -> T
+    func sendData(_ request: URLRequest) async throws -> Data
 }
 
 protocol PlexAuthServicing {
@@ -22,6 +23,10 @@ protocol PlexLibraryServicing {
     func fetchLibrarySections() async throws -> [PlexLibrarySection]
     func fetchAlbums(sectionId: String) async throws -> [PlexAlbum]
     func fetchTracks(albumRatingKey: String) async throws -> [PlexTrack]
+}
+
+protocol PlexResourcesServicing {
+    func fetchDevices(token: String) async throws -> [PlexResourceDevice]
 }
 
 protocol PlexAuthTokenStoring {

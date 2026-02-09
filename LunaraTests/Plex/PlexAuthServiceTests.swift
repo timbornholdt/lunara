@@ -77,6 +77,10 @@ private struct StubHTTPClient: PlexHTTPClienting {
             throw error
         }
     }
+
+    func sendData(_ request: URLRequest) async throws -> Data {
+        throw TestError()
+    }
 }
 
 private struct TestError: Error {}

@@ -11,9 +11,11 @@ This app is a specialized client that reads Plex metadata, plays audio reliably,
 This is not meant to be a general Plex client or a Plexamp replacement.
 It is intentionally tailored to a single user’s listening habits.
 
-## Next todo: 
+## Next steps
 
-- Implement 1.1.
+- Implement 1.2 (AVPlayer album playback).
+- Draft design docs for offline manager v1 + queue manager v1.
+- Plan selective library sync (metadata caching for faster syncs).
 
 ---
 
