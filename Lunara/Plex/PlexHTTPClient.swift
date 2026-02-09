@@ -23,6 +23,19 @@ struct PlexHTTPClient: PlexHTTPClienting {
         return try JSONDecoder().decode(T.self, from: data)
     }
 
+    func sendData(_ request: URLRequest) async throws -> Data {
+        let (data, response) = try await session.data(for: request)
+        do {
+            try PlexHTTPClient.validate(response: response, data: data)
+        } catch {
+#if DEBUG
+            PlexHTTPClient.logFailure(request: request, response: response, data: data, error: error)
+#endif
+            throw error
+        }
+        return data
+    }
+
     private static func validate(response: URLResponse, data: Data) throws {
         guard let http = response as? HTTPURLResponse else {
             throw PlexHTTPError.invalidResponse

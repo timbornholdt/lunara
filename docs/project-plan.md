@@ -61,6 +61,11 @@
 3. Album change detection
    - Acceptance criteria:
      - Changes in Plex trigger re-download on Wi-Fi only.
+4. Selective library sync (metadata caching)
+   - Acceptance criteria:
+     - Cache library contents locally for fast diffing.
+     - Selective sync uses cached index to minimize full refreshes.
+     - Sync plans compute adds/removes without re-fetching the full library.
 
 ## Phase 4 — Notes & Deletion Queue
 1. Personal notes

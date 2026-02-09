@@ -93,6 +93,10 @@ struct SignInView: View {
         .padding(24)
         .task {
 #if DEBUG
+            while !viewModel.didFinishInitialTokenCheck {
+                try? await Task.sleep(nanoseconds: 100_000_000)
+            }
+            guard viewModel.isAuthenticated == false else { return }
             if LocalPlexConfig.credentials?.autoStartAuth == true {
                 await viewModel.signInWithLocalConfig()
             } else {

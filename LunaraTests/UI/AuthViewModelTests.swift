@@ -17,6 +17,7 @@ struct AuthViewModelTests {
             serverStore: serverStore,
             pinService: pinService,
             tokenValidator: validator,
+            resourcesService: StubResourcesService(devices: []),
             loadOnInit: false,
             pollIntervalNanoseconds: 0,
             maxPollAttempts: 1
@@ -26,6 +27,7 @@ struct AuthViewModelTests {
 
         #expect(viewModel.isAuthenticated == true)
         #expect(viewModel.errorMessage == nil)
+        #expect(viewModel.didFinishInitialTokenCheck == true)
     }
 
     @Test func clearsInvalidTokenOnLaunch() async {
@@ -41,6 +43,7 @@ struct AuthViewModelTests {
             serverStore: serverStore,
             pinService: pinService,
             tokenValidator: validator,
+            resourcesService: StubResourcesService(devices: []),
             loadOnInit: false,
             pollIntervalNanoseconds: 0,
             maxPollAttempts: 1
@@ -51,6 +54,7 @@ struct AuthViewModelTests {
         #expect(viewModel.isAuthenticated == false)
         #expect(tokenStore.token == nil)
         #expect(viewModel.errorMessage == "Session expired. Please sign in again.")
+        #expect(viewModel.didFinishInitialTokenCheck == true)
     }
 
     @Test func signInStoresTokenAndServerURL() async {
@@ -66,6 +70,7 @@ struct AuthViewModelTests {
             serverStore: serverStore,
             pinService: pinService,
             tokenValidator: validator,
+            resourcesService: StubResourcesService(devices: []),
             loadOnInit: false,
             pollIntervalNanoseconds: 0,
             maxPollAttempts: 1
@@ -92,6 +97,7 @@ struct AuthViewModelTests {
             serverStore: serverStore,
             pinService: pinService,
             tokenValidator: validator,
+            resourcesService: StubResourcesService(devices: []),
             loadOnInit: false,
             pollIntervalNanoseconds: 0,
             maxPollAttempts: 1
@@ -141,5 +147,15 @@ private final class StubPinService: PlexPinServicing {
         let status = checkResults[checkIndex]
         checkIndex += 1
         return status
+    }
+}
+
+private struct StubResourcesService: PlexResourcesServicing {
+    let devices: [PlexResourceDevice]
+    var error: Error?
+
+    func fetchDevices(token: String) async throws -> [PlexResourceDevice] {
+        if let error { throw error }
+        return devices
     }
 }

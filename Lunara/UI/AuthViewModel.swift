@@ -10,6 +10,7 @@ final class AuthViewModel: ObservableObject {
     @Published var isAuthenticated = false
     @Published var authURL: URL?
     @Published var statusMessage: String?
+    @Published var didFinishInitialTokenCheck = false
 #if DEBUG
     @Published var debugLog: [String] = []
 #endif
@@ -19,6 +20,7 @@ final class AuthViewModel: ObservableObject {
     private let pinService: PlexPinServicing
     private let authURLBuilder: PlexAuthURLBuilder
     private let tokenValidator: PlexTokenValidating
+    private let resourcesService: PlexResourcesServicing
     private let loadOnInit: Bool
     private let pollIntervalNanoseconds: UInt64
     private let maxPollAttempts: Int
@@ -39,6 +41,13 @@ final class AuthViewModel: ObservableObject {
             httpClient: PlexHTTPClient(),
             configuration: PlexDefaults.configuration()
         ),
+        resourcesService: PlexResourcesServicing = PlexResourcesService(
+            httpClient: PlexHTTPClient(),
+            requestBuilder: PlexResourcesRequestBuilder(
+                baseURL: PlexDefaults.authBaseURL,
+                configuration: PlexDefaults.configuration()
+            )
+        ),
         loadOnInit: Bool = true,
         pollIntervalNanoseconds: UInt64 = 1_000_000_000,
         maxPollAttempts: Int = 120
@@ -48,6 +57,7 @@ final class AuthViewModel: ObservableObject {
         self.pinService = pinService
         self.authURLBuilder = authURLBuilder
         self.tokenValidator = tokenValidator
+        self.resourcesService = resourcesService
         self.loadOnInit = loadOnInit
         self.pollIntervalNanoseconds = pollIntervalNanoseconds
         self.maxPollAttempts = maxPollAttempts
@@ -60,6 +70,7 @@ final class AuthViewModel: ObservableObject {
     }
 
     func loadToken() async {
+        defer { didFinishInitialTokenCheck = true }
         do {
             guard let token = try tokenStore.load() else { return }
             guard let serverURL = serverStore.serverURL else {
@@ -68,6 +79,9 @@ final class AuthViewModel: ObservableObject {
             }
             do {
                 try await tokenValidator.validate(serverURL: serverURL, token: token)
+                let resolved = await resolveServerURL(token: token, fallback: serverURL)
+                serverStore.serverURL = resolved
+                serverURLText = resolved.absoluteString
                 isAuthenticated = true
                 statusMessage = nil
             } catch {
@@ -157,7 +171,9 @@ final class AuthViewModel: ObservableObject {
                     if let token = status.authToken {
                         log("Authorization complete. Saving token.")
                         try tokenStore.save(token: token)
-                        serverStore.serverURL = serverURL
+                        let resolved = await resolveServerURL(token: token, fallback: serverURL)
+                        serverStore.serverURL = resolved
+                        serverURLText = resolved.absoluteString
                         isAuthenticated = true
                         statusMessage = "Signed in."
                         return
@@ -178,10 +194,27 @@ final class AuthViewModel: ObservableObject {
         await pollTask?.value
     }
 
-#if DEBUG
+    private func resolveServerURL(token: String, fallback: URL) async -> URL {
+        do {
+            let devices = try await resourcesService.fetchDevices(token: token)
+            let preferredHost = fallback.host
+            if let url = PlexResourceSelector.bestServerURL(from: devices, preferredHost: preferredHost) {
+                return url
+            }
+        } catch {
+            debugLog("Failed to resolve Plex server URL: \(String(describing: error))")
+        }
+        return fallback
+    }
+
     private func log(_ message: String) {
+#if DEBUG
         let timestamp = ISO8601DateFormatter().string(from: Date())
         debugLog.append("[\(timestamp)] \(message)")
-    }
 #endif
+    }
+
+    private func debugLog(_ message: String) {
+        log(message)
+    }
 }
