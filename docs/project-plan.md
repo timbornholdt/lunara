@@ -72,24 +72,29 @@
      - When the app loads, it should show an image of some sort along with the text "Lunara" and a loading indicator
 	 - The app should check if the token is still valid or if the user is not signed in. If the user is valid, move right into the library view.
 	 - Otherwise, show the login screen.
-8. [ ] Now playing screen v1
+8. [x] Now playing screen v1
    - Acceptance criteria:
      - Work with the user to define what should be present on a now playing screen
 	 - Tapping the floating "now playing" bar should bring the "now playing" screen up from the bottom. You should be able to pull down from the top of that screen to dismiss it at any time. The now playing bar should fade out when this screen is present and reappear when it is dismissed.
-9. [ ] Settings screen (sign out + debug logging)
+9. [ ] Artist detail screen v1
+   - Acceptacne criteria:
+     - New tab called "Artists". Shows a list of all artists in the library.
+	 - Artist page shows biography of artist and a list of albums with some expanded detail (year, run time). Does not need to match the 2 column grid; in fact, should be one column to show more detail.
+     - Tapping an album loads that album's page
+10. [ ] Settings screen (sign out + debug logging)
    - Acceptance criteria:
      - Replace the Library "Sign Out" button with a settings gear icon.
      - Settings screen includes Sign Out action.
      - Settings screen includes a toggle to enable album de-dup debug logging.
-10. [ ] Offline manager v1
+11. [ ] Offline manager v1
    - Acceptance criteria:
      - Downloads complete files only.
      - Offline playback skips non-downloaded tracks immediately.
-11. [ ] Queue manager v1
+12. [ ] Queue manager v1
    - Acceptance criteria:
      - Play now/next/later works for album insertions.
      - Queue persists across app restarts.
-12. [ ] Lock screen now playing + remote controls
+13. [ ] Lock screen now playing + remote controls
    - Acceptance criteria:
      - Lock screen and Control Center show current track, elapsed time, and duration.
      - Play/Pause/Next/Previous remote commands control playback.
@@ -159,9 +164,7 @@
 - Playlist support (collections view extension)
   - Add playlist browsing alongside collections.
   - Support playlist playback and queue integration.
-- Show library by artist
-  - Artist page shows biography of artist and albums with some expanded detail (year, run time)
-  - Tapping an album loads that album's page
+
 - Dope ass loading indicator
   - Have the AI make a few that i can switch and review in app using feature flags and on the settings page
   

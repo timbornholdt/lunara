@@ -10,6 +10,7 @@ final class PlaybackEngine: PlaybackEngineing {
     private let audioSession: AudioSessionManaging
 
     private var queueItems: [PlaybackQueueItem] = []
+    private var queueBaseIndex = 0
     private var currentIndex = 0
     private var currentElapsed: TimeInterval = 0
     private var isPlaying = false
@@ -38,8 +39,7 @@ final class PlaybackEngine: PlaybackEngineing {
         } else {
             start = startIndex
         }
-        let slicedTracks = Array(tracks[start...])
-        let items = slicedTracks.compactMap { track -> PlaybackQueueItem? in
+        let items = tracks.compactMap { track -> PlaybackQueueItem? in
             guard let source = sourceResolver.resolveSource(for: track) else { return nil }
             let fallback: URL?
             switch source {
@@ -62,9 +62,10 @@ final class PlaybackEngine: PlaybackEngineing {
         }
 
         queueItems = items
-        currentIndex = 0
+        queueBaseIndex = start
+        currentIndex = start
         currentElapsed = 0
-        player.setQueue(urls: items.map { $0.primaryURL })
+        player.setQueue(urls: items[start...].map { $0.primaryURL })
         player.play()
         isPlaying = true
         publishState()
@@ -73,6 +74,7 @@ final class PlaybackEngine: PlaybackEngineing {
     func stop() {
         player.stop()
         queueItems.removeAll()
+        queueBaseIndex = 0
         currentIndex = 0
         currentElapsed = 0
         isPlaying = false
@@ -86,6 +88,23 @@ final class PlaybackEngine: PlaybackEngineing {
         } else {
             player.play()
         }
+    }
+
+    func skipToNext() {
+        let nextIndex = currentIndex + 1
+        guard nextIndex < queueItems.count else { return }
+        jump(to: nextIndex)
+    }
+
+    func skipToPrevious() {
+        let previousIndex = max(currentIndex - 1, 0)
+        guard previousIndex < queueItems.count else { return }
+        jump(to: previousIndex)
+    }
+
+    func seek(to seconds: TimeInterval) {
+        guard !queueItems.isEmpty else { return }
+        player.seek(to: seconds)
     }
 
     private func bindPlayerCallbacks() {
@@ -104,23 +123,25 @@ final class PlaybackEngine: PlaybackEngineing {
     }
 
     private func handleItemChanged(index: Int) {
-        guard index >= 0, index < queueItems.count else { return }
-        currentIndex = index
+        let newIndex = queueBaseIndex + index
+        guard newIndex >= 0, newIndex < queueItems.count else { return }
+        currentIndex = newIndex
         currentElapsed = 0
         publishState()
     }
 
     private func handleItemFailure(index: Int) {
-        guard index >= 0, index < queueItems.count else { return }
-        if queueItems[index].didUseFallback {
+        let mappedIndex = queueBaseIndex + index
+        guard mappedIndex >= 0, mappedIndex < queueItems.count else { return }
+        if queueItems[mappedIndex].didUseFallback {
             onError?(PlaybackError(message: "Playback failed."))
             return
         }
-        guard let fallbackURL = queueItems[index].fallbackURL else {
+        guard let fallbackURL = queueItems[mappedIndex].fallbackURL else {
             onError?(PlaybackError(message: "Playback failed."))
             return
         }
-        queueItems[index].didUseFallback = true
+        queueItems[mappedIndex].didUseFallback = true
         player.replaceCurrentItem(url: fallbackURL)
     }
 
@@ -141,16 +162,26 @@ final class PlaybackEngine: PlaybackEngineing {
         }
         let item = queueItems[currentIndex]
         let durationSeconds = item.track.duration.map { Double($0) / 1000.0 }
-        let trackIndex = item.track.index ?? (currentIndex + 1)
         let state = NowPlayingState(
+            trackRatingKey: item.track.ratingKey,
             trackTitle: item.track.title,
-            artistName: nil,
+            artistName: item.track.originalTitle ?? item.track.grandparentTitle,
             isPlaying: isPlaying,
-            trackIndex: trackIndex,
             elapsedTime: currentElapsed,
             duration: durationSeconds
         )
         onStateChange?(state)
+    }
+
+    private func jump(to index: Int) {
+        guard index >= 0, index < queueItems.count else { return }
+        queueBaseIndex = index
+        currentIndex = index
+        currentElapsed = 0
+        player.setQueue(urls: queueItems[index...].map { $0.primaryURL })
+        player.play()
+        isPlaying = true
+        publishState()
     }
 }
 

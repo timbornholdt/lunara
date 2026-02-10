@@ -4,6 +4,7 @@ struct CollectionsBrowseView: View {
     @StateObject var viewModel: CollectionsViewModel
     @ObservedObject var playbackViewModel: PlaybackViewModel
     let signOut: () -> Void
+    @Binding var navigationPath: NavigationPath
     @Environment(\.colorScheme) private var colorScheme
     @State private var errorToken = UUID()
 
@@ -20,7 +21,7 @@ struct CollectionsBrowseView: View {
     var body: some View {
         let palette = LunaraTheme.Palette.colors(for: colorScheme)
 
-        NavigationStack {
+        NavigationStack(path: $navigationPath) {
             ZStack {
                 LinenBackgroundView(palette: palette)
                 VStack(spacing: 0) {
@@ -82,6 +83,14 @@ struct CollectionsBrowseView: View {
                     }
                 }
             }
+            .navigationDestination(for: AlbumNavigationRequest.self) { request in
+                AlbumDetailView(
+                    album: request.album,
+                    albumRatingKeys: request.albumRatingKeys,
+                    playbackViewModel: playbackViewModel,
+                    sessionInvalidationHandler: signOut
+                )
+            }
         }
         .overlay(alignment: .top) {
             if let error = viewModel.errorMessage, viewModel.collections.isEmpty == false {
@@ -91,17 +100,6 @@ struct CollectionsBrowseView: View {
                 .padding(.horizontal, Layout.globalPadding)
                 .padding(.top, 8)
                 .transition(.opacity)
-            }
-        }
-        .safeAreaInset(edge: .bottom) {
-            if let nowPlaying = playbackViewModel.nowPlaying {
-                NowPlayingBarView(
-                    state: nowPlaying,
-                    palette: palette,
-                    onTogglePlayPause: { playbackViewModel.togglePlayPause() }
-                )
-                .padding(.horizontal, Layout.globalPadding)
-                .padding(.bottom, Layout.globalPadding)
             }
         }
         .overlay(alignment: .top) {

@@ -8,6 +8,7 @@ struct AlbumDetailView: View {
     @StateObject private var viewModel: AlbumDetailViewModel
     @Environment(\.colorScheme) private var colorScheme
     @State private var scrollOffset: CGFloat = 0
+    @State private var albumTheme: AlbumTheme?
 
     enum Layout {
         static let globalPadding = LunaraTheme.Layout.globalPadding
@@ -42,11 +43,19 @@ struct AlbumDetailView: View {
     }
 
     var body: some View {
-        let palette = LunaraTheme.Palette.colors(for: colorScheme)
+        let basePalette = LunaraTheme.Palette.colors(for: colorScheme)
+        let palette = ThemePalette(
+            palette: basePalette
+        )
+        let themePalette = albumTheme.map(ThemePalette.init(theme:)) ?? palette
         let navTitleOpacity = navTitleOpacity(for: scrollOffset)
 
         ZStack {
-            LinenBackgroundView(palette: palette)
+            if let theme = albumTheme {
+                ThemedBackgroundView(theme: theme)
+            } else {
+                LinenBackgroundView(palette: basePalette)
+            }
             GeometryReader { proxy in
                 ScrollView {
                     GeometryReader { geometry in
@@ -59,11 +68,11 @@ struct AlbumDetailView: View {
                     .frame(height: 0)
 
                     VStack(alignment: .leading, spacing: Layout.sectionSpacing) {
-                        AlbumArtworkView(album: album, palette: palette, size: .detail)
+                        AlbumArtworkView(album: album, palette: basePalette, size: .detail)
                             .frame(width: proxy.size.width, height: proxy.size.width)
                             .clipped()
 
-                        titleBlock(palette: palette)
+                        titleBlock(palette: themePalette)
                             .padding(.horizontal, Layout.globalPadding)
 
                         if viewModel.isLoading {
@@ -72,16 +81,16 @@ struct AlbumDetailView: View {
                                 .padding(.horizontal, Layout.globalPadding)
                         } else if let error = viewModel.errorMessage {
                             Text(error)
-                                .foregroundStyle(palette.stateError)
+                                .foregroundStyle(basePalette.stateError)
                                 .padding(.horizontal, Layout.globalPadding)
                         } else {
                             VStack(alignment: .leading, spacing: Layout.trackRowSpacing) {
                                 Text("Tracks")
                                     .font(LunaraTheme.Typography.displayBold(size: 22))
-                                    .foregroundStyle(palette.textPrimary)
+                                    .foregroundStyle(themePalette.textPrimary)
 
                                 ForEach(viewModel.tracks, id: \.ratingKey) { track in
-                                    TrackRowCard(track: track, albumArtist: album.artist, palette: palette) {
+                                    TrackRowCard(track: track, albumArtist: album.artist, palette: themePalette) {
                                         viewModel.playTrack(track)
                                     }
                                 }
@@ -89,7 +98,7 @@ struct AlbumDetailView: View {
                             .padding(.horizontal, Layout.globalPadding)
                         }
 
-                        metadataSection(palette: palette)
+                        metadataSection(palette: themePalette)
                             .padding(.horizontal, Layout.globalPadding)
                     }
                     .padding(.bottom, Layout.globalPadding)
@@ -105,7 +114,7 @@ struct AlbumDetailView: View {
             ToolbarItem(placement: .principal) {
                 Text(album.title)
                     .font(LunaraTheme.Typography.displayBold(size: 17))
-                    .foregroundStyle(palette.textPrimary)
+                    .foregroundStyle(themePalette.textPrimary)
                     .lineLimit(1)
                     .opacity(navTitleOpacity)
                     .animation(.easeInOut(duration: 0.2), value: navTitleOpacity)
@@ -114,29 +123,21 @@ struct AlbumDetailView: View {
         .task {
             await viewModel.loadTracks()
         }
-        .safeAreaInset(edge: .bottom) {
-            if let nowPlaying = playbackViewModel.nowPlaying {
-                NowPlayingBarView(
-                    state: nowPlaying,
-                    palette: palette,
-                    onTogglePlayPause: { playbackViewModel.togglePlayPause() }
-                )
-                    .padding(.horizontal, Layout.globalPadding)
-                    .padding(.bottom, Layout.globalPadding)
-            }
-        }
         .overlay(alignment: .top) {
             if let message = playbackViewModel.errorMessage {
-                PlaybackErrorBanner(message: message, palette: palette) {
+                PlaybackErrorBanner(message: message, palette: basePalette) {
                     playbackViewModel.clearError()
                 }
                 .padding(.horizontal, Layout.globalPadding)
             }
         }
+        .task(id: album.ratingKey) {
+            albumTheme = await albumThemeProvider()
+        }
     }
 
     @ViewBuilder
-    private func titleBlock(palette: LunaraTheme.PaletteColors) -> some View {
+    private func titleBlock(palette: ThemePalette) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             VStack(alignment: .leading, spacing: Layout.titleSpacing) {
                 Text(album.title)
@@ -144,35 +145,50 @@ struct AlbumDetailView: View {
                     .foregroundStyle(palette.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text(subtitleText)
-                    .font(LunaraTheme.Typography.display(size: 15))
+                if let artistLine = artistLine {
+                    Text(artistLine)
+                        .font(LunaraTheme.Typography.display(size: 16))
+                        .foregroundStyle(palette.textSecondary)
+                        .opacity(artistLine.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0 : 1)
+                }
+
+                Text(releaseDateLine)
+                    .font(LunaraTheme.Typography.display(size: 14))
                     .foregroundStyle(palette.textSecondary)
-                    .opacity(subtitleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0 : 1)
+                    .opacity(releaseDateLine.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0 : 1)
             }
 
             Spacer(minLength: 8)
 
-            VStack(alignment: .trailing, spacing: 8) {
-                if let userRating = album.userRating {
+            if let userRating = album.userRating {
+                VStack(spacing: 10) {
                     StarRatingView(ratingOutOfTen: userRating, palette: palette)
-                        .alignmentGuide(.firstTextBaseline) { dimensions in
-                            dimensions[.top]
-                        }
-                }
 
-                Button {
-                    viewModel.playAlbum()
-                } label: {
-                    Label("Play", systemImage: "play.fill")
+                    Button {
+                        viewModel.playAlbum()
+                    } label: {
+                        Label("Play", systemImage: "play.fill")
+                    }
+                    .buttonStyle(PlayButtonStyle(palette: palette))
+                    .accessibilityLabel("Play album")
                 }
-                .buttonStyle(PlayButtonStyle(palette: palette))
-                .accessibilityLabel("Play album")
+                .frame(minWidth: 120, alignment: .center)
+            } else {
+                VStack(alignment: .trailing, spacing: 8) {
+                    Button {
+                        viewModel.playAlbum()
+                    } label: {
+                        Label("Play", systemImage: "play.fill")
+                    }
+                    .buttonStyle(PlayButtonStyle(palette: palette))
+                    .accessibilityLabel("Play album")
+                }
             }
         }
     }
 
     @ViewBuilder
-    private func metadataSection(palette: LunaraTheme.PaletteColors) -> some View {
+    private func metadataSection(palette: ThemePalette) -> some View {
         let metadataItems = metadataRows()
         if !metadataItems.isEmpty {
             VStack(alignment: .leading, spacing: Layout.metadataSpacing) {
@@ -187,19 +203,26 @@ struct AlbumDetailView: View {
         }
     }
 
-    private var subtitleText: String {
-        let artist = album.artist?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let year = album.year.map(String.init)
-        switch (artist?.isEmpty == false ? artist : nil, year) {
-        case let (.some(name), .some(yearValue)):
-            return "\(name) — \(yearValue)"
-        case let (.some(name), .none):
-            return name
-        case let (.none, .some(yearValue)):
-            return yearValue
-        default:
-            return " "
+    private var artistLine: String? {
+        album.artist?.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var releaseDateLine: String {
+        if let dateText = formattedReleaseDate() {
+            return dateText
         }
+        if let year = album.year {
+            return String(year)
+        }
+        return "Release date unavailable"
+    }
+
+    private func formattedReleaseDate() -> String? {
+        guard let dateString = album.originallyAvailableAt,
+              let date = DateFormatter.iso8601Short.date(from: dateString) else {
+            return nil
+        }
+        return DateFormatter.releaseLong.string(from: date)
     }
 
     private func metadataRows() -> [MetadataItem] {
@@ -231,12 +254,30 @@ struct AlbumDetailView: View {
         let progress = min(1, max(0, (offset - fadeStart) / (fadeEnd - fadeStart)))
         return Double(progress)
     }
+
+    private func albumThemeProvider() async -> AlbumTheme? {
+        guard let request = artworkRequest() else { return nil }
+        return await ArtworkThemeProvider.shared.theme(for: request)
+    }
+
+    private func artworkRequest() -> ArtworkRequest? {
+        guard let serverURL = UserDefaults.standard.string(forKey: "plex.server.baseURL"),
+              let baseURL = URL(string: serverURL) else {
+            return nil
+        }
+        let storedToken = try? PlexAuthTokenStore(keychain: KeychainStore()).load()
+        guard let token = storedToken ?? nil else {
+            return nil
+        }
+        let builder = ArtworkRequestBuilder(baseURL: baseURL, token: token)
+        return builder.albumRequest(for: album, size: .detail)
+    }
 }
 
 private struct TrackRowCard: View {
     let track: PlexTrack
     let albumArtist: String?
-    let palette: LunaraTheme.PaletteColors
+    let palette: ThemePalette
     let onTap: () -> Void
 
     var body: some View {
@@ -312,18 +353,18 @@ private struct TrackRowCard: View {
 }
 
 private struct PlayButtonStyle: ButtonStyle {
-    let palette: LunaraTheme.PaletteColors
+    let palette: ThemePalette
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 14, weight: .semibold))
-            .foregroundStyle(palette.accentPrimary)
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(palette.textPrimary)
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
-            .background(palette.raised.opacity(configuration.isPressed ? 0.94 : 1.0))
+            .background(palette.accentPrimary.opacity(configuration.isPressed ? 0.22 : 0.16))
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
-                    .stroke(palette.borderSubtle, lineWidth: 1)
+                    .stroke(palette.accentPrimary.opacity(0.4), lineWidth: 1)
             )
             .clipShape(RoundedRectangle(cornerRadius: 16))
     }
@@ -332,7 +373,7 @@ private struct PlayButtonStyle: ButtonStyle {
 private struct MetadataCard: View {
     let title: String
     let value: String
-    let palette: LunaraTheme.PaletteColors
+    let palette: ThemePalette
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -358,7 +399,7 @@ private struct MetadataCard: View {
 
 private struct StarRatingView: View {
     let ratingOutOfTen: Double
-    let palette: LunaraTheme.PaletteColors
+    let palette: ThemePalette
 
     var body: some View {
         let ratingOutOfFive = max(0, min(ratingOutOfTen / 2.0, 5))
@@ -377,8 +418,17 @@ private struct StarRatingView: View {
                 Image(systemName: "star")
             }
         }
-        .font(.system(size: 13, weight: .semibold))
+        .font(.system(size: 15, weight: .semibold))
         .foregroundStyle(palette.accentSecondary)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(palette.raised.opacity(0.95))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(palette.accentSecondary.opacity(0.45), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 2)
         .accessibilityLabel("\(ratingOutOfFive, specifier: "%.1f") out of 5 stars")
     }
 }
@@ -394,4 +444,21 @@ private struct ScrollOffsetPreferenceKey: PreferenceKey {
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
     }
+}
+
+private extension DateFormatter {
+    static let iso8601Short: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
+
+    static let releaseLong: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .long
+        formatter.timeStyle = .none
+        return formatter
+    }()
 }

@@ -53,17 +53,6 @@ struct CollectionDetailView: View {
         }
         .navigationTitle(collection.title)
         .navigationBarTitleDisplayMode(.inline)
-        .safeAreaInset(edge: .bottom) {
-            if let nowPlaying = playbackViewModel.nowPlaying {
-                NowPlayingBarView(
-                    state: nowPlaying,
-                    palette: palette,
-                    onTogglePlayPause: { playbackViewModel.togglePlayPause() }
-                )
-                .padding(.horizontal, LunaraTheme.Layout.globalPadding)
-                .padding(.bottom, LunaraTheme.Layout.globalPadding)
-            }
-        }
         .overlay(alignment: .top) {
             if let message = playbackViewModel.errorMessage {
                 PlaybackErrorBanner(message: message, palette: palette) {

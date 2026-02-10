@@ -75,12 +75,20 @@ final class AlbumDetailViewModel: ObservableObject {
     }
 
     func playAlbum() {
-        playbackController.play(tracks: tracks, startIndex: 0)
+        playbackController.play(
+            tracks: tracks,
+            startIndex: 0,
+            context: makeNowPlayingContext()
+        )
     }
 
     func playTrack(_ track: PlexTrack) {
         guard let index = tracks.firstIndex(where: { $0.ratingKey == track.ratingKey }) else { return }
-        playbackController.play(tracks: tracks, startIndex: index)
+        playbackController.play(
+            tracks: tracks,
+            startIndex: index,
+            context: makeNowPlayingContext()
+        )
     }
 
     private func fetchMergedTracks(
@@ -119,5 +127,20 @@ final class AlbumDetailViewModel: ObservableObject {
             }
             return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
         }
+    }
+
+    private func makeNowPlayingContext() -> NowPlayingContext? {
+        guard let serverURL = serverStore.serverURL else { return nil }
+        let storedToken = try? tokenStore.load()
+        guard let token = storedToken ?? nil else { return nil }
+        let builder = ArtworkRequestBuilder(baseURL: serverURL, token: token)
+        let request = builder.albumRequest(for: album, size: .detail)
+        let ratingKeys = albumRatingKeys.isEmpty ? [album.ratingKey] : albumRatingKeys
+        return NowPlayingContext(
+            album: album,
+            albumRatingKeys: ratingKeys,
+            tracks: tracks,
+            artworkRequest: request
+        )
     }
 }

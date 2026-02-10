@@ -71,6 +71,11 @@ final class AVQueuePlayerAdapter: PlaybackPlayer {
         player.replaceCurrentItem(with: newItem)
     }
 
+    func seek(to seconds: TimeInterval) {
+        let time = CMTime(seconds: max(seconds, 0), preferredTimescale: 600)
+        player.seek(to: time)
+    }
+
     private func bindPlayerObservers() {
         endObserver = NotificationCenter.default.addObserver(
             forName: .AVPlayerItemDidPlayToEndTime,

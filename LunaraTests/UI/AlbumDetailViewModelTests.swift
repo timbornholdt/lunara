@@ -171,7 +171,14 @@ struct AlbumDetailViewModelTests {
             key: nil
         )
         let playback = StubPlaybackController()
-        let viewModel = AlbumDetailViewModel(album: album, playbackController: playback)
+        let tokenStore = InMemoryTokenStore(token: "token")
+        let serverStore = InMemoryServerStore(url: URL(string: "https://example.com:32400")!)
+        let viewModel = AlbumDetailViewModel(
+            album: album,
+            tokenStore: tokenStore,
+            serverStore: serverStore,
+            playbackController: playback
+        )
         viewModel.tracks = [
             PlexTrack(ratingKey: "1", title: "One", index: 1, parentIndex: nil, parentRatingKey: "10", duration: nil, media: nil),
             PlexTrack(ratingKey: "2", title: "Two", index: 2, parentIndex: nil, parentRatingKey: "10", duration: nil, media: nil)
@@ -181,6 +188,7 @@ struct AlbumDetailViewModelTests {
 
         #expect(playback.lastStartIndex == 0)
         #expect(playback.lastTracks?.count == 2)
+        #expect(playback.lastContext?.album.ratingKey == "10")
     }
 
     @Test func playTrackStartsAtSelectedIndex() async {
@@ -207,7 +215,14 @@ struct AlbumDetailViewModelTests {
             key: nil
         )
         let playback = StubPlaybackController()
-        let viewModel = AlbumDetailViewModel(album: album, playbackController: playback)
+        let tokenStore = InMemoryTokenStore(token: "token")
+        let serverStore = InMemoryServerStore(url: URL(string: "https://example.com:32400")!)
+        let viewModel = AlbumDetailViewModel(
+            album: album,
+            tokenStore: tokenStore,
+            serverStore: serverStore,
+            playbackController: playback
+        )
         let trackOne = PlexTrack(ratingKey: "1", title: "One", index: 1, parentIndex: nil, parentRatingKey: "10", duration: nil, media: nil)
         let trackTwo = PlexTrack(ratingKey: "2", title: "Two", index: 2, parentIndex: nil, parentRatingKey: "10", duration: nil, media: nil)
         viewModel.tracks = [trackOne, trackTwo]
@@ -215,17 +230,20 @@ struct AlbumDetailViewModelTests {
         viewModel.playTrack(trackTwo)
 
         #expect(playback.lastStartIndex == 1)
+        #expect(playback.lastContext?.album.ratingKey == "10")
     }
 }
 
 private final class StubPlaybackController: PlaybackControlling {
     private(set) var lastTracks: [PlexTrack]?
     private(set) var lastStartIndex: Int?
+    private(set) var lastContext: NowPlayingContext?
     private(set) var toggleCallCount = 0
 
-    func play(tracks: [PlexTrack], startIndex: Int) {
+    func play(tracks: [PlexTrack], startIndex: Int, context: NowPlayingContext?) {
         lastTracks = tracks
         lastStartIndex = startIndex
+        lastContext = context
     }
 
     func togglePlayPause() {
@@ -233,5 +251,14 @@ private final class StubPlaybackController: PlaybackControlling {
     }
 
     func stop() {
+    }
+
+    func skipToNext() {
+    }
+
+    func skipToPrevious() {
+    }
+
+    func seek(to seconds: TimeInterval) {
     }
 }

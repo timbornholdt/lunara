@@ -28,6 +28,7 @@ struct PlexAlbum: Decodable, Equatable, Sendable {
     let thumb: String?
     let art: String?
     let year: Int?
+    let originallyAvailableAt: String?
     let artist: String?
     let titleSort: String?
     let originalTitle: String?
@@ -43,6 +44,52 @@ struct PlexAlbum: Decodable, Equatable, Sendable {
     let rating: Double?
     let userRating: Double?
     let key: String?
+
+    init(
+        ratingKey: String,
+        title: String,
+        thumb: String?,
+        art: String?,
+        year: Int?,
+        originallyAvailableAt: String? = nil,
+        artist: String?,
+        titleSort: String?,
+        originalTitle: String?,
+        editionTitle: String?,
+        guid: String?,
+        librarySectionID: Int?,
+        parentRatingKey: String?,
+        studio: String?,
+        summary: String?,
+        genres: [PlexTag]?,
+        styles: [PlexTag]?,
+        moods: [PlexTag]?,
+        rating: Double?,
+        userRating: Double?,
+        key: String?
+    ) {
+        self.ratingKey = ratingKey
+        self.title = title
+        self.thumb = thumb
+        self.art = art
+        self.year = year
+        self.originallyAvailableAt = originallyAvailableAt
+        self.artist = artist
+        self.titleSort = titleSort
+        self.originalTitle = originalTitle
+        self.editionTitle = editionTitle
+        self.guid = guid
+        self.librarySectionID = librarySectionID
+        self.parentRatingKey = parentRatingKey
+        self.studio = studio
+        self.summary = summary
+        self.genres = genres
+        self.styles = styles
+        self.moods = moods
+        self.rating = rating
+        self.userRating = userRating
+        self.key = key
+    }
 
     var dedupIdentity: String {
         if let guid, !guid.isEmpty {
@@ -60,6 +107,7 @@ struct PlexAlbum: Decodable, Equatable, Sendable {
         case thumb
         case art
         case year
+        case originallyAvailableAt
         case artist = "parentTitle"
         case titleSort
         case originalTitle

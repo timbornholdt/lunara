@@ -4,6 +4,7 @@ struct NowPlayingBarView: View {
     let state: NowPlayingState
     let palette: LunaraTheme.PaletteColors
     let onTogglePlayPause: () -> Void
+    let onOpenNowPlaying: () -> Void
 
     var body: some View {
         VStack(spacing: 8) {
@@ -48,6 +49,8 @@ struct NowPlayingBarView: View {
             x: 0,
             y: 1
         )
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onOpenNowPlaying)
     }
 
     private var timeText: String {
