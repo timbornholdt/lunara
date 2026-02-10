@@ -2,9 +2,12 @@ import Foundation
 
 @MainActor
 protocol PlaybackControlling {
-    func play(tracks: [PlexTrack], startIndex: Int)
+    func play(tracks: [PlexTrack], startIndex: Int, context: NowPlayingContext?)
     func togglePlayPause()
     func stop()
+    func skipToNext()
+    func skipToPrevious()
+    func seek(to seconds: TimeInterval)
 }
 
 protocol PlaybackEngineing: AnyObject {
@@ -13,6 +16,9 @@ protocol PlaybackEngineing: AnyObject {
     func play(tracks: [PlexTrack], startIndex: Int)
     func togglePlayPause()
     func stop()
+    func skipToNext()
+    func skipToPrevious()
+    func seek(to seconds: TimeInterval)
 }
 
 protocol PlaybackPlayer: AnyObject {
@@ -26,6 +32,7 @@ protocol PlaybackPlayer: AnyObject {
     func pause()
     func stop()
     func replaceCurrentItem(url: URL)
+    func seek(to seconds: TimeInterval)
 }
 
 protocol AudioSessionManaging {
@@ -37,14 +44,21 @@ protocol PlaybackFallbackURLBuilding {
 }
 
 struct NowPlayingState: Equatable {
+    let trackRatingKey: String
     let trackTitle: String
     let artistName: String?
     let isPlaying: Bool
-    let trackIndex: Int
     let elapsedTime: TimeInterval
     let duration: TimeInterval?
 }
 
 struct PlaybackError: Equatable {
     let message: String
+}
+
+struct NowPlayingContext {
+    let album: PlexAlbum
+    let albumRatingKeys: [String]
+    let tracks: [PlexTrack]
+    let artworkRequest: ArtworkRequest?
 }

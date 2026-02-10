@@ -4,6 +4,8 @@ struct LibraryBrowseView: View {
     @StateObject var viewModel: LibraryViewModel
     @ObservedObject var playbackViewModel: PlaybackViewModel
     let signOut: () -> Void
+    @Binding var pendingAlbumNavigation: AlbumNavigationRequest?
+    let isActiveTab: Bool
     @Environment(\.colorScheme) private var colorScheme
     @State private var errorToken = UUID()
 
@@ -51,6 +53,14 @@ struct LibraryBrowseView: View {
                     }
                 }
             }
+            .navigationDestination(item: activeNavigation) { request in
+                AlbumDetailView(
+                    album: request.album,
+                    albumRatingKeys: request.albumRatingKeys,
+                    playbackViewModel: playbackViewModel,
+                    sessionInvalidationHandler: signOut
+                )
+            }
         }
         .overlay(alignment: .top) {
             if let error = viewModel.errorMessage, viewModel.albums.isEmpty == false {
@@ -60,17 +70,6 @@ struct LibraryBrowseView: View {
                 .padding(.horizontal, LunaraTheme.Layout.globalPadding)
                 .padding(.top, 8)
                 .transition(.opacity)
-            }
-        }
-        .safeAreaInset(edge: .bottom) {
-            if let nowPlaying = playbackViewModel.nowPlaying {
-                NowPlayingBarView(
-                    state: nowPlaying,
-                    palette: palette,
-                    onTogglePlayPause: { playbackViewModel.togglePlayPause() }
-                )
-                .padding(.horizontal, LunaraTheme.Layout.globalPadding)
-                .padding(.bottom, LunaraTheme.Layout.globalPadding)
             }
         }
         .overlay(alignment: .top) {
@@ -95,5 +94,15 @@ struct LibraryBrowseView: View {
                 }
             }
         }
+    }
+
+    private var activeNavigation: Binding<AlbumNavigationRequest?> {
+        Binding(
+            get: { isActiveTab ? pendingAlbumNavigation : nil },
+            set: { newValue in
+                guard isActiveTab else { return }
+                pendingAlbumNavigation = newValue
+            }
+        )
     }
 }

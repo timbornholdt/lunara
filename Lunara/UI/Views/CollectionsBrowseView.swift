@@ -4,6 +4,8 @@ struct CollectionsBrowseView: View {
     @StateObject var viewModel: CollectionsViewModel
     @ObservedObject var playbackViewModel: PlaybackViewModel
     let signOut: () -> Void
+    @Binding var pendingAlbumNavigation: AlbumNavigationRequest?
+    let isActiveTab: Bool
     @Environment(\.colorScheme) private var colorScheme
     @State private var errorToken = UUID()
 
@@ -82,6 +84,14 @@ struct CollectionsBrowseView: View {
                     }
                 }
             }
+            .navigationDestination(item: activeNavigation) { request in
+                AlbumDetailView(
+                    album: request.album,
+                    albumRatingKeys: request.albumRatingKeys,
+                    playbackViewModel: playbackViewModel,
+                    sessionInvalidationHandler: signOut
+                )
+            }
         }
         .overlay(alignment: .top) {
             if let error = viewModel.errorMessage, viewModel.collections.isEmpty == false {
@@ -91,17 +101,6 @@ struct CollectionsBrowseView: View {
                 .padding(.horizontal, Layout.globalPadding)
                 .padding(.top, 8)
                 .transition(.opacity)
-            }
-        }
-        .safeAreaInset(edge: .bottom) {
-            if let nowPlaying = playbackViewModel.nowPlaying {
-                NowPlayingBarView(
-                    state: nowPlaying,
-                    palette: palette,
-                    onTogglePlayPause: { playbackViewModel.togglePlayPause() }
-                )
-                .padding(.horizontal, Layout.globalPadding)
-                .padding(.bottom, Layout.globalPadding)
             }
         }
         .overlay(alignment: .top) {
@@ -126,6 +125,16 @@ struct CollectionsBrowseView: View {
                 }
             }
         }
+    }
+
+    private var activeNavigation: Binding<AlbumNavigationRequest?> {
+        Binding(
+            get: { isActiveTab ? pendingAlbumNavigation : nil },
+            set: { newValue in
+                guard isActiveTab else { return }
+                pendingAlbumNavigation = newValue
+            }
+        )
     }
 
     private static func makeRows(from collections: [PlexCollection]) -> [CollectionRow] {

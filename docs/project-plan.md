@@ -72,7 +72,7 @@
      - When the app loads, it should show an image of some sort along with the text "Lunara" and a loading indicator
 	 - The app should check if the token is still valid or if the user is not signed in. If the user is valid, move right into the library view.
 	 - Otherwise, show the login screen.
-8. [ ] Now playing screen v1
+8. [x] Now playing screen v1
    - Acceptance criteria:
      - Work with the user to define what should be present on a now playing screen
 	 - Tapping the floating "now playing" bar should bring the "now playing" screen up from the bottom. You should be able to pull down from the top of that screen to dismiss it at any time. The now playing bar should fade out when this screen is present and reappear when it is dismissed.

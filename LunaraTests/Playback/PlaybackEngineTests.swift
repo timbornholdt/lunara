@@ -36,6 +36,7 @@ struct PlaybackEngineTests {
         #expect(player.playCallCount == 1)
         #expect(audioSession.configureCallCount == 1)
         #expect(latestState?.trackTitle == "Two")
+        #expect(latestState?.trackRatingKey == "2")
         #expect(latestState?.duration == 2.0)
         #expect(latestState?.isPlaying == true)
     }
@@ -187,6 +188,93 @@ struct PlaybackEngineTests {
         #expect(latestState == nil)
     }
 
+    @Test func skipToNextRebuildsQueue() async throws {
+        let player = TestPlaybackPlayer()
+        let resolver = StubPlaybackSourceResolver(urls: [
+            "1": URL(string: "https://example.com/1.mp3")!,
+            "2": URL(string: "https://example.com/2.mp3")!,
+            "3": URL(string: "https://example.com/3.mp3")!
+        ])
+        let fallbackBuilder = StubFallbackURLBuilder(url: URL(string: "https://example.com/fallback.m3u8")!)
+        let audioSession = StubAudioSessionManager()
+        let engine = PlaybackEngine(
+            player: player,
+            sourceResolver: resolver,
+            fallbackURLBuilder: fallbackBuilder,
+            audioSession: audioSession
+        )
+        let tracks = [
+            PlexTrack(ratingKey: "1", title: "One", index: 1, parentIndex: nil, parentRatingKey: "10", duration: 1000, media: nil),
+            PlexTrack(ratingKey: "2", title: "Two", index: 2, parentIndex: nil, parentRatingKey: "10", duration: 2000, media: nil),
+            PlexTrack(ratingKey: "3", title: "Three", index: 3, parentIndex: nil, parentRatingKey: "10", duration: 3000, media: nil)
+        ]
+        var latestState: NowPlayingState?
+        engine.onStateChange = { latestState = $0 }
+
+        engine.play(tracks: tracks, startIndex: 0)
+        engine.skipToNext()
+
+        #expect(player.setQueueURLs == [
+            URL(string: "https://example.com/2.mp3")!,
+            URL(string: "https://example.com/3.mp3")!
+        ])
+        #expect(latestState?.trackTitle == "Two")
+    }
+
+    @Test func skipToPreviousRebuildsQueue() async throws {
+        let player = TestPlaybackPlayer()
+        let resolver = StubPlaybackSourceResolver(urls: [
+            "1": URL(string: "https://example.com/1.mp3")!,
+            "2": URL(string: "https://example.com/2.mp3")!
+        ])
+        let fallbackBuilder = StubFallbackURLBuilder(url: URL(string: "https://example.com/fallback.m3u8")!)
+        let audioSession = StubAudioSessionManager()
+        let engine = PlaybackEngine(
+            player: player,
+            sourceResolver: resolver,
+            fallbackURLBuilder: fallbackBuilder,
+            audioSession: audioSession
+        )
+        let tracks = [
+            PlexTrack(ratingKey: "1", title: "One", index: 1, parentIndex: nil, parentRatingKey: "10", duration: 1000, media: nil),
+            PlexTrack(ratingKey: "2", title: "Two", index: 2, parentIndex: nil, parentRatingKey: "10", duration: 2000, media: nil)
+        ]
+        var latestState: NowPlayingState?
+        engine.onStateChange = { latestState = $0 }
+
+        engine.play(tracks: tracks, startIndex: 1)
+        engine.skipToPrevious()
+
+        #expect(player.setQueueURLs == [
+            URL(string: "https://example.com/1.mp3")!,
+            URL(string: "https://example.com/2.mp3")!
+        ])
+        #expect(latestState?.trackTitle == "One")
+    }
+
+    @Test func seekDelegatesToPlayer() async throws {
+        let player = TestPlaybackPlayer()
+        let resolver = StubPlaybackSourceResolver(urls: [
+            "1": URL(string: "https://example.com/1.mp3")!
+        ])
+        let fallbackBuilder = StubFallbackURLBuilder(url: URL(string: "https://example.com/fallback.m3u8")!)
+        let audioSession = StubAudioSessionManager()
+        let engine = PlaybackEngine(
+            player: player,
+            sourceResolver: resolver,
+            fallbackURLBuilder: fallbackBuilder,
+            audioSession: audioSession
+        )
+        let tracks = [
+            PlexTrack(ratingKey: "1", title: "One", index: 1, parentIndex: nil, parentRatingKey: "10", duration: 1000, media: nil)
+        ]
+
+        engine.play(tracks: tracks, startIndex: 0)
+        engine.seek(to: 42)
+
+        #expect(player.lastSeekTime == 42)
+    }
+
     @Test func togglePlayPausePausesWhenPlaying() async throws {
         let player = TestPlaybackPlayer()
         let resolver = StubPlaybackSourceResolver(urls: [
@@ -247,6 +335,7 @@ private final class TestPlaybackPlayer: PlaybackPlayer {
     private(set) var pauseCallCount = 0
     private(set) var stopCallCount = 0
     private(set) var replacedCurrentItemURL: URL?
+    private(set) var lastSeekTime: TimeInterval?
 
     func setQueue(urls: [URL]) {
         setQueueURLs = urls
@@ -270,6 +359,10 @@ private final class TestPlaybackPlayer: PlaybackPlayer {
 
     func replaceCurrentItem(url: URL) {
         replacedCurrentItemURL = url
+    }
+
+    func seek(to seconds: TimeInterval) {
+        lastSeekTime = seconds
     }
 
     func emitFailure(index: Int) {

@@ -4,6 +4,8 @@ import Foundation
 @MainActor
 final class PlaybackViewModel: ObservableObject, PlaybackControlling {
     @Published private(set) var nowPlaying: NowPlayingState?
+    @Published private(set) var nowPlayingContext: NowPlayingContext?
+    @Published private(set) var albumTheme: AlbumTheme?
     @Published private(set) var errorMessage: String?
 
     private let tokenStore: PlexAuthTokenStoring
@@ -13,31 +15,37 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
     private var lastServerURL: URL?
     private var lastToken: String?
     private let bypassAuthChecks: Bool
+    private let themeProvider: ArtworkThemeProviding
+    private var currentThemeAlbumKey: String?
 
     typealias PlaybackEngineFactory = (URL, String) -> PlaybackEngineing
 
     init(
         tokenStore: PlexAuthTokenStoring = PlexAuthTokenStore(keychain: KeychainStore()),
         serverStore: PlexServerAddressStoring = UserDefaultsServerAddressStore(),
-        engineFactory: @escaping PlaybackEngineFactory = PlaybackViewModel.defaultEngineFactory
+        engineFactory: @escaping PlaybackEngineFactory = PlaybackViewModel.defaultEngineFactory,
+        themeProvider: ArtworkThemeProviding = ArtworkThemeProvider.shared
     ) {
         self.tokenStore = tokenStore
         self.serverStore = serverStore
         self.engineFactory = engineFactory
+        self.themeProvider = themeProvider
         self.bypassAuthChecks = false
     }
 
-    init(engine: PlaybackEngineing) {
+    init(engine: PlaybackEngineing, themeProvider: ArtworkThemeProviding = ArtworkThemeProvider.shared) {
         self.tokenStore = PlexAuthTokenStore(keychain: KeychainStore())
         self.serverStore = UserDefaultsServerAddressStore()
         self.engineFactory = PlaybackViewModel.defaultEngineFactory
         self.engine = engine
         self.bypassAuthChecks = true
+        self.themeProvider = themeProvider
         bindEngineCallbacks()
     }
 
-    func play(tracks: [PlexTrack], startIndex: Int) {
+    func play(tracks: [PlexTrack], startIndex: Int, context: NowPlayingContext?) {
         errorMessage = nil
+        setNowPlayingContext(context)
         if bypassAuthChecks {
             engine?.play(tracks: tracks, startIndex: startIndex)
             return
@@ -67,6 +75,21 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
     func stop() {
         engine?.stop()
         nowPlaying = nil
+        nowPlayingContext = nil
+        albumTheme = nil
+        currentThemeAlbumKey = nil
+    }
+
+    func skipToNext() {
+        engine?.skipToNext()
+    }
+
+    func skipToPrevious() {
+        engine?.skipToPrevious()
+    }
+
+    func seek(to seconds: TimeInterval) {
+        engine?.seek(to: seconds)
     }
 
     func clearError() {
@@ -79,6 +102,28 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
         }
         engine?.onError = { [weak self] error in
             self?.errorMessage = error.message
+        }
+    }
+
+    private func setNowPlayingContext(_ context: NowPlayingContext?) {
+        nowPlayingContext = context
+        guard let context else {
+            albumTheme = nil
+            currentThemeAlbumKey = nil
+            return
+        }
+        let albumKey = context.album.ratingKey
+        if currentThemeAlbumKey == albumKey {
+            return
+        }
+        currentThemeAlbumKey = albumKey
+        Task {
+            let theme = await themeProvider.theme(for: context.artworkRequest)
+            await MainActor.run {
+                if self.currentThemeAlbumKey == albumKey {
+                    self.albumTheme = theme
+                }
+            }
         }
     }
 
