@@ -2,6 +2,7 @@ import SwiftUI
 
 struct LibraryBrowseView: View {
     @StateObject var viewModel: LibraryViewModel
+    @ObservedObject var playbackViewModel: PlaybackViewModel
     let signOut: () -> Void
     @Environment(\.colorScheme) private var colorScheme
 
@@ -69,7 +70,11 @@ struct LibraryBrowseView: View {
                                 LazyVGrid(columns: columns, spacing: Layout.rowSpacing) {
                                     ForEach(viewModel.albums, id: \.ratingKey) { album in
                                         NavigationLink {
-                                            AlbumDetailView(album: album, sessionInvalidationHandler: signOut)
+                                            AlbumDetailView(
+                                                album: album,
+                                                playbackViewModel: playbackViewModel,
+                                                sessionInvalidationHandler: signOut
+                                            )
                                         } label: {
                                             AlbumCardView(album: album, palette: palette, width: columnWidth)
                                         }
@@ -93,6 +98,21 @@ struct LibraryBrowseView: View {
                         signOut()
                     }
                 }
+            }
+        }
+        .safeAreaInset(edge: .bottom) {
+            if let nowPlaying = playbackViewModel.nowPlaying {
+                NowPlayingBarView(state: nowPlaying, palette: palette)
+                    .padding(.horizontal, Layout.globalPadding)
+                    .padding(.bottom, Layout.globalPadding)
+            }
+        }
+        .overlay(alignment: .top) {
+            if let message = playbackViewModel.errorMessage {
+                PlaybackErrorBanner(message: message, palette: palette) {
+                    playbackViewModel.clearError()
+                }
+                .padding(.horizontal, Layout.globalPadding)
             }
         }
         .task {

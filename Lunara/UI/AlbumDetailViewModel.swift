@@ -13,6 +13,7 @@ final class AlbumDetailViewModel: ObservableObject {
     private let serverStore: PlexServerAddressStoring
     private let libraryServiceFactory: PlexLibraryServiceFactory
     private let sessionInvalidationHandler: () -> Void
+    private let playbackController: PlaybackControlling
 
     init(
         album: PlexAlbum,
@@ -27,13 +28,15 @@ final class AlbumDetailViewModel: ObservableObject {
                 paginator: PlexPaginator(pageSize: 50)
             )
         },
-        sessionInvalidationHandler: @escaping () -> Void = {}
+        sessionInvalidationHandler: @escaping () -> Void = {},
+        playbackController: PlaybackControlling? = nil
     ) {
         self.album = album
         self.tokenStore = tokenStore
         self.serverStore = serverStore
         self.libraryServiceFactory = libraryServiceFactory
         self.sessionInvalidationHandler = sessionInvalidationHandler
+        self.playbackController = playbackController ?? PlaybackNoopController()
     }
 
     func loadTracks() async {
@@ -62,5 +65,14 @@ final class AlbumDetailViewModel: ObservableObject {
                 errorMessage = "Failed to load tracks."
             }
         }
+    }
+
+    func playAlbum() {
+        playbackController.play(tracks: tracks, startIndex: 0)
+    }
+
+    func playTrack(_ track: PlexTrack) {
+        guard let index = tracks.firstIndex(where: { $0.ratingKey == track.ratingKey }) else { return }
+        playbackController.play(tracks: tracks, startIndex: index)
     }
 }

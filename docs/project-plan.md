@@ -39,7 +39,7 @@
      - Playfair Display font asset added to the app and configured in Info.plist.
      - Linen background texture generated on the fly (no static asset), adapts to theme changes.
      - Sign-in screen updated to match `docs/ui-brand-guide.md` (typography, colors, pill buttons, card-style inputs).
-3. [ ] Playback engine v1 (AVPlayer)
+3. [x] Playback engine v1 (AVPlayer)
    - Acceptance criteria:
      - Plays a full album sequentially.
      - No truncation on network changes.

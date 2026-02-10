@@ -22,13 +22,6 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		F1B7E09C2F8F1D6E00D3B6A1 /* Exceptions for "Lunara" folder in "Lunara" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				"Info.plist",
-			);
-			target = F191291D2F392CB800064746 /* Lunara */;
-		};
 		F1993B412F3A7CE900CE2BAB /* Exceptions for "Lunara" folder in "LunaraTests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -40,6 +33,13 @@
 				"Resources/Fonts/PlayfairDisplay/PlayfairDisplay-VariableFont_wght.ttf",
 			);
 			target = F191292F2F3997C800064746 /* LunaraTests */;
+		};
+		F1B7E09C2F8F1D6E00D3B6A1 /* Exceptions for "Lunara" folder in "Lunara" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = F191291D2F392CB800064746 /* Lunara */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
