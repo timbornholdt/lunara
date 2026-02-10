@@ -7,6 +7,7 @@ final class CollectionsViewModel: ObservableObject {
     @Published var collections: [PlexCollection] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
+    @Published private(set) var hasLoadedCollections = false
 
     private let tokenStore: PlexAuthTokenStoring
     private let serverStore: PlexServerAddressStoring
@@ -72,6 +73,7 @@ final class CollectionsViewModel: ObservableObject {
             let fetchedCollections = try await service.fetchCollections(sectionId: firstMusic.key)
             logger(fetchedCollections.map(\.title))
             collections = sortCollections(fetchedCollections)
+            hasLoadedCollections = true
         } catch {
             print("CollectionsViewModel.loadCollections error: \(error)")
             if PlexErrorHelpers.isUnauthorized(error) {
@@ -86,6 +88,11 @@ final class CollectionsViewModel: ObservableObject {
                 }
             }
         }
+    }
+
+    func loadCollectionsIfNeeded() async {
+        guard hasLoadedCollections == false else { return }
+        await loadCollections()
     }
 
     func isPinned(_ collection: PlexCollection) -> Bool {

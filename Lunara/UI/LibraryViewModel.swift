@@ -11,6 +11,7 @@ final class LibraryViewModel: ObservableObject {
     @Published var albums: [PlexAlbum] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
+    @Published private(set) var hasLoadedSections = false
 
     private let tokenStore: PlexAuthTokenStoring
     private let serverStore: PlexServerAddressStoring
@@ -70,6 +71,7 @@ final class LibraryViewModel: ObservableObject {
             if let selected = selectedSection {
                 try await loadAlbums(section: selected)
             }
+            hasLoadedSections = true
         } catch {
             print("LibraryViewModel.loadSections error: \(error)")
             if PlexErrorHelpers.isUnauthorized(error) {
@@ -84,6 +86,11 @@ final class LibraryViewModel: ObservableObject {
                 }
             }
         }
+    }
+
+    func loadSectionsIfNeeded() async {
+        guard hasLoadedSections == false else { return }
+        await loadSections()
     }
 
     func selectSection(_ section: PlexLibrarySection) async {

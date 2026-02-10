@@ -100,7 +100,7 @@ struct CollectionsBrowseView: View {
             }
         }
         .task {
-            await viewModel.loadCollections()
+            await viewModel.loadCollectionsIfNeeded()
         }
     }
 }
@@ -121,7 +121,7 @@ private struct CollectionCardView: View {
             Text(collection.title)
                 .font(LunaraTheme.Typography.displayBold(size: 15))
                 .foregroundStyle(palette.textPrimary)
-                .lineLimit(2)
+                .lineLimit(nil)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
                 .padding(.horizontal, 12)

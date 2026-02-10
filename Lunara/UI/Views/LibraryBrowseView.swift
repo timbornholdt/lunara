@@ -65,7 +65,7 @@ struct LibraryBrowseView: View {
             }
         }
         .task {
-            await viewModel.loadSections()
+            await viewModel.loadSectionsIfNeeded()
         }
     }
 }
