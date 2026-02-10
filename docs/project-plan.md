@@ -61,11 +61,30 @@
    - Acceptance criteria:
      - Play now/next/later works for album insertions.
      - Queue persists across app restarts.
-8. [ ] Lock screen now playing + remote controls
+8. [ ] Now playing screen v1
+   - Acceptance criteria:
+     - Work with the user to define what should be present on a now playing screen
+	 - Tapping the floating "now playing" bar should bring the "now playing" screen up from the bottom. You should be able to pull down from the top of that screen to dismiss it at any time. The now playing bar should fade out when this screen is present and reappear when it is dismissed.
+9. [ ] Caching: artwork + metadata (requirements pending)
+   - Product requirements to define:
+     - Artwork caching strategy: prefetch during sync vs on-demand + cache.
+     - Cache policy: size cap, eviction, and retention rules.
+     - Cache separation: artwork vs metadata vs offline audio responsibilities.
+   - Acceptance criteria:
+     - Album artwork is downloaded and stored locally (per chosen strategy).
+     - Artwork cache survives app restarts.
+     - Library scroll does not block on live artwork fetch if cached exists.
+     - Cache policy is explicitly documented in the product requirements.
+10. [ ] Selective library sync (metadata caching)
+   - Acceptance criteria:
+     - Cache library contents locally for fast diffing.
+     - Selective sync uses cached index to minimize full refreshes.
+     - Sync plans compute adds/removes without re-fetching the full library.
+11. [ ] Lock screen now playing + remote controls
    - Acceptance criteria:
      - Lock screen and Control Center show current track, elapsed time, and duration.
      - Play/Pause/Next/Previous remote commands control playback.
-9. [ ] Settings screen (sign out + debug logging)
+12. [ ] Settings screen (sign out + debug logging)
    - Acceptance criteria:
      - Replace the Library "Sign Out" button with a settings gear icon.
      - Settings screen includes Sign Out action.
@@ -92,32 +111,15 @@
    - Acceptance criteria:
      - Pinned collections never evict.
      - Unpinned cached audio evicts under pressure.
-3. [ ] Caching: artwork + metadata (requirements pending)
-   - Product requirements to define:
-     - Artwork caching strategy: prefetch during sync vs on-demand + cache.
-     - Cache policy: size cap, eviction, and retention rules.
-     - Cache separation: artwork vs metadata vs offline audio responsibilities.
-   - Acceptance criteria:
-     - Album artwork is downloaded and stored locally (per chosen strategy).
-     - Artwork cache survives app restarts.
-     - Library scroll does not block on live artwork fetch if cached exists.
-     - Cache policy is explicitly documented in the product requirements.
-4. [ ] Album change detection
+3. [ ] Album change detection
    - Acceptance criteria:
      - Changes in Plex trigger re-download on Wi-Fi only.
-5. [ ] Selective library sync (metadata caching)
-   - Acceptance criteria:
-     - Cache library contents locally for fast diffing.
-     - Selective sync uses cached index to minimize full refreshes.
-     - Sync plans compute adds/removes without re-fetching the full library.
 
-## Future Ideas (Backlog)
-- Wikipedia album context (creation/history)
-  - Fetch Wikipedia content when an album is loaded.
-  - Cache locally with a 1-month expiry.
-  - Prioritize content about album creation and recording context.
+## Phase 4 — Deep linking
+1. Boot from the side button on the iPhone 15 Pro
+  - Pushing that button starts playing a random album as fast as possible (loads the "now playing" screen)
 
-## Phase 4 — Notes & Deletion Queue
+## Phase 5 — Notes & Deletion Queue
 1. [ ] Personal notes
    - Acceptance criteria:
      - Album-tied notes synced to personal server.
@@ -126,7 +128,7 @@
      - Mark/unmark in app.
      - Auto-clears when Plex no longer has album.
 
-## Phase 5 — Theming + Context
+## Phase 6 — Theming + Context
 1. [ ] Artwork-derived theming
    - Acceptance criteria:
      - Dominant color, gradient, texture.
@@ -138,12 +140,18 @@
    - Acceptance criteria:
      - Overrides other theming when present.
 
-## Phase 6 — CarPlay (Deferred)
+## Phase 7 — CarPlay
 1. [ ] CarPlay browse + playback
    - Acceptance criteria:
      - Browse collections and albums.
      - Shuffle collection.
      - Now Playing controls.
+	 
+## Backlog
+- Wikipedia album context (creation/history)
+  - Fetch Wikipedia content when an album is loaded.
+  - Cache locally with a 1-month expiry.
+  - Prioritize content about album creation and recording context.
 
 ## First Feature Design Docs (Suggested Order)
 1. `docs/features/plex-auth-library-browse.md`
