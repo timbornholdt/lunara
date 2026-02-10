@@ -4,6 +4,12 @@ import SwiftUI
 
 @MainActor
 final class AuthViewModel: ObservableObject {
+    enum LaunchState: Equatable {
+        case checking
+        case authenticated
+        case unauthenticated
+    }
+
     @Published var serverURLText: String = ""
     @Published var errorMessage: String?
     @Published var isLoading = false
@@ -25,6 +31,13 @@ final class AuthViewModel: ObservableObject {
     private let pollIntervalNanoseconds: UInt64
     private let maxPollAttempts: Int
     private var pollTask: Task<Void, Never>?
+
+    var launchState: LaunchState {
+        if !didFinishInitialTokenCheck {
+            return .checking
+        }
+        return isAuthenticated ? .authenticated : .unauthenticated
+    }
 
     init(
         tokenStore: PlexAuthTokenStoring = PlexAuthTokenStore(keychain: KeychainStore()),

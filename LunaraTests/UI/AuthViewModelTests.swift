@@ -4,6 +4,29 @@ import Testing
 
 @MainActor
 struct AuthViewModelTests {
+    @Test func launchStateReflectsInitialCheckAndAuth() async {
+        let viewModel = AuthViewModel(
+            tokenStore: InMemoryTokenStore(token: nil),
+            serverStore: InMemoryServerStore(url: nil),
+            pinService: StubPinService(
+                createResult: .success(PlexPin(id: 1, code: "abcd")),
+                checkResults: []
+            ),
+            tokenValidator: StubTokenValidator(result: .success(())),
+            resourcesService: StubResourcesService(devices: []),
+            loadOnInit: false
+        )
+
+        #expect(viewModel.launchState == .checking)
+
+        viewModel.didFinishInitialTokenCheck = true
+        viewModel.isAuthenticated = false
+        #expect(viewModel.launchState == .unauthenticated)
+
+        viewModel.isAuthenticated = true
+        #expect(viewModel.launchState == .authenticated)
+    }
+
     @Test func loadsValidTokenSetsAuthenticated() async {
         let tokenStore = InMemoryTokenStore(token: "token")
         let serverStore = InMemoryServerStore(url: URL(string: "https://example.com:32400")!)
@@ -28,6 +51,30 @@ struct AuthViewModelTests {
         #expect(viewModel.isAuthenticated == true)
         #expect(viewModel.errorMessage == nil)
         #expect(viewModel.didFinishInitialTokenCheck == true)
+    }
+
+    @Test func loadTokenWithoutStoredTokenMarksCheckComplete() async {
+        let tokenStore = InMemoryTokenStore(token: nil)
+        let serverStore = InMemoryServerStore(url: nil)
+        let validator = StubTokenValidator(result: .success(()))
+        let pinService = StubPinService(
+            createResult: .success(PlexPin(id: 1, code: "abcd")),
+            checkResults: []
+        )
+        let viewModel = AuthViewModel(
+            tokenStore: tokenStore,
+            serverStore: serverStore,
+            pinService: pinService,
+            tokenValidator: validator,
+            resourcesService: StubResourcesService(devices: []),
+            loadOnInit: false
+        )
+
+        await viewModel.loadToken()
+
+        #expect(viewModel.didFinishInitialTokenCheck == true)
+        #expect(viewModel.isAuthenticated == false)
+        #expect(viewModel.errorMessage == nil)
     }
 
     @Test func clearsInvalidTokenOnLaunch() async {

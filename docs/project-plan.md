@@ -67,7 +67,7 @@
      - On launch, cached metadata renders immediately, then refreshes live with a loading indicator.
      - Selective sync uses cached index to minimize full refreshes.
      - Sync plans compute adds/removes without re-fetching the full library.
-7. [ ] Initial screen
+7. [x] Initial screen
    - Acceptance criteria:
      - When the app loads, it should show an image of some sort along with the text "Lunara" and a loading indicator
 	 - The app should check if the token is still valid or if the user is not signed in. If the user is valid, move right into the library view.
