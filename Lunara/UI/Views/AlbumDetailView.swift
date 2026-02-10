@@ -81,7 +81,7 @@ struct AlbumDetailView: View {
                                     .foregroundStyle(palette.textPrimary)
 
                                 ForEach(viewModel.tracks, id: \.ratingKey) { track in
-                                    TrackRowCard(track: track, palette: palette) {
+                                    TrackRowCard(track: track, albumArtist: album.artist, palette: palette) {
                                         viewModel.playTrack(track)
                                     }
                                 }
@@ -235,6 +235,7 @@ struct AlbumDetailView: View {
 
 private struct TrackRowCard: View {
     let track: PlexTrack
+    let albumArtist: String?
     let palette: LunaraTheme.PaletteColors
     let onTap: () -> Void
 
@@ -246,9 +247,18 @@ private struct TrackRowCard: View {
                     .foregroundStyle(palette.textSecondary)
                     .frame(width: 22, alignment: .leading)
 
-                Text(track.title)
-                    .font(LunaraTheme.Typography.displayRegular(size: 17))
-                    .foregroundStyle(palette.textPrimary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(track.title)
+                        .font(LunaraTheme.Typography.displayRegular(size: 17))
+                        .foregroundStyle(palette.textPrimary)
+
+                    if let trackArtist = trackArtistToShow {
+                        Text(trackArtist)
+                            .font(LunaraTheme.Typography.displayRegular(size: 13))
+                            .foregroundStyle(palette.textSecondary)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 Spacer(minLength: 8)
 
@@ -268,6 +278,29 @@ private struct TrackRowCard: View {
             .clipShape(RoundedRectangle(cornerRadius: AlbumDetailView.Layout.cardCornerRadius))
         }
         .buttonStyle(.plain)
+    }
+
+    private var trackArtistToShow: String? {
+        let trackArtistRaw = cleaned(track.originalTitle ?? track.grandparentTitle)
+        guard let trackArtistRaw, !trackArtistRaw.isEmpty else {
+            return nil
+        }
+        let trackArtist = normalized(trackArtistRaw)
+        let albumArtist = normalized(cleaned(albumArtist))
+        if trackArtist == albumArtist {
+            return nil
+        }
+        return trackArtistRaw
+    }
+
+    private func cleaned(_ value: String?) -> String? {
+        value?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "  ", with: " ")
+    }
+
+    private func normalized(_ value: String?) -> String? {
+        value?.lowercased()
     }
 
     private func formatDuration(_ millis: Int) -> String {
