@@ -51,8 +51,28 @@ struct StubLibraryService: PlexLibraryServicing {
     let sections: [PlexLibrarySection]
     let albums: [PlexAlbum]
     let tracks: [PlexTrack]
+    let collections: [PlexCollection]
+    let albumsByCollectionKey: [String: [PlexAlbum]]
     var tracksByAlbumRatingKey: [String: [PlexTrack]] = [:]
     var error: Error?
+
+    init(
+        sections: [PlexLibrarySection],
+        albums: [PlexAlbum],
+        tracks: [PlexTrack],
+        collections: [PlexCollection] = [],
+        albumsByCollectionKey: [String: [PlexAlbum]] = [:],
+        tracksByAlbumRatingKey: [String: [PlexTrack]] = [:],
+        error: Error? = nil
+    ) {
+        self.sections = sections
+        self.albums = albums
+        self.tracks = tracks
+        self.collections = collections
+        self.albumsByCollectionKey = albumsByCollectionKey
+        self.tracksByAlbumRatingKey = tracksByAlbumRatingKey
+        self.error = error
+    }
 
     func fetchLibrarySections() async throws -> [PlexLibrarySection] {
         if let error { throw error }
@@ -70,5 +90,15 @@ struct StubLibraryService: PlexLibraryServicing {
             return keyedTracks
         }
         return tracks
+    }
+
+    func fetchCollections(sectionId: String) async throws -> [PlexCollection] {
+        if let error { throw error }
+        return collections
+    }
+
+    func fetchAlbumsInCollection(sectionId: String, collectionKey: String) async throws -> [PlexAlbum] {
+        if let error { throw error }
+        return albumsByCollectionKey[collectionKey] ?? albums
     }
 }

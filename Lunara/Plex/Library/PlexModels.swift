@@ -4,6 +4,24 @@ struct PlexTag: Decodable, Equatable, Sendable {
     let tag: String
 }
 
+struct PlexCollection: Decodable, Equatable, Sendable {
+    let ratingKey: String
+    let title: String
+    let thumb: String?
+    let art: String?
+    let updatedAt: Int?
+    let key: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case ratingKey
+        case title
+        case thumb
+        case art
+        case updatedAt
+        case key
+    }
+}
+
 struct PlexAlbum: Decodable, Equatable, Sendable {
     let ratingKey: String
     let title: String

@@ -31,6 +31,26 @@ struct PlexLibraryRequestBuilder {
         return request
     }
 
+    func makeCollectionsRequest(sectionId: String, offset: Int, size: Int) -> URLRequest {
+        let url = baseURL.appendingPathComponent("library/sections/\(sectionId)/collections")
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        applyHeaders(to: &request)
+        request.setValue(String(offset), forHTTPHeaderField: "X-Plex-Container-Start")
+        request.setValue(String(size), forHTTPHeaderField: "X-Plex-Container-Size")
+        return request
+    }
+
+    func makeCollectionItemsRequest(collectionKey: String, offset: Int, size: Int) -> URLRequest {
+        let url = baseURL.appendingPathComponent("library/collections/\(collectionKey)/items")
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        applyHeaders(to: &request)
+        request.setValue(String(offset), forHTTPHeaderField: "X-Plex-Container-Start")
+        request.setValue(String(size), forHTTPHeaderField: "X-Plex-Container-Size")
+        return request
+    }
+
     private func applyHeaders(to request: inout URLRequest) {
         for (key, value) in configuration.defaultHeaders {
             request.setValue(value, forHTTPHeaderField: key)

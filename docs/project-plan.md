@@ -48,7 +48,7 @@
    - Acceptance criteria:
      - Plays a full album sequentially.
      - No truncation on network changes.
-5. [ ] Browse by collection
+5. [x] Browse by collection
    - Acceptance criteria:
      - App's main interface is the "all albums" interface, but a tab bar at the bottom allows me to browse by Plex album collections.
      - The main collections view shows all Plex album collections, including the artwork associated with them. Current Vibes and The Key Albums are always at the top, all others are below it alphabetically. Those two are also visually distinct.

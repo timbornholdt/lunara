@@ -87,4 +87,42 @@ struct PlexDecodingTests {
         #expect(track.index == 1)
         #expect(track.parentRatingKey == "265")
     }
+
+    @Test func decodesCollectionList() throws {
+        let json = """
+        {
+          "MediaContainer": {
+            "size": 2,
+            "totalSize": 2,
+            "offset": 0,
+            "Metadata": [
+              {
+                "ratingKey": "9001",
+                "title": "Current Vibes",
+                "thumb": "/library/collections/9001/thumb/1234",
+                "art": "/library/collections/9001/art/5678",
+                "updatedAt": 1716801576,
+                "key": "/library/collections/9001/items"
+              },
+              {
+                "ratingKey": "9002",
+                "title": "The Key Albums",
+                "thumb": "/library/collections/9002/thumb/1234",
+                "updatedAt": 1716801580
+              }
+            ]
+          }
+        }
+        """
+
+        let response = try PlexResponse<PlexCollection>.decode(from: json)
+        #expect(response.mediaContainer.items.count == 2)
+        let collection = try #require(response.mediaContainer.items.first)
+        #expect(collection.ratingKey == "9001")
+        #expect(collection.title == "Current Vibes")
+        #expect(collection.thumb != nil)
+        #expect(collection.art != nil)
+        #expect(collection.updatedAt == 1716801576)
+        #expect(collection.key == "/library/collections/9001/items")
+    }
 }

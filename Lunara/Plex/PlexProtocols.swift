@@ -23,6 +23,8 @@ protocol PlexLibraryServicing {
     func fetchLibrarySections() async throws -> [PlexLibrarySection]
     func fetchAlbums(sectionId: String) async throws -> [PlexAlbum]
     func fetchTracks(albumRatingKey: String) async throws -> [PlexTrack]
+    func fetchCollections(sectionId: String) async throws -> [PlexCollection]
+    func fetchAlbumsInCollection(sectionId: String, collectionKey: String) async throws -> [PlexAlbum]
 }
 
 protocol PlexResourcesServicing {

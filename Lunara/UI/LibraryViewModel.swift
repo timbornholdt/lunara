@@ -60,14 +60,12 @@ final class LibraryViewModel: ObservableObject {
             let service = libraryServiceFactory(serverURL, token)
             let fetched = try await service.fetchLibrarySections()
             sections = fetched.filter { $0.type == "artist" || $0.type == "music" }
-            if let storedKey = selectionStore.selectedSectionKey,
-               let storedSection = sections.first(where: { $0.key == storedKey }) {
-                selectedSection = storedSection
-            } else if selectedSection == nil {
-                selectedSection = sections.first
-            }
+            selectedSection = sections.first
             if let selectedSection {
                 selectionStore.selectedSectionKey = selectedSection.key
+            } else {
+                errorMessage = "No music library found."
+                return
             }
             if let selected = selectedSection {
                 try await loadAlbums(section: selected)
