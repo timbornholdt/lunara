@@ -48,24 +48,12 @@
    - Acceptance criteria:
      - Plays a full album sequentially.
      - No truncation on network changes.
-5. [ ] Browse by collection
+5. [x] Browse by collection
    - Acceptance criteria:
-     - App's main interface is the "all albums" interface, but a tab bar at the bottom allows me to browse by Plex album collections
-	 - The main collections view shows all Plex album collections, including the artwork associated with them. Current Vibes and The Key Albums are always at the top, all others are below it alphabetically. Those two are also visually distinct.
-	 - Clicking a collection shows the albums in that collection in the same manner as the main library view
-6. [ ] Offline manager v1
-   - Acceptance criteria:
-     - Downloads complete files only.
-     - Offline playback skips non-downloaded tracks immediately.
-7. [ ] Queue manager v1
-   - Acceptance criteria:
-     - Play now/next/later works for album insertions.
-     - Queue persists across app restarts.
-8. [ ] Now playing screen v1
-   - Acceptance criteria:
-     - Work with the user to define what should be present on a now playing screen
-	 - Tapping the floating "now playing" bar should bring the "now playing" screen up from the bottom. You should be able to pull down from the top of that screen to dismiss it at any time. The now playing bar should fade out when this screen is present and reappear when it is dismissed.
-9. [ ] Caching: artwork + metadata (requirements pending)
+     - App's main interface is the "all albums" interface, but a tab bar at the bottom allows me to browse by Plex album collections.
+     - The main collections view shows all Plex album collections, including the artwork associated with them. Current Vibes and The Key Albums are always at the top, all others are below it alphabetically. Those two are also visually distinct.
+     - Clicking a collection shows the albums in that collection in the same manner as the main library view.
+6. [ ] Caching: artwork + metadata (requirements pending)
    - Product requirements to define:
      - Artwork caching strategy: prefetch during sync vs on-demand + cache.
      - Cache policy: size cap, eviction, and retention rules.
@@ -75,11 +63,23 @@
      - Artwork cache survives app restarts.
      - Library scroll does not block on live artwork fetch if cached exists.
      - Cache policy is explicitly documented in the product requirements.
-10. [ ] Selective library sync (metadata caching)
+7. [ ] Selective library sync (metadata caching)
    - Acceptance criteria:
      - Cache library contents locally for fast diffing.
      - Selective sync uses cached index to minimize full refreshes.
      - Sync plans compute adds/removes without re-fetching the full library.
+8. [ ] Offline manager v1
+   - Acceptance criteria:
+     - Downloads complete files only.
+     - Offline playback skips non-downloaded tracks immediately.
+9. [ ] Queue manager v1
+   - Acceptance criteria:
+     - Play now/next/later works for album insertions.
+     - Queue persists across app restarts.
+10. [ ] Now playing screen v1
+   - Acceptance criteria:
+     - Work with the user to define what should be present on a now playing screen
+	 - Tapping the floating "now playing" bar should bring the "now playing" screen up from the bottom. You should be able to pull down from the top of that screen to dismiss it at any time. The now playing bar should fade out when this screen is present and reappear when it is dismissed.
 11. [ ] Lock screen now playing + remote controls
    - Acceptance criteria:
      - Lock screen and Control Center show current track, elapsed time, and duration.
@@ -114,7 +114,6 @@
 3. [ ] Album change detection
    - Acceptance criteria:
      - Changes in Plex trigger re-download on Wi-Fi only.
-
 ## Phase 4 — Deep linking
 1. Boot from the side button on the iPhone 15 Pro
   - Pushing that button starts playing a random album as fast as possible (loads the "now playing" screen)
@@ -146,13 +145,14 @@
      - Browse collections and albums.
      - Shuffle collection.
      - Now Playing controls.
-	 
 ## Backlog
 - Wikipedia album context (creation/history)
   - Fetch Wikipedia content when an album is loaded.
   - Cache locally with a 1-month expiry.
   - Prioritize content about album creation and recording context.
-
+- Playlist support (collections view extension)
+  - Add playlist browsing alongside collections.
+  - Support playlist playback and queue integration.
 ## First Feature Design Docs (Suggested Order)
 1. `docs/features/plex-auth-library-browse.md`
 2. `docs/features/avplayer-album-playback.md`

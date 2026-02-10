@@ -11,6 +11,7 @@ final class LibraryViewModel: ObservableObject {
     @Published var albums: [PlexAlbum] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
+    @Published private(set) var hasLoadedSections = false
 
     private let tokenStore: PlexAuthTokenStoring
     private let serverStore: PlexServerAddressStoring
@@ -60,18 +61,17 @@ final class LibraryViewModel: ObservableObject {
             let service = libraryServiceFactory(serverURL, token)
             let fetched = try await service.fetchLibrarySections()
             sections = fetched.filter { $0.type == "artist" || $0.type == "music" }
-            if let storedKey = selectionStore.selectedSectionKey,
-               let storedSection = sections.first(where: { $0.key == storedKey }) {
-                selectedSection = storedSection
-            } else if selectedSection == nil {
-                selectedSection = sections.first
-            }
+            selectedSection = sections.first
             if let selectedSection {
                 selectionStore.selectedSectionKey = selectedSection.key
+            } else {
+                errorMessage = "No music library found."
+                return
             }
             if let selected = selectedSection {
                 try await loadAlbums(section: selected)
             }
+            hasLoadedSections = true
         } catch {
             print("LibraryViewModel.loadSections error: \(error)")
             if PlexErrorHelpers.isUnauthorized(error) {
@@ -86,6 +86,11 @@ final class LibraryViewModel: ObservableObject {
                 }
             }
         }
+    }
+
+    func loadSectionsIfNeeded() async {
+        guard hasLoadedSections == false else { return }
+        await loadSections()
     }
 
     func selectSection(_ section: PlexLibrarySection) async {

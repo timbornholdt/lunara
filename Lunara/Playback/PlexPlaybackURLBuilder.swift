@@ -36,6 +36,7 @@ struct PlexPlaybackURLBuilder: PlaybackFallbackURLBuilding {
         var items: [URLQueryItem] = [URLQueryItem(name: "X-Plex-Token", value: token)]
         configuration.defaultHeaders
             .filter { $0.key.hasPrefix("X-Plex-") }
+            .sorted { $0.key < $1.key }
             .forEach { key, value in
                 items.append(URLQueryItem(name: key, value: value))
             }
