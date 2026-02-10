@@ -37,8 +37,7 @@ struct LibraryBrowseView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     if viewModel.isRefreshing {
                         ProgressView()
-                            .progressViewStyle(.circular)
-                            .tint(palette.textPrimary)
+                            .controlSize(.small)
                     }
                 }
                 ToolbarItem(placement: .principal) {

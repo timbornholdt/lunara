@@ -11,19 +11,40 @@ import SwiftUI
 struct ContentView: View {
     @StateObject private var authViewModel = AuthViewModel()
     @StateObject private var playbackViewModel = PlaybackViewModel()
+    @State private var showInitialScreen = true
 
     var body: some View {
-        if authViewModel.isAuthenticated {
-            MainTabView(
-                libraryViewModel: LibraryViewModel(sessionInvalidationHandler: { authViewModel.signOut() }),
-                collectionsViewModel: CollectionsViewModel(sessionInvalidationHandler: { authViewModel.signOut() }),
-                playbackViewModel: playbackViewModel
-            ) {
-                playbackViewModel.stop()
-                authViewModel.signOut()
+        ZStack {
+            switch authViewModel.launchState {
+            case .authenticated:
+                MainTabView(
+                    libraryViewModel: LibraryViewModel(sessionInvalidationHandler: { authViewModel.signOut() }),
+                    collectionsViewModel: CollectionsViewModel(sessionInvalidationHandler: { authViewModel.signOut() }),
+                    playbackViewModel: playbackViewModel
+                ) {
+                    playbackViewModel.stop()
+                    authViewModel.signOut()
+                }
+            case .unauthenticated:
+                SignInView(viewModel: authViewModel)
+            case .checking:
+                Color.clear
             }
-        } else {
-            SignInView(viewModel: authViewModel)
+        }
+        .overlay {
+            if showInitialScreen {
+                InitialScreenView()
+                    .transition(.opacity)
+            }
+        }
+        .onAppear {
+            showInitialScreen = !authViewModel.didFinishInitialTokenCheck
+        }
+        .onChange(of: authViewModel.didFinishInitialTokenCheck) { _, finished in
+            guard finished else { return }
+            withAnimation(.easeOut(duration: 0.25)) {
+                showInitialScreen = false
+            }
         }
     }
 }
