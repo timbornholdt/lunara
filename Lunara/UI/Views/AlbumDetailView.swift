@@ -153,21 +153,29 @@ struct AlbumDetailView: View {
 
             Spacer(minLength: 8)
 
-            VStack(alignment: .trailing, spacing: 8) {
-                if let userRating = album.userRating {
+            if let userRating = album.userRating {
+                VStack(spacing: 10) {
                     StarRatingView(ratingOutOfTen: userRating, palette: palette)
-                        .alignmentGuide(.firstTextBaseline) { dimensions in
-                            dimensions[.top]
-                        }
-                }
 
-                Button {
-                    viewModel.playAlbum()
-                } label: {
-                    Label("Play", systemImage: "play.fill")
+                    Button {
+                        viewModel.playAlbum()
+                    } label: {
+                        Label("Play", systemImage: "play.fill")
+                    }
+                    .buttonStyle(PlayButtonStyle(palette: palette))
+                    .accessibilityLabel("Play album")
                 }
-                .buttonStyle(PlayButtonStyle(palette: palette))
-                .accessibilityLabel("Play album")
+                .frame(minWidth: 120, alignment: .center)
+            } else {
+                VStack(alignment: .trailing, spacing: 8) {
+                    Button {
+                        viewModel.playAlbum()
+                    } label: {
+                        Label("Play", systemImage: "play.fill")
+                    }
+                    .buttonStyle(PlayButtonStyle(palette: palette))
+                    .accessibilityLabel("Play album")
+                }
             }
         }
     }
@@ -335,14 +343,14 @@ private struct PlayButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 14, weight: .semibold))
-            .foregroundStyle(palette.accentPrimary)
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(palette.textPrimary)
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
-            .background(palette.raised.opacity(configuration.isPressed ? 0.94 : 1.0))
+            .background(palette.accentPrimary.opacity(configuration.isPressed ? 0.22 : 0.16))
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
-                    .stroke(palette.borderSubtle, lineWidth: 1)
+                    .stroke(palette.accentPrimary.opacity(0.4), lineWidth: 1)
             )
             .clipShape(RoundedRectangle(cornerRadius: 16))
     }
@@ -396,8 +404,17 @@ private struct StarRatingView: View {
                 Image(systemName: "star")
             }
         }
-        .font(.system(size: 13, weight: .semibold))
+        .font(.system(size: 15, weight: .semibold))
         .foregroundStyle(palette.accentSecondary)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(palette.raised.opacity(0.95))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(palette.accentSecondary.opacity(0.45), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 2)
         .accessibilityLabel("\(ratingOutOfFive, specifier: "%.1f") out of 5 stars")
     }
 }
