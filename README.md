@@ -13,7 +13,7 @@ It is intentionally tailored to a single user’s listening habits.
 
 ## Next steps
 
-- Implement 1.2 (AVPlayer album playback).
+- Add lock screen/Control Center now playing metadata + remote controls.
 - Draft design docs for offline manager v1 + queue manager v1.
 - Plan selective library sync (metadata caching for faster syncs).
 

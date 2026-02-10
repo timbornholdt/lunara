@@ -51,7 +51,10 @@
    - Acceptance criteria:
      - Play now/next/later works for album insertions.
      - Queue persists across app restarts.
-
+6. [ ] Lock screen now playing + remote controls
+   - Acceptance criteria:
+     - Lock screen and Control Center show current track, elapsed time, and duration.
+     - Play/Pause/Next/Previous remote commands control playback.
 ## Phase 2 — Primary Interaction: Shuffle
 1. [ ] Collection shuffle (primary mode)
    - Acceptance criteria:
