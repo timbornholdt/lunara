@@ -43,6 +43,15 @@ struct PlaybackViewModelTests {
 
         #expect(viewModel.errorMessage == "Playback failed.")
     }
+
+    @Test func togglePlayPauseDelegatesToEngine() async {
+        let engine = StubPlaybackEngine()
+        let viewModel = PlaybackViewModel(engine: engine)
+
+        viewModel.togglePlayPause()
+
+        #expect(engine.toggleCallCount == 1)
+    }
 }
 
 private final class StubPlaybackEngine: PlaybackEngineing {
@@ -50,6 +59,7 @@ private final class StubPlaybackEngine: PlaybackEngineing {
     var onError: ((PlaybackError) -> Void)?
 
     private(set) var playCallCount = 0
+    private(set) var toggleCallCount = 0
     private(set) var lastTracks: [PlexTrack]?
     private(set) var lastStartIndex: Int?
 
@@ -60,6 +70,10 @@ private final class StubPlaybackEngine: PlaybackEngineing {
     }
 
     func stop() {
+    }
+
+    func togglePlayPause() {
+        toggleCallCount += 1
     }
 
     func emitState(_ state: NowPlayingState) {

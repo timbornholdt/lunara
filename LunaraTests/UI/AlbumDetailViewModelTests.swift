@@ -142,10 +142,15 @@ struct AlbumDetailViewModelTests {
 private final class StubPlaybackController: PlaybackControlling {
     private(set) var lastTracks: [PlexTrack]?
     private(set) var lastStartIndex: Int?
+    private(set) var toggleCallCount = 0
 
     func play(tracks: [PlexTrack], startIndex: Int) {
         lastTracks = tracks
         lastStartIndex = startIndex
+    }
+
+    func togglePlayPause() {
+        toggleCallCount += 1
     }
 
     func stop() {

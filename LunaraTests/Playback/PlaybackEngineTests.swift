@@ -186,6 +186,54 @@ struct PlaybackEngineTests {
         #expect(player.stopCallCount == 1)
         #expect(latestState == nil)
     }
+
+    @Test func togglePlayPausePausesWhenPlaying() async throws {
+        let player = TestPlaybackPlayer()
+        let resolver = StubPlaybackSourceResolver(urls: [
+            "1": URL(string: "https://example.com/1.mp3")!
+        ])
+        let fallbackBuilder = StubFallbackURLBuilder(url: URL(string: "https://example.com/fallback.m3u8")!)
+        let audioSession = StubAudioSessionManager()
+        let engine = PlaybackEngine(
+            player: player,
+            sourceResolver: resolver,
+            fallbackURLBuilder: fallbackBuilder,
+            audioSession: audioSession
+        )
+        let tracks = [
+            PlexTrack(ratingKey: "1", title: "One", index: 1, parentRatingKey: "10", duration: 1000, media: nil)
+        ]
+
+        engine.play(tracks: tracks, startIndex: 0)
+        engine.togglePlayPause()
+
+        #expect(player.pauseCallCount == 1)
+    }
+
+    @Test func togglePlayPauseResumesWhenPaused() async throws {
+        let player = TestPlaybackPlayer()
+        let resolver = StubPlaybackSourceResolver(urls: [
+            "1": URL(string: "https://example.com/1.mp3")!
+        ])
+        let fallbackBuilder = StubFallbackURLBuilder(url: URL(string: "https://example.com/fallback.m3u8")!)
+        let audioSession = StubAudioSessionManager()
+        let engine = PlaybackEngine(
+            player: player,
+            sourceResolver: resolver,
+            fallbackURLBuilder: fallbackBuilder,
+            audioSession: audioSession
+        )
+        let tracks = [
+            PlexTrack(ratingKey: "1", title: "One", index: 1, parentRatingKey: "10", duration: 1000, media: nil)
+        ]
+
+        engine.play(tracks: tracks, startIndex: 0)
+        engine.togglePlayPause()
+        engine.togglePlayPause()
+
+        #expect(player.pauseCallCount == 1)
+        #expect(player.playCallCount == 2)
+    }
 }
 
 private final class TestPlaybackPlayer: PlaybackPlayer {
@@ -196,6 +244,7 @@ private final class TestPlaybackPlayer: PlaybackPlayer {
 
     private(set) var setQueueURLs: [URL] = []
     private(set) var playCallCount = 0
+    private(set) var pauseCallCount = 0
     private(set) var stopCallCount = 0
     private(set) var replacedCurrentItemURL: URL?
 
@@ -207,6 +256,11 @@ private final class TestPlaybackPlayer: PlaybackPlayer {
     func play() {
         playCallCount += 1
         onPlaybackStateChanged?(true)
+    }
+
+    func pause() {
+        pauseCallCount += 1
+        onPlaybackStateChanged?(false)
     }
 
     func stop() {

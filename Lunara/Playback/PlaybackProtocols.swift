@@ -3,6 +3,7 @@ import Foundation
 @MainActor
 protocol PlaybackControlling {
     func play(tracks: [PlexTrack], startIndex: Int)
+    func togglePlayPause()
     func stop()
 }
 
@@ -10,6 +11,7 @@ protocol PlaybackEngineing: AnyObject {
     var onStateChange: ((NowPlayingState?) -> Void)? { get set }
     var onError: ((PlaybackError) -> Void)? { get set }
     func play(tracks: [PlexTrack], startIndex: Int)
+    func togglePlayPause()
     func stop()
 }
 
@@ -21,6 +23,7 @@ protocol PlaybackPlayer: AnyObject {
 
     func setQueue(urls: [URL])
     func play()
+    func pause()
     func stop()
     func replaceCurrentItem(url: URL)
 }

@@ -3,13 +3,17 @@ import SwiftUI
 struct NowPlayingBarView: View {
     let state: NowPlayingState
     let palette: LunaraTheme.PaletteColors
+    let onTogglePlayPause: () -> Void
 
     var body: some View {
         VStack(spacing: 8) {
             HStack(spacing: 12) {
-                Image(systemName: state.isPlaying ? "pause.fill" : "play.fill")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(palette.accentPrimary)
+                Button(action: onTogglePlayPause) {
+                    Image(systemName: state.isPlaying ? "pause.fill" : "play.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(palette.accentPrimary)
+                }
+                .buttonStyle(.plain)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(state.trackTitle)

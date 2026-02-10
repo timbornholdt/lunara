@@ -79,6 +79,15 @@ final class PlaybackEngine: PlaybackEngineing {
         onStateChange?(nil)
     }
 
+    func togglePlayPause() {
+        guard !queueItems.isEmpty else { return }
+        if isPlaying {
+            player.pause()
+        } else {
+            player.play()
+        }
+    }
+
     private func bindPlayerCallbacks() {
         player.onItemChanged = { [weak self] index in
             self?.handleItemChanged(index: index)

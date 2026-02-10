@@ -60,6 +60,10 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
         engine?.play(tracks: tracks, startIndex: startIndex)
     }
 
+    func togglePlayPause() {
+        engine?.togglePlayPause()
+    }
+
     func stop() {
         engine?.stop()
         nowPlaying = nil

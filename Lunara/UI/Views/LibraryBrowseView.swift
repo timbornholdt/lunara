@@ -102,7 +102,11 @@ struct LibraryBrowseView: View {
         }
         .safeAreaInset(edge: .bottom) {
             if let nowPlaying = playbackViewModel.nowPlaying {
-                NowPlayingBarView(state: nowPlaying, palette: palette)
+                NowPlayingBarView(
+                    state: nowPlaying,
+                    palette: palette,
+                    onTogglePlayPause: { playbackViewModel.togglePlayPause() }
+                )
                     .padding(.horizontal, Layout.globalPadding)
                     .padding(.bottom, Layout.globalPadding)
             }
@@ -138,13 +142,15 @@ private struct AlbumCardView: View {
                     .font(LunaraTheme.Typography.displayBold(size: 15))
                     .foregroundStyle(palette.textPrimary)
                     .lineLimit(2)
-                    .frame(height: LibraryBrowseView.Layout.titleHeight, alignment: .topLeading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
 
                 Text(metadataText)
                     .font(LunaraTheme.Typography.display(size: 13))
                     .foregroundStyle(palette.textSecondary)
                     .opacity(metadataText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0 : 1)
-                    .frame(height: LibraryBrowseView.Layout.yearHeight, alignment: .topLeading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
             }
             .padding(.horizontal, 12)
             .padding(.bottom, 12)

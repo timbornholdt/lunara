@@ -112,7 +112,11 @@ struct AlbumDetailView: View {
         }
         .safeAreaInset(edge: .bottom) {
             if let nowPlaying = playbackViewModel.nowPlaying {
-                NowPlayingBarView(state: nowPlaying, palette: palette)
+                NowPlayingBarView(
+                    state: nowPlaying,
+                    palette: palette,
+                    onTogglePlayPause: { playbackViewModel.togglePlayPause() }
+                )
                     .padding(.horizontal, Layout.globalPadding)
                     .padding(.bottom, Layout.globalPadding)
             }

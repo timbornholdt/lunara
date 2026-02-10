@@ -51,6 +51,10 @@ final class AVQueuePlayerAdapter: PlaybackPlayer {
         player.play()
     }
 
+    func pause() {
+        player.pause()
+    }
+
     func stop() {
         player.pause()
         player.removeAllItems()
