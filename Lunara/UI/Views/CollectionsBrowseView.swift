@@ -37,29 +37,34 @@ struct CollectionsBrowseView: View {
                         GeometryReader { proxy in
                             let contentWidth = max(proxy.size.width - (Layout.globalPadding * 2), 0)
                             let columnWidth = max((contentWidth - Layout.columnSpacing) / 2, 0)
-                            let rows = CollectionsBrowseView.makeRows(from: viewModel.collections)
+                            let columns = [
+                                GridItem(.fixed(columnWidth), spacing: Layout.columnSpacing),
+                                GridItem(.fixed(columnWidth), spacing: Layout.columnSpacing)
+                            ]
 
                             ScrollView {
-                                LazyVStack(spacing: Layout.rowSpacing) {
-                                    ForEach(rows) { row in
-                                        CollectionRowView(
-                                            row: row,
-                                            palette: palette,
-                                            width: columnWidth,
-                                            isPinned: viewModel.isPinned(_:)
-                                        ) { collection in
+                                LazyVGrid(columns: columns, alignment: .leading, spacing: Layout.rowSpacing) {
+                                    ForEach(viewModel.collections, id: \.ratingKey) { collection in
+                                        NavigationLink {
                                             CollectionDetailView(
                                                 collection: collection,
                                                 sectionKey: viewModel.sectionKey ?? "",
                                                 playbackViewModel: playbackViewModel,
                                                 signOut: signOut
                                             )
+                                        } label: {
+                                            CollectionCardView(
+                                                collection: collection,
+                                                palette: palette,
+                                                width: columnWidth,
+                                                isPinned: viewModel.isPinned(collection)
+                                            )
                                         }
+                                        .buttonStyle(.plain)
                                     }
                                 }
                                 .padding(.horizontal, Layout.globalPadding)
                                 .padding(.bottom, Layout.globalPadding)
-                                .padding(.top, 8)
                             }
                         }
                     }
@@ -83,6 +88,7 @@ struct CollectionsBrowseView: View {
                     }
                 }
             }
+            .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: AlbumNavigationRequest.self) { request in
                 AlbumDetailView(
                     album: request.album,
@@ -125,79 +131,12 @@ struct CollectionsBrowseView: View {
             }
         }
     }
-
-    private static func makeRows(from collections: [PlexCollection]) -> [CollectionRow] {
-        var rows: [CollectionRow] = []
-        rows.reserveCapacity((collections.count + 1) / 2)
-
-        var index = 0
-        while index < collections.count {
-            let left = collections[index]
-            let right = index + 1 < collections.count ? collections[index + 1] : nil
-            rows.append(CollectionRow(id: index, left: left, right: right))
-            index += 2
-        }
-
-        return rows
-    }
-}
-
-private struct CollectionRow: Identifiable {
-    let id: Int
-    let left: PlexCollection
-    let right: PlexCollection?
-}
-
-private struct CollectionRowView<Destination: View>: View {
-    let row: CollectionRow
-    let palette: LunaraTheme.PaletteColors
-    let width: CGFloat
-    let isPinned: (PlexCollection) -> Bool
-    let destination: (PlexCollection) -> Destination
-
-    @State private var leftHeight: CGFloat = 0
-    @State private var rightHeight: CGFloat = 0
-
-    var body: some View {
-        HStack(alignment: .top, spacing: CollectionsBrowseView.Layout.columnSpacing) {
-            card(for: row.left, height: maxHeight, measuredHeight: $leftHeight)
-
-            if let right = row.right {
-                card(for: right, height: maxHeight, measuredHeight: $rightHeight)
-            } else {
-                Color.clear
-                    .frame(width: width)
-            }
-        }
-    }
-
-    private var maxHeight: CGFloat {
-        max(leftHeight, rightHeight)
-    }
-
-    private func card(for collection: PlexCollection, height: CGFloat, measuredHeight: Binding<CGFloat>) -> some View {
-        NavigationLink {
-            destination(collection)
-        } label: {
-            CollectionCardView(
-                collection: collection,
-                palette: palette,
-                width: width,
-                height: height > 0 ? height : nil,
-                onHeightChange: { measuredHeight.wrappedValue = $0 },
-                isPinned: isPinned(collection)
-            )
-        }
-        .buttonStyle(.plain)
-    }
 }
 
 private struct CollectionCardView: View {
     let collection: PlexCollection
     let palette: LunaraTheme.PaletteColors
     let width: CGFloat
-    let height: CGFloat?
-    let onHeightChange: (CGFloat) -> Void
     let isPinned: Bool
 
     var body: some View {
@@ -216,9 +155,7 @@ private struct CollectionCardView: View {
                 .padding(.horizontal, 12)
                 .padding(.bottom, 12)
         }
-        .readHeight(onHeightChange)
         .frame(width: width, alignment: .top)
-        .frame(height: height, alignment: .top)
         .background(backgroundColor)
         .overlay(
             RoundedRectangle(cornerRadius: CollectionsBrowseView.Layout.cardCornerRadius)
@@ -245,26 +182,6 @@ private struct CollectionCardView: View {
             return palette.accentSecondary.opacity(0.45)
         }
         return palette.borderSubtle
-    }
-}
-
-private struct HeightReaderKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
-    }
-}
-
-private extension View {
-    func readHeight(_ onChange: @escaping (CGFloat) -> Void) -> some View {
-        background(
-            GeometryReader { proxy in
-                Color.clear
-                    .preference(key: HeightReaderKey.self, value: proxy.size.height)
-            }
-        )
-        .onPreferenceChange(HeightReaderKey.self, perform: onChange)
     }
 }
 

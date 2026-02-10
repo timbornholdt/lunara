@@ -140,7 +140,9 @@ final class AlbumDetailViewModel: ObservableObject {
             album: album,
             albumRatingKeys: ratingKeys,
             tracks: tracks,
-            artworkRequest: request
+            artworkRequest: request,
+            albumsByRatingKey: [album.ratingKey: album],
+            artworkRequestsByAlbumKey: request.map { [album.ratingKey: $0] }
         )
     }
 }

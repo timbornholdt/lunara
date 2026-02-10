@@ -110,7 +110,7 @@ struct NowPlayingSheetView: View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: Layout.controlIconSize, weight: .semibold))
-                .foregroundStyle(palette.accentPrimary)
+                .foregroundStyle(palette.textPrimary)
                 .frame(width: Layout.controlTapSize, height: Layout.controlTapSize)
         }
         .buttonStyle(.plain)

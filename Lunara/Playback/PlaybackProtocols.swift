@@ -61,4 +61,22 @@ struct NowPlayingContext {
     let albumRatingKeys: [String]
     let tracks: [PlexTrack]
     let artworkRequest: ArtworkRequest?
+    let albumsByRatingKey: [String: PlexAlbum]?
+    let artworkRequestsByAlbumKey: [String: ArtworkRequest]?
+
+    init(
+        album: PlexAlbum,
+        albumRatingKeys: [String],
+        tracks: [PlexTrack],
+        artworkRequest: ArtworkRequest?,
+        albumsByRatingKey: [String: PlexAlbum]? = nil,
+        artworkRequestsByAlbumKey: [String: ArtworkRequest]? = nil
+    ) {
+        self.album = album
+        self.albumRatingKeys = albumRatingKeys
+        self.tracks = tracks
+        self.artworkRequest = artworkRequest
+        self.albumsByRatingKey = albumsByRatingKey
+        self.artworkRequestsByAlbumKey = artworkRequestsByAlbumKey
+    }
 }

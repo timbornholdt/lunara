@@ -20,7 +20,14 @@ struct PlexHTTPClient: PlexHTTPClienting {
 #endif
             throw error
         }
-        return try JSONDecoder().decode(T.self, from: data)
+        do {
+            return try JSONDecoder().decode(T.self, from: data)
+        } catch {
+#if DEBUG
+            PlexHTTPClient.logDecodeFailure(request: request, response: response, data: data, error: error)
+#endif
+            throw error
+        }
     }
 
     func sendData(_ request: URLRequest) async throws -> Data {
@@ -61,6 +68,16 @@ extension PlexHTTPClient {
         let status = statusCode.map(String.init) ?? "n/a"
         Logger(subsystem: Bundle.main.bundleIdentifier ?? "Lunara", category: "HTTP")
             .error("HTTP failure [\(status)] \(url) error=\(String(describing: error)) body=\(trimmed)")
+    }
+
+    private static func logDecodeFailure(request: URLRequest, response: URLResponse, data: Data, error: Error) {
+        let url = request.url?.absoluteString ?? "<unknown url>"
+        let statusCode = (response as? HTTPURLResponse)?.statusCode
+        let body = String(data: data, encoding: .utf8) ?? ""
+        let trimmed = body.count > 2000 ? String(body.prefix(2000)) + "…" : body
+        let status = statusCode.map(String.init) ?? "n/a"
+        Logger(subsystem: Bundle.main.bundleIdentifier ?? "Lunara", category: "HTTP")
+            .error("HTTP decode failure [\(status)] \(url) error=\(String(describing: error)) body=\(trimmed)")
     }
 #endif
 }

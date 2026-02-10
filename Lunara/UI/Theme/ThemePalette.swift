@@ -27,10 +27,11 @@ extension ThemePalette {
     }
 
     init(theme: AlbumTheme) {
+        let primaryText = theme.textPrimary
         self.base = theme.backgroundTop
         self.raised = theme.raised
-        self.textPrimary = theme.textPrimary
-        self.textSecondary = theme.textSecondary
+        self.textPrimary = primaryText
+        self.textSecondary = primaryText.opacity(0.72)
         self.accentPrimary = theme.accentPrimary
         self.accentSecondary = theme.accentSecondary
         self.borderSubtle = theme.borderSubtle

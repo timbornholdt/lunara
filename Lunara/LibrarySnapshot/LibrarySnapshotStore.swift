@@ -17,16 +17,49 @@ struct LibrarySnapshot: Codable, Sendable {
         let art: String?
     }
 
+    struct Artist: Codable, Sendable {
+        let ratingKey: String
+        let title: String
+        let titleSort: String?
+        let thumb: String?
+        let art: String?
+    }
+
     let albums: [Album]
     let collections: [Collection]
+    let artists: [Artist]
     let musicSectionKey: String?
     let capturedAt: Date
 
-    init(albums: [Album], collections: [Collection], musicSectionKey: String? = nil, capturedAt: Date = Date()) {
+    init(
+        albums: [Album],
+        collections: [Collection],
+        artists: [Artist] = [],
+        musicSectionKey: String? = nil,
+        capturedAt: Date = Date()
+    ) {
         self.albums = albums
         self.collections = collections
+        self.artists = artists
         self.musicSectionKey = musicSectionKey
         self.capturedAt = capturedAt
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case albums
+        case collections
+        case artists
+        case musicSectionKey
+        case capturedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        albums = try container.decode([Album].self, forKey: .albums)
+        collections = try container.decode([Collection].self, forKey: .collections)
+        artists = try container.decodeIfPresent([Artist].self, forKey: .artists) ?? []
+        musicSectionKey = try container.decodeIfPresent(String.self, forKey: .musicSectionKey)
+        capturedAt = try container.decodeIfPresent(Date.self, forKey: .capturedAt) ?? Date()
     }
 }
 
@@ -139,6 +172,37 @@ extension LibrarySnapshot.Collection {
             art: art,
             updatedAt: nil,
             key: nil
+        )
+    }
+}
+
+extension LibrarySnapshot.Artist {
+    init(artist: PlexArtist) {
+        self.init(
+            ratingKey: artist.ratingKey,
+            title: artist.title,
+            titleSort: artist.titleSort,
+            thumb: artist.thumb,
+            art: artist.art
+        )
+    }
+
+    func toPlexArtist() -> PlexArtist {
+        PlexArtist(
+            ratingKey: ratingKey,
+            title: title,
+            titleSort: titleSort,
+            summary: nil,
+            thumb: thumb,
+            art: art,
+            country: nil,
+            genres: nil,
+            userRating: nil,
+            rating: nil,
+            albumCount: nil,
+            trackCount: nil,
+            addedAt: nil,
+            updatedAt: nil
         )
     }
 }

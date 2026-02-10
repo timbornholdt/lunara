@@ -100,6 +100,15 @@ struct AlbumDetailView: View {
 
                         metadataSection(palette: themePalette)
                             .padding(.horizontal, Layout.globalPadding)
+
+                        genresSection(palette: themePalette)
+                            .padding(.horizontal, Layout.globalPadding)
+
+                        moodsSection(palette: themePalette)
+                            .padding(.horizontal, Layout.globalPadding)
+
+                        stylesSection(palette: themePalette)
+                            .padding(.horizontal, Layout.globalPadding)
                     }
                     .padding(.bottom, Layout.globalPadding)
                 }
@@ -146,10 +155,26 @@ struct AlbumDetailView: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 if let artistLine = artistLine {
-                    Text(artistLine)
-                        .font(LunaraTheme.Typography.display(size: 16))
-                        .foregroundStyle(palette.textSecondary)
+                    if let artistRatingKey = album.parentRatingKey, !artistRatingKey.isEmpty {
+                        NavigationLink {
+                            ArtistDetailView(
+                                artistRatingKey: artistRatingKey,
+                                playbackViewModel: playbackViewModel,
+                                sessionInvalidationHandler: sessionInvalidationHandler
+                            )
+                        } label: {
+                            Text(artistLine)
+                                .font(LunaraTheme.Typography.display(size: 16))
+                                .foregroundStyle(palette.textSecondary)
+                        }
+                        .buttonStyle(.plain)
                         .opacity(artistLine.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0 : 1)
+                    } else {
+                        Text(artistLine)
+                            .font(LunaraTheme.Typography.display(size: 16))
+                            .foregroundStyle(palette.textSecondary)
+                            .opacity(artistLine.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0 : 1)
+                    }
                 }
 
                 Text(releaseDateLine)
@@ -203,6 +228,60 @@ struct AlbumDetailView: View {
         }
     }
 
+    @ViewBuilder
+    private func genresSection(palette: ThemePalette) -> some View {
+        let genres = album.genres?.map(\.tag).filter { !$0.isEmpty } ?? []
+        if !genres.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Genres")
+                    .font(LunaraTheme.Typography.displayBold(size: 20))
+                    .foregroundStyle(palette.textPrimary)
+
+                FlowLayout(spacing: 6, rowSpacing: 6) {
+                    ForEach(genres, id: \.self) { genre in
+                        GenrePillView(title: genre, palette: palette)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func moodsSection(palette: ThemePalette) -> some View {
+        let moods = album.moods?.map(\.tag).filter { !$0.isEmpty } ?? []
+        if !moods.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Moods")
+                    .font(LunaraTheme.Typography.displayBold(size: 20))
+                    .foregroundStyle(palette.textPrimary)
+
+                FlowLayout(spacing: 6, rowSpacing: 6) {
+                    ForEach(moods, id: \.self) { mood in
+                        GenrePillView(title: mood, palette: palette)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func stylesSection(palette: ThemePalette) -> some View {
+        let styles = album.styles?.map(\.tag).filter { !$0.isEmpty } ?? []
+        if !styles.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Styles")
+                    .font(LunaraTheme.Typography.displayBold(size: 20))
+                    .foregroundStyle(palette.textPrimary)
+
+                FlowLayout(spacing: 6, rowSpacing: 6) {
+                    ForEach(styles, id: \.self) { style in
+                        GenrePillView(title: style, palette: palette)
+                    }
+                }
+            }
+        }
+    }
+
     private var artistLine: String? {
         album.artist?.trimmingCharacters(in: .whitespacesAndNewlines)
     }
@@ -229,15 +308,6 @@ struct AlbumDetailView: View {
         var rows: [MetadataItem] = []
         if let summary = album.summary, !summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             rows.append(MetadataItem(title: "Summary", value: summary))
-        }
-        if let genres = album.genres?.map(\.tag).filter({ !$0.isEmpty }), !genres.isEmpty {
-            rows.append(MetadataItem(title: "Genres", value: genres.joined(separator: " · ")))
-        }
-        if let styles = album.styles?.map(\.tag).filter({ !$0.isEmpty }), !styles.isEmpty {
-            rows.append(MetadataItem(title: "Styles", value: styles.joined(separator: " · ")))
-        }
-        if let moods = album.moods?.map(\.tag).filter({ !$0.isEmpty }), !moods.isEmpty {
-            rows.append(MetadataItem(title: "Moods", value: moods.joined(separator: " · ")))
         }
         if let rating = album.rating {
             rows.append(MetadataItem(title: "Rating", value: String(format: "%.1f", rating)))

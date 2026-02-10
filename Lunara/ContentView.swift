@@ -20,6 +20,7 @@ struct ContentView: View {
                 MainTabView(
                     libraryViewModel: LibraryViewModel(sessionInvalidationHandler: { authViewModel.signOut() }),
                     collectionsViewModel: CollectionsViewModel(sessionInvalidationHandler: { authViewModel.signOut() }),
+                    artistsViewModel: ArtistsViewModel(sessionInvalidationHandler: { authViewModel.signOut() }),
                     playbackViewModel: playbackViewModel
                 ) {
                     playbackViewModel.stop()
@@ -52,23 +53,27 @@ struct ContentView: View {
 private struct MainTabView: View {
     @StateObject private var libraryViewModel: LibraryViewModel
     @StateObject private var collectionsViewModel: CollectionsViewModel
+    @StateObject private var artistsViewModel: ArtistsViewModel
     @ObservedObject var playbackViewModel: PlaybackViewModel
     let signOut: () -> Void
     @State private var selectedTab: Tab = .library
     @State private var showNowPlaying = false
     @State private var libraryPath = NavigationPath()
     @State private var collectionsPath = NavigationPath()
+    @State private var artistsPath = NavigationPath()
     @State private var hadNowPlaying = false
     @Environment(\.colorScheme) private var colorScheme
 
     init(
         libraryViewModel: LibraryViewModel,
         collectionsViewModel: CollectionsViewModel,
+        artistsViewModel: ArtistsViewModel,
         playbackViewModel: PlaybackViewModel,
         signOut: @escaping () -> Void
     ) {
         _libraryViewModel = StateObject(wrappedValue: libraryViewModel)
         _collectionsViewModel = StateObject(wrappedValue: collectionsViewModel)
+        _artistsViewModel = StateObject(wrappedValue: artistsViewModel)
         self.playbackViewModel = playbackViewModel
         self.signOut = signOut
     }
@@ -80,17 +85,6 @@ private struct MainTabView: View {
         let tabBarHeight: CGFloat = 49
 
         TabView(selection: $selectedTab) {
-            LibraryBrowseView(
-                viewModel: libraryViewModel,
-                playbackViewModel: playbackViewModel,
-                signOut: signOut,
-                navigationPath: $libraryPath
-            )
-            .tabItem {
-                Label("All Albums", systemImage: "square.grid.2x2")
-            }
-            .tag(Tab.library)
-
             CollectionsBrowseView(
                 viewModel: collectionsViewModel,
                 playbackViewModel: playbackViewModel,
@@ -101,6 +95,28 @@ private struct MainTabView: View {
                 Label("Collections", systemImage: "rectangle.stack")
             }
             .tag(Tab.collections)
+
+            LibraryBrowseView(
+                viewModel: libraryViewModel,
+                playbackViewModel: playbackViewModel,
+                signOut: signOut,
+                navigationPath: $libraryPath
+            )
+            .tabItem {
+                Label("Albums", systemImage: "square.grid.2x2")
+            }
+            .tag(Tab.library)
+
+            ArtistsBrowseView(
+                viewModel: artistsViewModel,
+                playbackViewModel: playbackViewModel,
+                signOut: signOut,
+                navigationPath: $artistsPath
+            )
+            .tabItem {
+                Label("Artists", systemImage: "person.2")
+            }
+            .tag(Tab.artists)
         }
         .safeAreaInset(edge: .bottom) {
             if let nowPlaying = playbackViewModel.nowPlaying {
@@ -146,6 +162,8 @@ private struct MainTabView: View {
                             libraryPath.append(request)
                         case .collections:
                             collectionsPath.append(request)
+                        case .artists:
+                            artistsPath.append(request)
                         }
                         showNowPlaying = false
                     }
@@ -164,8 +182,9 @@ private struct MainTabView: View {
     }
 
     private enum Tab {
-        case library
         case collections
+        case library
+        case artists
     }
 
 }

@@ -350,11 +350,31 @@ private final class BlockingLibraryService: PlexLibraryServicing {
         return []
     }
 
+    func fetchAlbumDetail(albumRatingKey: String) async throws -> PlexAlbum? {
+        return nil
+    }
+
     func fetchCollections(sectionId: String) async throws -> [PlexCollection] {
         return []
     }
 
     func fetchAlbumsInCollection(sectionId: String, collectionKey: String) async throws -> [PlexAlbum] {
+        return []
+    }
+
+    func fetchArtists(sectionId: String) async throws -> [PlexArtist] {
+        return []
+    }
+
+    func fetchArtistDetail(artistRatingKey: String) async throws -> PlexArtist? {
+        return nil
+    }
+
+    func fetchArtistAlbums(artistRatingKey: String) async throws -> [PlexAlbum] {
+        return []
+    }
+
+    func fetchArtistTracks(artistRatingKey: String) async throws -> [PlexTrack] {
         return []
     }
 }
