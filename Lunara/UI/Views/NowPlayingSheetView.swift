@@ -14,6 +14,7 @@ struct NowPlayingSheetView: View {
 
     @State private var scrubValue: Double = 0
     @State private var isScrubbing = false
+    @State private var pendingSeekTarget: Double?
 
     private enum Layout {
         static let globalPadding = LunaraTheme.Layout.globalPadding
@@ -48,6 +49,13 @@ struct NowPlayingSheetView: View {
             scrubValue = state.elapsedTime
         }
         .onChange(of: state.elapsedTime) { _, newValue in
+            if let pending = pendingSeekTarget {
+                if abs(newValue - pending) <= 1 {
+                    pendingSeekTarget = nil
+                } else {
+                    return
+                }
+            }
             guard !isScrubbing else { return }
             scrubValue = newValue
         }
@@ -167,8 +175,10 @@ struct NowPlayingSheetView: View {
                 targetTime: target,
                 tolerance: 5
             ) {
+                pendingSeekTarget = target
                 onSeek(target)
             } else {
+                pendingSeekTarget = nil
                 scrubValue = current
             }
         }

@@ -145,10 +145,17 @@ struct AlbumDetailView: View {
                     .foregroundStyle(palette.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text(subtitleText)
-                    .font(LunaraTheme.Typography.display(size: 15))
+                if let artistLine = artistLine {
+                    Text(artistLine)
+                        .font(LunaraTheme.Typography.display(size: 16))
+                        .foregroundStyle(palette.textSecondary)
+                        .opacity(artistLine.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0 : 1)
+                }
+
+                Text(releaseDateLine)
+                    .font(LunaraTheme.Typography.display(size: 14))
                     .foregroundStyle(palette.textSecondary)
-                    .opacity(subtitleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0 : 1)
+                    .opacity(releaseDateLine.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0 : 1)
             }
 
             Spacer(minLength: 8)
@@ -196,19 +203,26 @@ struct AlbumDetailView: View {
         }
     }
 
-    private var subtitleText: String {
-        let artist = album.artist?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let year = album.year.map(String.init)
-        switch (artist?.isEmpty == false ? artist : nil, year) {
-        case let (.some(name), .some(yearValue)):
-            return "\(name) — \(yearValue)"
-        case let (.some(name), .none):
-            return name
-        case let (.none, .some(yearValue)):
-            return yearValue
-        default:
-            return " "
+    private var artistLine: String? {
+        album.artist?.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var releaseDateLine: String {
+        if let dateText = formattedReleaseDate() {
+            return dateText
         }
+        if let year = album.year {
+            return String(year)
+        }
+        return "Release date unavailable"
+    }
+
+    private func formattedReleaseDate() -> String? {
+        guard let dateString = album.originallyAvailableAt,
+              let date = DateFormatter.iso8601Short.date(from: dateString) else {
+            return nil
+        }
+        return DateFormatter.releaseLong.string(from: date)
     }
 
     private func metadataRows() -> [MetadataItem] {
@@ -430,4 +444,21 @@ private struct ScrollOffsetPreferenceKey: PreferenceKey {
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
     }
+}
+
+private extension DateFormatter {
+    static let iso8601Short: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
+
+    static let releaseLong: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .long
+        formatter.timeStyle = .none
+        return formatter
+    }()
 }

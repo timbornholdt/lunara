@@ -56,7 +56,9 @@ private struct MainTabView: View {
     let signOut: () -> Void
     @State private var selectedTab: Tab = .library
     @State private var showNowPlaying = false
-    @State private var pendingAlbumNavigation: AlbumNavigationRequest?
+    @State private var libraryPath = NavigationPath()
+    @State private var collectionsPath = NavigationPath()
+    @State private var hadNowPlaying = false
     @Environment(\.colorScheme) private var colorScheme
 
     init(
@@ -75,14 +77,14 @@ private struct MainTabView: View {
         let palette = LunaraTheme.Palette.colors(for: colorScheme)
         let basePalette = ThemePalette(palette: palette)
         let themePalette = playbackViewModel.albumTheme.map(ThemePalette.init(theme:)) ?? basePalette
+        let tabBarHeight: CGFloat = 49
 
         TabView(selection: $selectedTab) {
             LibraryBrowseView(
                 viewModel: libraryViewModel,
                 playbackViewModel: playbackViewModel,
                 signOut: signOut,
-                pendingAlbumNavigation: albumNavigationBinding(for: .library),
-                isActiveTab: selectedTab == .library
+                navigationPath: $libraryPath
             )
             .tabItem {
                 Label("All Albums", systemImage: "square.grid.2x2")
@@ -93,8 +95,7 @@ private struct MainTabView: View {
                 viewModel: collectionsViewModel,
                 playbackViewModel: playbackViewModel,
                 signOut: signOut,
-                pendingAlbumNavigation: albumNavigationBinding(for: .collections),
-                isActiveTab: selectedTab == .collections
+                navigationPath: $collectionsPath
             )
             .tabItem {
                 Label("Collections", systemImage: "rectangle.stack")
@@ -110,7 +111,7 @@ private struct MainTabView: View {
                     onOpenNowPlaying: { showNowPlaying = true }
                 )
                 .padding(.horizontal, LunaraTheme.Layout.globalPadding)
-                .padding(.bottom, LunaraTheme.Layout.globalPadding)
+                .padding(.bottom, tabBarHeight + 8)
                 .opacity(showNowPlaying ? 0 : 1)
                 .animation(.easeInOut(duration: 0.2), value: showNowPlaying)
                 .allowsHitTesting(!showNowPlaying)
@@ -136,16 +137,29 @@ private struct MainTabView: View {
                     },
                     onNavigateToAlbum: {
                         guard let context = playbackViewModel.nowPlayingContext else { return }
-                        pendingAlbumNavigation = AlbumNavigationRequest(
+                        let request = AlbumNavigationRequest(
                             album: context.album,
                             albumRatingKeys: context.albumRatingKeys
                         )
+                        switch selectedTab {
+                        case .library:
+                            libraryPath.append(request)
+                        case .collections:
+                            collectionsPath.append(request)
+                        }
                         showNowPlaying = false
                     }
                 )
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
             }
+        }
+        .onChange(of: playbackViewModel.nowPlaying?.trackRatingKey) { _, newValue in
+            let isPlayingNow = newValue != nil
+            if isPlayingNow && !hadNowPlaying {
+                showNowPlaying = true
+            }
+            hadNowPlaying = isPlayingNow
         }
     }
 
@@ -154,15 +168,6 @@ private struct MainTabView: View {
         case collections
     }
 
-    private func albumNavigationBinding(for tab: Tab) -> Binding<AlbumNavigationRequest?> {
-        Binding(
-            get: { selectedTab == tab ? pendingAlbumNavigation : nil },
-            set: { newValue in
-                guard selectedTab == tab else { return }
-                pendingAlbumNavigation = newValue
-            }
-        )
-    }
 }
 
 #Preview {

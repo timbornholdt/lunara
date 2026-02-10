@@ -4,8 +4,7 @@ struct CollectionsBrowseView: View {
     @StateObject var viewModel: CollectionsViewModel
     @ObservedObject var playbackViewModel: PlaybackViewModel
     let signOut: () -> Void
-    @Binding var pendingAlbumNavigation: AlbumNavigationRequest?
-    let isActiveTab: Bool
+    @Binding var navigationPath: NavigationPath
     @Environment(\.colorScheme) private var colorScheme
     @State private var errorToken = UUID()
 
@@ -22,7 +21,7 @@ struct CollectionsBrowseView: View {
     var body: some View {
         let palette = LunaraTheme.Palette.colors(for: colorScheme)
 
-        NavigationStack {
+        NavigationStack(path: $navigationPath) {
             ZStack {
                 LinenBackgroundView(palette: palette)
                 VStack(spacing: 0) {
@@ -84,7 +83,7 @@ struct CollectionsBrowseView: View {
                     }
                 }
             }
-            .navigationDestination(item: activeNavigation) { request in
+            .navigationDestination(for: AlbumNavigationRequest.self) { request in
                 AlbumDetailView(
                     album: request.album,
                     albumRatingKeys: request.albumRatingKeys,
@@ -125,16 +124,6 @@ struct CollectionsBrowseView: View {
                 }
             }
         }
-    }
-
-    private var activeNavigation: Binding<AlbumNavigationRequest?> {
-        Binding(
-            get: { isActiveTab ? pendingAlbumNavigation : nil },
-            set: { newValue in
-                guard isActiveTab else { return }
-                pendingAlbumNavigation = newValue
-            }
-        )
     }
 
     private static func makeRows(from collections: [PlexCollection]) -> [CollectionRow] {
