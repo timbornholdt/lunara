@@ -15,44 +15,100 @@ struct AlbumGridView: View {
         static let cardShadowOpacity: Double = 0.08
         static let cardShadowRadius: CGFloat = 8
         static let cardShadowYOffset: CGFloat = 1
-        static let titleHeight: CGFloat = 40
-        static let yearHeight: CGFloat = 16
-        static let verticalPadding: CGFloat = 12
-        static let verticalSpacing: CGFloat = 16
-
-        static func cardHeight(for width: CGFloat) -> CGFloat {
-            width + titleHeight + yearHeight + verticalPadding + verticalSpacing
-        }
     }
 
     var body: some View {
         GeometryReader { proxy in
             let contentWidth = max(proxy.size.width - (Layout.globalPadding * 2), 0)
             let columnWidth = max((contentWidth - Layout.columnSpacing) / 2, 0)
-            let columns = [
-                GridItem(.fixed(columnWidth), spacing: Layout.columnSpacing),
-                GridItem(.fixed(columnWidth), spacing: Layout.columnSpacing)
-            ]
+            let rows = AlbumGridView.makeRows(from: albums)
 
             ScrollView {
-                LazyVGrid(columns: columns, spacing: Layout.rowSpacing) {
-                    ForEach(albums, id: \.dedupIdentity) { album in
-                        NavigationLink {
-                            AlbumDetailView(
-                                album: album,
-                                albumRatingKeys: ratingKeys(album),
-                                playbackViewModel: playbackViewModel,
-                                sessionInvalidationHandler: signOut
-                            )
-                        } label: {
-                            AlbumCardView(album: album, palette: palette, width: columnWidth)
-                        }
-                        .buttonStyle(.plain)
+                LazyVStack(spacing: Layout.rowSpacing) {
+                    ForEach(rows) { row in
+                        AlbumRowView(
+                            row: row,
+                            palette: palette,
+                            width: columnWidth,
+                            playbackViewModel: playbackViewModel,
+                            signOut: signOut,
+                            ratingKeys: ratingKeys
+                        )
                     }
                 }
                 .padding(Layout.globalPadding)
             }
         }
+    }
+
+    private static func makeRows(from albums: [PlexAlbum]) -> [AlbumRow] {
+        var rows: [AlbumRow] = []
+        rows.reserveCapacity((albums.count + 1) / 2)
+
+        var index = 0
+        while index < albums.count {
+            let left = albums[index]
+            let right = index + 1 < albums.count ? albums[index + 1] : nil
+            rows.append(AlbumRow(id: index, left: left, right: right))
+            index += 2
+        }
+
+        return rows
+    }
+}
+
+private struct AlbumRow: Identifiable {
+    let id: Int
+    let left: PlexAlbum
+    let right: PlexAlbum?
+}
+
+private struct AlbumRowView: View {
+    let row: AlbumRow
+    let palette: LunaraTheme.PaletteColors
+    let width: CGFloat
+    let playbackViewModel: PlaybackViewModel
+    let signOut: () -> Void
+    let ratingKeys: (PlexAlbum) -> [String]
+
+    @State private var leftHeight: CGFloat = 0
+    @State private var rightHeight: CGFloat = 0
+
+    var body: some View {
+        HStack(alignment: .top, spacing: AlbumGridView.Layout.columnSpacing) {
+            card(for: row.left, height: maxHeight, measuredHeight: $leftHeight)
+
+            if let right = row.right {
+                card(for: right, height: maxHeight, measuredHeight: $rightHeight)
+            } else {
+                Color.clear
+                    .frame(width: width)
+            }
+        }
+    }
+
+    private var maxHeight: CGFloat {
+        max(leftHeight, rightHeight)
+    }
+
+    private func card(for album: PlexAlbum, height: CGFloat, measuredHeight: Binding<CGFloat>) -> some View {
+        NavigationLink {
+            AlbumDetailView(
+                album: album,
+                albumRatingKeys: ratingKeys(album),
+                playbackViewModel: playbackViewModel,
+                sessionInvalidationHandler: signOut
+            )
+        } label: {
+            AlbumCardView(
+                album: album,
+                palette: palette,
+                width: width,
+                height: height > 0 ? height : nil,
+                onHeightChange: { measuredHeight.wrappedValue = $0 }
+            )
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -60,6 +116,8 @@ private struct AlbumCardView: View {
     let album: PlexAlbum
     let palette: LunaraTheme.PaletteColors
     let width: CGFloat
+    let height: CGFloat?
+    let onHeightChange: (CGFloat) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -86,7 +144,9 @@ private struct AlbumCardView: View {
             .padding(.horizontal, 12)
             .padding(.bottom, 12)
         }
-        .frame(width: width, height: AlbumGridView.Layout.cardHeight(for: width), alignment: .top)
+        .readHeight(onHeightChange)
+        .frame(width: width, alignment: .top)
+        .frame(height: height, alignment: .top)
         .background(palette.raised)
         .overlay(
             RoundedRectangle(cornerRadius: AlbumGridView.Layout.cardCornerRadius)
@@ -114,6 +174,26 @@ private struct AlbumCardView: View {
         default:
             return " "
         }
+    }
+}
+
+private struct HeightReaderKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+private extension View {
+    func readHeight(_ onChange: @escaping (CGFloat) -> Void) -> some View {
+        background(
+            GeometryReader { proxy in
+                Color.clear
+                    .preference(key: HeightReaderKey.self, value: proxy.size.height)
+            }
+        )
+        .onPreferenceChange(HeightReaderKey.self, perform: onChange)
     }
 }
 
