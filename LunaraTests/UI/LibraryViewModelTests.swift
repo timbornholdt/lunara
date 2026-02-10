@@ -21,6 +21,13 @@ struct LibraryViewModelTests {
                     art: nil,
                     year: 2022,
                     artist: nil,
+                    titleSort: nil,
+                    originalTitle: nil,
+                    editionTitle: nil,
+                    guid: "plex://album/test",
+                    librarySectionID: 1,
+                    parentRatingKey: nil,
+                    studio: nil,
                     summary: nil,
                     genres: nil,
                     styles: nil,
@@ -67,6 +74,13 @@ struct LibraryViewModelTests {
                     art: nil,
                     year: 2020,
                     artist: nil,
+                    titleSort: nil,
+                    originalTitle: nil,
+                    editionTitle: nil,
+                    guid: "plex://album/test",
+                    librarySectionID: 1,
+                    parentRatingKey: nil,
+                    studio: nil,
                     summary: nil,
                     genres: nil,
                     styles: nil,
@@ -117,5 +131,72 @@ struct LibraryViewModelTests {
         #expect(tokenStore.token == nil)
         #expect(invalidated == true)
         #expect(viewModel.errorMessage == "Session expired. Please sign in again.")
+    }
+
+    @Test func dedupesAlbumsWhenGuidMissing() async {
+        let tokenStore = InMemoryTokenStore(token: "token")
+        let serverStore = InMemoryServerStore(url: URL(string: "https://example.com:32400")!)
+        let selectionStore = InMemorySelectionStore(key: "1")
+        let albumA = PlexAlbum(
+            ratingKey: "10",
+            title: "Album",
+            thumb: nil,
+            art: nil,
+            year: 2022,
+            artist: "Artist",
+            titleSort: nil,
+            originalTitle: nil,
+            editionTitle: nil,
+            guid: nil,
+            librarySectionID: 1,
+            parentRatingKey: nil,
+            studio: nil,
+            summary: nil,
+            genres: nil,
+            styles: nil,
+            moods: nil,
+            rating: nil,
+            userRating: nil,
+            key: nil
+        )
+        let albumB = PlexAlbum(
+            ratingKey: "11",
+            title: "Album",
+            thumb: nil,
+            art: nil,
+            year: 2022,
+            artist: "Artist",
+            titleSort: nil,
+            originalTitle: nil,
+            editionTitle: nil,
+            guid: nil,
+            librarySectionID: 1,
+            parentRatingKey: nil,
+            studio: nil,
+            summary: nil,
+            genres: nil,
+            styles: nil,
+            moods: nil,
+            rating: nil,
+            userRating: nil,
+            key: nil
+        )
+        let service = StubLibraryService(
+            sections: [PlexLibrarySection(key: "1", title: "Music", type: "music")],
+            albums: [albumA, albumB],
+            tracks: []
+        )
+        let viewModel = LibraryViewModel(
+            tokenStore: tokenStore,
+            serverStore: serverStore,
+            selectionStore: selectionStore,
+            libraryServiceFactory: { _, _ in service },
+            sessionInvalidationHandler: {}
+        )
+
+        await viewModel.loadSections()
+
+        #expect(viewModel.albums.count == 1)
+        #expect(viewModel.albums.first?.ratingKey == "10" || viewModel.albums.first?.ratingKey == "11")
     }
 }

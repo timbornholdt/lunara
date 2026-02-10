@@ -11,6 +11,13 @@ struct PlexAlbum: Decodable, Equatable, Sendable {
     let art: String?
     let year: Int?
     let artist: String?
+    let titleSort: String?
+    let originalTitle: String?
+    let editionTitle: String?
+    let guid: String?
+    let librarySectionID: Int?
+    let parentRatingKey: String?
+    let studio: String?
     let summary: String?
     let genres: [PlexTag]?
     let styles: [PlexTag]?
@@ -19,6 +26,16 @@ struct PlexAlbum: Decodable, Equatable, Sendable {
     let userRating: Double?
     let key: String?
 
+    var dedupIdentity: String {
+        if let guid, !guid.isEmpty {
+            return guid
+        }
+        let titleKey = title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let artistKey = artist?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+        let yearKey = year.map(String.init) ?? ""
+        return "\(titleKey)|\(artistKey)|\(yearKey)"
+    }
+
     private enum CodingKeys: String, CodingKey {
         case ratingKey
         case title
@@ -26,6 +43,13 @@ struct PlexAlbum: Decodable, Equatable, Sendable {
         case art
         case year
         case artist = "parentTitle"
+        case titleSort
+        case originalTitle
+        case editionTitle
+        case guid
+        case librarySectionID
+        case parentRatingKey
+        case studio
         case summary
         case genres = "Genre"
         case styles = "Style"
@@ -40,6 +64,7 @@ struct PlexTrack: Decodable, Equatable, Sendable {
     let ratingKey: String
     let title: String
     let index: Int?
+    let parentIndex: Int?
     let parentRatingKey: String?
     let duration: Int?
     let media: [PlexTrackMedia]?
@@ -48,6 +73,7 @@ struct PlexTrack: Decodable, Equatable, Sendable {
         case ratingKey
         case title
         case index
+        case parentIndex
         case parentRatingKey
         case duration
         case media = "Media"

@@ -15,6 +15,7 @@ struct PlaybackSourceResolverTests {
             ratingKey: "1",
             title: "Track",
             index: 1,
+            parentIndex: nil,
             parentRatingKey: "10",
             duration: 1000,
             media: [PlexTrackMedia(parts: [PlexTrackPart(key: "/library/parts/123/file.mp3")])]
@@ -36,6 +37,7 @@ struct PlaybackSourceResolverTests {
             ratingKey: "1",
             title: "Track",
             index: 1,
+            parentIndex: nil,
             parentRatingKey: "10",
             duration: 1000,
             media: [PlexTrackMedia(parts: [PlexTrackPart(key: "/library/parts/123/file.mp3")])]

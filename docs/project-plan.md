@@ -34,24 +34,29 @@
    - Acceptance criteria:
      - Can authenticate to a Plex server.
      - Can fetch albums + tracks metadata.
-2. [x] UI assets + sign-in refactor (brand compliance)
+2. [x] Album de-duplication + track-group merge (library correctness)
+   - Acceptance criteria:
+     - Albums with identical metadata but split track groups (e.g., single-track vs remainder) are merged into one album view.
+     - The merged album exposes the full track list in correct order.
+     - No duplicate tiles appear in the library grid.
+3. [x] UI assets + sign-in refactor (brand compliance)
    - Acceptance criteria:
      - Playfair Display font asset added to the app and configured in Info.plist.
      - Linen background texture generated on the fly (no static asset), adapts to theme changes.
      - Sign-in screen updated to match `docs/ui-brand-guide.md` (typography, colors, pill buttons, card-style inputs).
-3. [x] Playback engine v1 (AVPlayer)
+4. [x] Playback engine v1 (AVPlayer)
    - Acceptance criteria:
      - Plays a full album sequentially.
      - No truncation on network changes.
-4. [ ] Offline manager v1
+5. [ ] Offline manager v1
    - Acceptance criteria:
      - Downloads complete files only.
      - Offline playback skips non-downloaded tracks immediately.
-5. [ ] Queue manager v1
+6. [ ] Queue manager v1
    - Acceptance criteria:
      - Play now/next/later works for album insertions.
      - Queue persists across app restarts.
-6. [ ] Lock screen now playing + remote controls
+7. [ ] Lock screen now playing + remote controls
    - Acceptance criteria:
      - Lock screen and Control Center show current track, elapsed time, and duration.
      - Play/Pause/Next/Previous remote commands control playback.

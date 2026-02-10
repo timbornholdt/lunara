@@ -4,6 +4,8 @@ import SwiftUI
 
 @MainActor
 final class LibraryViewModel: ObservableObject {
+    private static let enableAlbumDedupDebug = true
+
     @Published var sections: [PlexLibrarySection] = []
     @Published var selectedSection: PlexLibrarySection?
     @Published var albums: [PlexAlbum] = []
@@ -15,6 +17,7 @@ final class LibraryViewModel: ObservableObject {
     private var selectionStore: PlexLibrarySelectionStoring
     private let libraryServiceFactory: PlexLibraryServiceFactory
     private let sessionInvalidationHandler: () -> Void
+    private var albumGroups: [String: [PlexAlbum]] = [:]
 
     init(
         tokenStore: PlexAuthTokenStoring = PlexAuthTokenStore(keychain: KeychainStore()),
@@ -70,6 +73,7 @@ final class LibraryViewModel: ObservableObject {
                 try await loadAlbums(section: selected)
             }
         } catch {
+            print("LibraryViewModel.loadSections error: \(error)")
             if PlexErrorHelpers.isUnauthorized(error) {
                 try? tokenStore.clear()
                 sessionInvalidationHandler()
@@ -109,6 +113,101 @@ final class LibraryViewModel: ObservableObject {
         let storedToken = try? tokenStore.load()
         guard let token = storedToken ?? nil else { return }
         let service = libraryServiceFactory(serverURL, token)
-        albums = try await service.fetchAlbums(sectionId: section.key)
+        let fetchedAlbums = try await service.fetchAlbums(sectionId: section.key)
+        albumGroups = Dictionary(grouping: fetchedAlbums, by: albumDedupKey(for:))
+        let dedupedAlbums = dedupeAlbums(fetchedAlbums)
+        if Self.enableAlbumDedupDebug {
+            logAlbumDedupDebug(albums: fetchedAlbums)
+        }
+        albums = dedupedAlbums
+    }
+
+    func ratingKeys(for album: PlexAlbum) -> [String] {
+        let key = albumDedupKey(for: album)
+        let keys = albumGroups[key]?.map(\.ratingKey) ?? [album.ratingKey]
+        var seen = Set<String>()
+        return keys.filter { seen.insert($0).inserted }
+    }
+
+    private func logAlbumDedupDebug(albums: [PlexAlbum]) {
+        let grouped = Dictionary(grouping: albums) { album in
+            let title = album.title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let artist = album.artist?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+            let year = album.year.map(String.init) ?? ""
+            return "\(title)|\(artist)|\(year)"
+        }
+
+        let duplicates = grouped.filter { $0.value.count > 1 }
+        guard !duplicates.isEmpty else { return }
+
+        print("----- Album De-dup Debug (duplicates: \(duplicates.count)) -----")
+        for (key, items) in duplicates {
+            print("Duplicate group: \(key) (count: \(items.count))")
+            for album in items {
+                print("""
+                - ratingKey: \(album.ratingKey)
+                  title: \(album.title)
+                  artist: \(album.artist ?? "nil")
+                  year: \(album.year.map(String.init) ?? "nil")
+                  titleSort: \(album.titleSort ?? "nil")
+                  originalTitle: \(album.originalTitle ?? "nil")
+                  editionTitle: \(album.editionTitle ?? "nil")
+                  guid: \(album.guid ?? "nil")
+                  librarySectionID: \(album.librarySectionID.map(String.init) ?? "nil")
+                  parentRatingKey: \(album.parentRatingKey ?? "nil")
+                  studio: \(album.studio ?? "nil")
+                  thumb: \(album.thumb ?? "nil")
+                  art: \(album.art ?? "nil")
+                  key: \(album.key ?? "nil")
+                """)
+            }
+        }
+        print("----- End Album De-dup Debug -----")
+    }
+
+    private func dedupeAlbums(_ albums: [PlexAlbum]) -> [PlexAlbum] {
+        var seen: [String: Int] = [:]
+        var result: [PlexAlbum] = []
+        result.reserveCapacity(albums.count)
+
+        for album in albums {
+            let identity = albumDedupKey(for: album)
+            if let existingIndex = seen[identity] {
+                if shouldReplace(existing: result[existingIndex], candidate: album) {
+                    result[existingIndex] = album
+                }
+            } else {
+                seen[identity] = result.count
+                result.append(album)
+            }
+        }
+
+        return result
+    }
+
+    private func albumDedupKey(for album: PlexAlbum) -> String {
+        if let guid = album.guid, !guid.isEmpty {
+            return guid
+        }
+        let title = album.title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let artist = album.artist?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+        let year = album.year.map(String.init) ?? ""
+        return "\(title)|\(artist)|\(year)"
+    }
+
+    private func shouldReplace(existing: PlexAlbum, candidate: PlexAlbum) -> Bool {
+        let existingScore = artworkScore(for: existing)
+        let candidateScore = artworkScore(for: candidate)
+        if candidateScore != existingScore {
+            return candidateScore > existingScore
+        }
+        return false
+    }
+
+    private func artworkScore(for album: PlexAlbum) -> Int {
+        var score = 0
+        if album.art != nil { score += 2 }
+        if album.thumb != nil { score += 1 }
+        return score
     }
 }

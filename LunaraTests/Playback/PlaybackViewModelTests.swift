@@ -8,7 +8,7 @@ struct PlaybackViewModelTests {
         let engine = StubPlaybackEngine()
         let viewModel = PlaybackViewModel(engine: engine)
         let tracks = [
-            PlexTrack(ratingKey: "1", title: "One", index: 1, parentRatingKey: "10", duration: 1000, media: nil)
+            PlexTrack(ratingKey: "1", title: "One", index: 1, parentIndex: nil, parentRatingKey: "10", duration: 1000, media: nil)
         ]
 
         viewModel.play(tracks: tracks, startIndex: 0)

@@ -13,6 +13,7 @@ This file captures how to work with me (the user) and how to build specialized C
 - Level of detail in explanations: Concise, but include key decisions and rationale.
 - How to surface tradeoffs/risks: Call out explicitly and ask for approval when it impacts scope or requires refactor.
 - When to ask questions vs. make assumptions: Ask when requests conflict, requirements are unclear, or a refactor may be the best path.
+- Error messaging preference: In-app errors should surface a polished, more technical description when available; avoid generic messages like "Failed to load libraries."
 - UI assistance: If Xcode/UI clicks are needed, ask the user to perform them; user will intervene to speed progress.
 - Skill reminders: When a request would benefit from an available skill, explicitly remind the user and propose using it.
 - Prompt coaching: Provide occasional, high-impact recommendations on how to prompt effectively for the task at hand.
