@@ -3,13 +3,18 @@ import Foundation
 struct AlbumArtworkResolver {
     let artworkBuilder: PlexArtworkURLBuilder
 
-    func artworkURL(for album: PlexAlbum) -> URL? {
-        if let thumb = album.thumb {
-            return artworkBuilder.makeTranscodedArtworkURL(artPath: thumb)
+    func artworkPath(for album: PlexAlbum) -> String? {
+        if let thumb = album.thumb, !thumb.isEmpty {
+            return thumb
         }
-        if let art = album.art {
-            return artworkBuilder.makeTranscodedArtworkURL(artPath: art)
+        if let art = album.art, !art.isEmpty {
+            return art
         }
         return nil
+    }
+
+    func artworkURL(for album: PlexAlbum) -> URL? {
+        guard let path = artworkPath(for: album) else { return nil }
+        return artworkBuilder.makeTranscodedArtworkURL(artPath: path)
     }
 }

@@ -199,4 +199,162 @@ struct LibraryViewModelTests {
         #expect(viewModel.albums.count == 1)
         #expect(viewModel.albums.first?.ratingKey == "10" || viewModel.albums.first?.ratingKey == "11")
     }
+
+    @Test func loadsSnapshotBeforeRefreshingLive() async {
+        let tokenStore = InMemoryTokenStore(token: "token")
+        let serverStore = InMemoryServerStore(url: URL(string: "https://example.com:32400")!)
+        let selectionStore = InMemorySelectionStore(key: "1")
+        let snapshotStore = StubSnapshotStore(
+            snapshot: LibrarySnapshot(
+                albums: [
+                    .init(
+                        ratingKey: "snap",
+                        title: "Snapshot Album",
+                        thumb: "/thumb/snap",
+                        art: "/art/snap",
+                        year: 2024,
+                        artist: "Artist"
+                    )
+                ],
+                collections: []
+            )
+        )
+        let gate = AsyncGate()
+        let service = BlockingLibraryService(
+            sections: [PlexLibrarySection(key: "1", title: "Music", type: "music")],
+            albums: [
+                PlexAlbum(
+                    ratingKey: "live",
+                    title: "Live Album",
+                    thumb: nil,
+                    art: nil,
+                    year: 2025,
+                    artist: "Artist",
+                    titleSort: nil,
+                    originalTitle: nil,
+                    editionTitle: nil,
+                    guid: "plex://album/live",
+                    librarySectionID: 1,
+                    parentRatingKey: nil,
+                    studio: nil,
+                    summary: nil,
+                    genres: nil,
+                    styles: nil,
+                    moods: nil,
+                    rating: nil,
+                    userRating: nil,
+                    key: nil
+                )
+            ],
+            gate: gate
+        )
+        let viewModel = LibraryViewModel(
+            tokenStore: tokenStore,
+            serverStore: serverStore,
+            selectionStore: selectionStore,
+            libraryServiceFactory: { _, _ in service },
+            snapshotStore: snapshotStore,
+            artworkPrefetcher: NoopArtworkPrefetcher(),
+            sessionInvalidationHandler: {}
+        )
+
+        let task = Task { await viewModel.loadSections() }
+        await gate.waitForStart()
+
+        #expect(viewModel.albums.first?.ratingKey == "snap")
+        #expect(viewModel.isRefreshing == true)
+
+        await gate.release()
+        await task.value
+
+        #expect(viewModel.albums.first?.ratingKey == "live")
+        #expect(viewModel.isRefreshing == false)
+        #expect(snapshotStore.savedSnapshot?.albums.first?.ratingKey == "live")
+    }
+}
+
+private final class StubSnapshotStore: LibrarySnapshotStoring {
+    var snapshot: LibrarySnapshot?
+    private(set) var savedSnapshot: LibrarySnapshot?
+
+    init(snapshot: LibrarySnapshot?) {
+        self.snapshot = snapshot
+    }
+
+    func load() throws -> LibrarySnapshot? {
+        snapshot
+    }
+
+    func save(_ snapshot: LibrarySnapshot) throws {
+        savedSnapshot = snapshot
+    }
+
+    func clear() throws {
+        snapshot = nil
+    }
+}
+
+private final class NoopArtworkPrefetcher: ArtworkPrefetching {
+    func prefetch(_ requests: [ArtworkRequest]) {}
+}
+
+private actor AsyncGate {
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var startedContinuation: CheckedContinuation<Void, Never>?
+
+    func wait() async {
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+        }
+    }
+
+    func release() {
+        continuation?.resume()
+        continuation = nil
+    }
+
+    func markStarted() {
+        startedContinuation?.resume()
+        startedContinuation = nil
+    }
+
+    func waitForStart() async {
+        await withCheckedContinuation { continuation in
+            startedContinuation = continuation
+        }
+    }
+}
+
+private final class BlockingLibraryService: PlexLibraryServicing {
+    private let sections: [PlexLibrarySection]
+    private let albums: [PlexAlbum]
+    private let gate: AsyncGate
+
+    init(sections: [PlexLibrarySection], albums: [PlexAlbum], gate: AsyncGate) {
+        self.sections = sections
+        self.albums = albums
+        self.gate = gate
+    }
+
+    func fetchLibrarySections() async throws -> [PlexLibrarySection] {
+        await gate.markStarted()
+        await gate.wait()
+        return sections
+    }
+
+    func fetchAlbums(sectionId: String) async throws -> [PlexAlbum] {
+        return albums
+    }
+
+    func fetchTracks(albumRatingKey: String) async throws -> [PlexTrack] {
+        return []
+    }
+
+    func fetchCollections(sectionId: String) async throws -> [PlexCollection] {
+        return []
+    }
+
+    func fetchAlbumsInCollection(sectionId: String, collectionKey: String) async throws -> [PlexAlbum] {
+        return []
+    }
 }

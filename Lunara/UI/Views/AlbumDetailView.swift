@@ -59,7 +59,7 @@ struct AlbumDetailView: View {
                     .frame(height: 0)
 
                     VStack(alignment: .leading, spacing: Layout.sectionSpacing) {
-                        AlbumArtworkView(album: album, palette: palette)
+                        AlbumArtworkView(album: album, palette: palette, size: .detail)
                             .frame(width: proxy.size.width, height: proxy.size.width)
                             .clipped()
 

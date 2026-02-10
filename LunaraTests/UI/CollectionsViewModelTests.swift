@@ -91,6 +91,50 @@ struct CollectionsViewModelTests {
         #expect(viewModel.collections.isEmpty)
         #expect(viewModel.errorMessage == "No music library found.")
     }
+
+    @Test func loadsSnapshotBeforeRefreshingLive() async {
+        let tokenStore = InMemoryTokenStore(token: "token")
+        let serverStore = InMemoryServerStore(url: URL(string: "https://example.com:32400")!)
+        let snapshotStore = StubSnapshotStore(
+            snapshot: LibrarySnapshot(
+                albums: [],
+                collections: [
+                    .init(
+                        ratingKey: "snap",
+                        title: "Snapshot Collection",
+                        thumb: "/thumb/snap",
+                        art: "/art/snap"
+                    )
+                ]
+            )
+        )
+        let gate = AsyncGate()
+        let service = BlockingCollectionsService(
+            sections: [PlexLibrarySection(key: "2", title: "Music", type: "music")],
+            collections: [PlexCollection(ratingKey: "live", title: "Live Collection", thumb: nil, art: nil, updatedAt: nil, key: nil)],
+            gate: gate
+        )
+        let viewModel = CollectionsViewModel(
+            tokenStore: tokenStore,
+            serverStore: serverStore,
+            libraryServiceFactory: { _, _ in service },
+            snapshotStore: snapshotStore,
+            artworkPrefetcher: NoopArtworkPrefetcher()
+        )
+
+        let task = Task { await viewModel.loadCollections() }
+        await gate.waitForStart()
+
+        #expect(viewModel.collections.first?.ratingKey == "snap")
+        #expect(viewModel.isRefreshing == true)
+
+        await gate.release()
+        await task.value
+
+        #expect(viewModel.collections.first?.ratingKey == "live")
+        #expect(viewModel.isRefreshing == false)
+        #expect(snapshotStore.savedSnapshot?.collections.first?.ratingKey == "live")
+    }
 }
 
 @MainActor
@@ -217,5 +261,91 @@ final class RecordingLibraryService: PlexLibraryServicing {
         lastCollectionItemsSectionId = sectionId
         lastCollectionItemsKey = collectionKey
         return albumsByCollectionKey[collectionKey] ?? []
+    }
+}
+
+private final class StubSnapshotStore: LibrarySnapshotStoring {
+    var snapshot: LibrarySnapshot?
+    private(set) var savedSnapshot: LibrarySnapshot?
+
+    init(snapshot: LibrarySnapshot?) {
+        self.snapshot = snapshot
+    }
+
+    func load() throws -> LibrarySnapshot? {
+        snapshot
+    }
+
+    func save(_ snapshot: LibrarySnapshot) throws {
+        savedSnapshot = snapshot
+    }
+
+    func clear() throws {
+        snapshot = nil
+    }
+}
+
+private final class NoopArtworkPrefetcher: ArtworkPrefetching {
+    func prefetch(_ requests: [ArtworkRequest]) {}
+}
+
+private actor AsyncGate {
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var startedContinuation: CheckedContinuation<Void, Never>?
+
+    func wait() async {
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+        }
+    }
+
+    func release() {
+        continuation?.resume()
+        continuation = nil
+    }
+
+    func markStarted() {
+        startedContinuation?.resume()
+        startedContinuation = nil
+    }
+
+    func waitForStart() async {
+        await withCheckedContinuation { continuation in
+            startedContinuation = continuation
+        }
+    }
+}
+
+private final class BlockingCollectionsService: PlexLibraryServicing {
+    private let sections: [PlexLibrarySection]
+    private let collections: [PlexCollection]
+    private let gate: AsyncGate
+
+    init(sections: [PlexLibrarySection], collections: [PlexCollection], gate: AsyncGate) {
+        self.sections = sections
+        self.collections = collections
+        self.gate = gate
+    }
+
+    func fetchLibrarySections() async throws -> [PlexLibrarySection] {
+        await gate.markStarted()
+        await gate.wait()
+        return sections
+    }
+
+    func fetchAlbums(sectionId: String) async throws -> [PlexAlbum] {
+        return []
+    }
+
+    func fetchTracks(albumRatingKey: String) async throws -> [PlexTrack] {
+        return []
+    }
+
+    func fetchCollections(sectionId: String) async throws -> [PlexCollection] {
+        return collections
+    }
+
+    func fetchAlbumsInCollection(sectionId: String, collectionKey: String) async throws -> [PlexAlbum] {
+        return []
     }
 }
