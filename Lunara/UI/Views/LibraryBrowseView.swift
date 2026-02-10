@@ -68,10 +68,11 @@ struct LibraryBrowseView: View {
 
                             ScrollView {
                                 LazyVGrid(columns: columns, spacing: Layout.rowSpacing) {
-                                    ForEach(viewModel.albums, id: \.ratingKey) { album in
+                                    ForEach(viewModel.albums, id: \.dedupIdentity) { album in
                                         NavigationLink {
                                             AlbumDetailView(
                                                 album: album,
+                                                albumRatingKeys: viewModel.ratingKeys(for: album),
                                                 playbackViewModel: playbackViewModel,
                                                 sessionInvalidationHandler: signOut
                                             )

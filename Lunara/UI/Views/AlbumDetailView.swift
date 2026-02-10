@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AlbumDetailView: View {
     let album: PlexAlbum
+    let albumRatingKeys: [String]
     @ObservedObject var playbackViewModel: PlaybackViewModel
     let sessionInvalidationHandler: () -> Void
     @StateObject private var viewModel: AlbumDetailViewModel
@@ -24,14 +25,17 @@ struct AlbumDetailView: View {
 
     init(
         album: PlexAlbum,
+        albumRatingKeys: [String] = [],
         playbackViewModel: PlaybackViewModel,
         sessionInvalidationHandler: @escaping () -> Void = {}
     ) {
         self.album = album
+        self.albumRatingKeys = albumRatingKeys
         self.playbackViewModel = playbackViewModel
         self.sessionInvalidationHandler = sessionInvalidationHandler
         _viewModel = StateObject(wrappedValue: AlbumDetailViewModel(
             album: album,
+            albumRatingKeys: albumRatingKeys,
             sessionInvalidationHandler: sessionInvalidationHandler,
             playbackController: playbackViewModel
         ))
