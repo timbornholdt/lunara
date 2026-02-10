@@ -60,6 +60,11 @@
    - Acceptance criteria:
      - Lock screen and Control Center show current track, elapsed time, and duration.
      - Play/Pause/Next/Previous remote commands control playback.
+8. [ ] Settings screen (sign out + debug logging)
+   - Acceptance criteria:
+     - Replace the Library "Sign Out" button with a settings gear icon.
+     - Settings screen includes Sign Out action.
+     - Settings screen includes a toggle to enable album de-dup debug logging.
 ## Phase 2 — Primary Interaction: Shuffle
 1. [ ] Collection shuffle (primary mode)
    - Acceptance criteria:
