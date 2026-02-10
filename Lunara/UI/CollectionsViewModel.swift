@@ -148,6 +148,7 @@ final class CollectionsViewModel: ObservableObject {
         let snapshot = LibrarySnapshot(
             albums: existing.albums,
             collections: collections.map { LibrarySnapshot.Collection(collection: $0) },
+            artists: existing.artists,
             musicSectionKey: sectionKey
         )
         try? snapshotStore.save(snapshot)

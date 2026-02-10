@@ -7,9 +7,15 @@ struct LibraryBrowseView: View {
     @Binding var navigationPath: NavigationPath
     @Environment(\.colorScheme) private var colorScheme
     @State private var errorToken = UUID()
+    @State private var albumScrollTarget: String?
+
+    private enum Layout {
+        static let indexInset: CGFloat = 36
+    }
 
     var body: some View {
         let palette = LunaraTheme.Palette.colors(for: colorScheme)
+        let albumIndexLetters = AlbumGridView.sectionLetters(from: viewModel.albums)
 
         NavigationStack(path: $navigationPath) {
             ZStack {
@@ -24,13 +30,26 @@ struct LibraryBrowseView: View {
                             .padding(LunaraTheme.Layout.globalPadding)
                         Spacer()
                     } else {
-                        AlbumGridView(
-                            albums: viewModel.albums,
-                            palette: palette,
-                            playbackViewModel: playbackViewModel,
-                            signOut: signOut,
-                            ratingKeys: viewModel.ratingKeys(for:)
-                        )
+                        ZStack(alignment: .topTrailing) {
+                            AlbumGridView(
+                                albums: viewModel.albums,
+                                palette: palette,
+                                playbackViewModel: playbackViewModel,
+                                signOut: signOut,
+                                ratingKeys: viewModel.ratingKeys(for:),
+                                scrollTarget: albumScrollTarget,
+                                trailingContentInset: Layout.indexInset
+                            )
+
+                            if albumIndexLetters.count > 1 {
+                                AlphabetIndexOverlay(letters: albumIndexLetters, palette: palette) { letter in
+                                    albumScrollTarget = letter
+                                }
+                                .padding(.trailing, 6)
+                                .padding(.top, 6)
+                                .padding(.bottom, 80)
+                            }
+                        }
                     }
                 }
             }
@@ -52,6 +71,7 @@ struct LibraryBrowseView: View {
                     }
                 }
             }
+            .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: AlbumNavigationRequest.self) { request in
                 AlbumDetailView(
                     album: request.album,

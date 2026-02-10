@@ -98,11 +98,38 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
 
     private func bindEngineCallbacks() {
         engine?.onStateChange = { [weak self] state in
-            self?.nowPlaying = state
+            Task { @MainActor in
+                self?.handleStateChange(state)
+            }
         }
         engine?.onError = { [weak self] error in
             self?.errorMessage = error.message
         }
+    }
+
+    private func handleStateChange(_ state: NowPlayingState?) {
+        nowPlaying = state
+        guard let state else { return }
+        guard let context = nowPlayingContext else { return }
+        guard let track = context.tracks.first(where: { $0.ratingKey == state.trackRatingKey }) else { return }
+        guard let albumKey = track.parentRatingKey else { return }
+        guard let albumsByRatingKey = context.albumsByRatingKey,
+              let album = albumsByRatingKey[albumKey] else {
+            return
+        }
+        if album.ratingKey == context.album.ratingKey {
+            return
+        }
+        let artworkRequest = context.artworkRequestsByAlbumKey?[album.ratingKey] ?? context.artworkRequest
+        let updatedContext = NowPlayingContext(
+            album: album,
+            albumRatingKeys: [album.ratingKey],
+            tracks: context.tracks,
+            artworkRequest: artworkRequest,
+            albumsByRatingKey: albumsByRatingKey,
+            artworkRequestsByAlbumKey: context.artworkRequestsByAlbumKey
+        )
+        setNowPlayingContext(updatedContext)
     }
 
     private func setNowPlayingContext(_ context: NowPlayingContext?) {

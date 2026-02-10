@@ -31,6 +31,7 @@ struct PlaybackViewModelTests {
         )
 
         engine.emitState(state)
+        try? await Task.sleep(nanoseconds: 10_000_000)
 
         #expect(viewModel.nowPlaying == state)
     }
@@ -111,6 +112,90 @@ struct PlaybackViewModelTests {
         #expect(engine.skipNextCallCount == 1)
         #expect(engine.skipPreviousCallCount == 1)
         #expect(engine.seekCallCount == 1)
+    }
+
+    @Test func updatesContextAlbumWhenTrackChanges() async {
+        let engine = StubPlaybackEngine()
+        let viewModel = PlaybackViewModel(engine: engine, themeProvider: StubThemeProvider())
+        let albumOne = PlexAlbum(
+            ratingKey: "a1",
+            title: "Album One",
+            thumb: nil,
+            art: nil,
+            year: 1999,
+            artist: "Artist",
+            titleSort: nil,
+            originalTitle: nil,
+            editionTitle: nil,
+            guid: nil,
+            librarySectionID: nil,
+            parentRatingKey: nil,
+            studio: nil,
+            summary: nil,
+            genres: nil,
+            styles: nil,
+            moods: nil,
+            rating: nil,
+            userRating: nil,
+            key: nil
+        )
+        let albumTwo = PlexAlbum(
+            ratingKey: "a2",
+            title: "Album Two",
+            thumb: nil,
+            art: nil,
+            year: 2001,
+            artist: "Artist",
+            titleSort: nil,
+            originalTitle: nil,
+            editionTitle: nil,
+            guid: nil,
+            librarySectionID: nil,
+            parentRatingKey: nil,
+            studio: nil,
+            summary: nil,
+            genres: nil,
+            styles: nil,
+            moods: nil,
+            rating: nil,
+            userRating: nil,
+            key: nil
+        )
+        let tracks = [
+            PlexTrack(ratingKey: "t1", title: "One", index: 1, parentIndex: nil, parentRatingKey: "a1", duration: nil, media: nil),
+            PlexTrack(ratingKey: "t2", title: "Two", index: 1, parentIndex: nil, parentRatingKey: "a2", duration: nil, media: nil)
+        ]
+        let requestOne = ArtworkRequest(
+            key: ArtworkCacheKey(ratingKey: "a1", artworkPath: "/art/1", size: .detail),
+            url: URL(string: "https://example.com/1.png")!
+        )
+        let requestTwo = ArtworkRequest(
+            key: ArtworkCacheKey(ratingKey: "a2", artworkPath: "/art/2", size: .detail),
+            url: URL(string: "https://example.com/2.png")!
+        )
+        let context = NowPlayingContext(
+            album: albumOne,
+            albumRatingKeys: ["a1"],
+            tracks: tracks,
+            artworkRequest: requestOne,
+            albumsByRatingKey: ["a1": albumOne, "a2": albumTwo],
+            artworkRequestsByAlbumKey: ["a1": requestOne, "a2": requestTwo]
+        )
+
+        viewModel.play(tracks: tracks, startIndex: 0, context: context)
+        engine.emitState(
+            NowPlayingState(
+                trackRatingKey: "t2",
+                trackTitle: "Two",
+                artistName: "Artist",
+                isPlaying: true,
+                elapsedTime: 0,
+                duration: 100
+            )
+        )
+        try? await Task.sleep(nanoseconds: 10_000_000)
+
+        #expect(viewModel.nowPlayingContext?.album.ratingKey == "a2")
     }
 }
 

@@ -250,6 +250,11 @@ final class RecordingLibraryService: PlexLibraryServicing {
         return []
     }
 
+    func fetchAlbumDetail(albumRatingKey: String) async throws -> PlexAlbum? {
+        if let error { throw error }
+        return nil
+    }
+
     func fetchCollections(sectionId: String) async throws -> [PlexCollection] {
         if let error { throw error }
         lastCollectionsSectionId = sectionId
@@ -261,6 +266,22 @@ final class RecordingLibraryService: PlexLibraryServicing {
         lastCollectionItemsSectionId = sectionId
         lastCollectionItemsKey = collectionKey
         return albumsByCollectionKey[collectionKey] ?? []
+    }
+
+    func fetchArtists(sectionId: String) async throws -> [PlexArtist] {
+        return []
+    }
+
+    func fetchArtistDetail(artistRatingKey: String) async throws -> PlexArtist? {
+        return nil
+    }
+
+    func fetchArtistAlbums(artistRatingKey: String) async throws -> [PlexAlbum] {
+        return []
+    }
+
+    func fetchArtistTracks(artistRatingKey: String) async throws -> [PlexTrack] {
+        return []
     }
 }
 
@@ -341,11 +362,31 @@ private final class BlockingCollectionsService: PlexLibraryServicing {
         return []
     }
 
+    func fetchAlbumDetail(albumRatingKey: String) async throws -> PlexAlbum? {
+        return nil
+    }
+
     func fetchCollections(sectionId: String) async throws -> [PlexCollection] {
         return collections
     }
 
     func fetchAlbumsInCollection(sectionId: String, collectionKey: String) async throws -> [PlexAlbum] {
+        return []
+    }
+
+    func fetchArtists(sectionId: String) async throws -> [PlexArtist] {
+        return []
+    }
+
+    func fetchArtistDetail(artistRatingKey: String) async throws -> PlexArtist? {
+        return nil
+    }
+
+    func fetchArtistAlbums(artistRatingKey: String) async throws -> [PlexAlbum] {
+        return []
+    }
+
+    func fetchArtistTracks(artistRatingKey: String) async throws -> [PlexTrack] {
         return []
     }
 }

@@ -25,4 +25,12 @@ struct PlexMediaContainer<Item: Decodable>: Decodable {
         case offset
         case items = "Metadata"
     }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        size = try container.decodeIfPresent(Int.self, forKey: .size) ?? 0
+        totalSize = try container.decodeIfPresent(Int.self, forKey: .totalSize)
+        offset = try container.decodeIfPresent(Int.self, forKey: .offset)
+        items = try container.decodeIfPresent([Item].self, forKey: .items) ?? []
+    }
 }

@@ -41,18 +41,45 @@ struct CollectionDetailView: View {
                         .padding(LunaraTheme.Layout.globalPadding)
                     Spacer()
                 } else {
-                    AlbumGridView(
-                        albums: viewModel.albums,
-                        palette: palette,
-                        playbackViewModel: playbackViewModel,
-                        signOut: signOut,
-                        ratingKeys: viewModel.ratingKeys(for:)
-                    )
+                    GeometryReader { proxy in
+                        let contentWidth = max(proxy.size.width - (LunaraTheme.Layout.globalPadding * 2), 0)
+                        let columnWidth = max((contentWidth - 16) / 2, 0)
+                        let columns = [
+                            GridItem(.fixed(columnWidth), spacing: 16),
+                            GridItem(.fixed(columnWidth), spacing: 16)
+                        ]
+
+                        ScrollView {
+                            LazyVGrid(columns: columns, alignment: .leading, spacing: 18) {
+                                ForEach(viewModel.albums, id: \.ratingKey) { album in
+                                    NavigationLink {
+                                        AlbumDetailView(
+                                            album: album,
+                                            albumRatingKeys: viewModel.ratingKeys(for: album),
+                                            playbackViewModel: playbackViewModel,
+                                            sessionInvalidationHandler: signOut
+                                        )
+                                    } label: {
+                                        CollectionAlbumCardView(album: album, palette: palette, width: columnWidth)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(.horizontal, LunaraTheme.Layout.globalPadding)
+                            .padding(.bottom, LunaraTheme.Layout.globalPadding)
+                        }
+                    }
                 }
             }
         }
-        .navigationTitle(collection.title)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text(collection.title)
+                    .font(LunaraTheme.Typography.displayBold(size: 20))
+                    .foregroundStyle(palette.textPrimary)
+            }
+        }
         .overlay(alignment: .top) {
             if let message = playbackViewModel.errorMessage {
                 PlaybackErrorBanner(message: message, palette: palette) {
@@ -63,6 +90,67 @@ struct CollectionDetailView: View {
         }
         .task {
             await viewModel.loadAlbums()
+        }
+    }
+}
+
+private struct CollectionAlbumCardView: View {
+    let album: PlexAlbum
+    let palette: LunaraTheme.PaletteColors
+    let width: CGFloat
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            AlbumArtworkView(album: album, palette: palette)
+                .frame(width: width, height: width)
+                .clipShape(RoundedRectangle(cornerRadius: LunaraTheme.Layout.cardCornerRadius))
+                .clipped()
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(album.title)
+                    .font(LunaraTheme.Typography.displayBold(size: 15))
+                    .foregroundStyle(palette.textPrimary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+
+                Text(metadataText)
+                    .font(LunaraTheme.Typography.display(size: 13))
+                    .foregroundStyle(palette.textSecondary)
+                    .opacity(metadataText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0 : 1)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+            .padding(.horizontal, 12)
+            .padding(.bottom, 12)
+        }
+        .frame(width: width, alignment: .top)
+        .background(palette.raised)
+        .overlay(
+            RoundedRectangle(cornerRadius: LunaraTheme.Layout.cardCornerRadius)
+                .stroke(palette.borderSubtle, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: LunaraTheme.Layout.cardCornerRadius))
+        .shadow(
+            color: Color.black.opacity(0.08),
+            radius: 8,
+            x: 0,
+            y: 1
+        )
+    }
+
+    private var metadataText: String {
+        let artist = album.artist?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let year = album.year.map(String.init)
+        switch (artist?.isEmpty == false ? artist : nil, year) {
+        case let (.some(name), .some(yearValue)):
+            return "\(name) — \(yearValue)"
+        case let (.some(name), .none):
+            return name
+        case let (.none, .some(yearValue)):
+            return yearValue
+        default:
+            return " "
         }
     }
 }

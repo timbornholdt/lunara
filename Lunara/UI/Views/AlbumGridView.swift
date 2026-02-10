@@ -6,6 +6,9 @@ struct AlbumGridView: View {
     let playbackViewModel: PlaybackViewModel
     let signOut: () -> Void
     let ratingKeys: (PlexAlbum) -> [String]
+    let scrollTarget: String?
+    let sortAlphabetically: Bool
+    let trailingContentInset: CGFloat
 
     enum Layout {
         static let globalPadding = LunaraTheme.Layout.globalPadding
@@ -17,33 +20,101 @@ struct AlbumGridView: View {
         static let cardShadowYOffset: CGFloat = 1
     }
 
+    init(
+        albums: [PlexAlbum],
+        palette: LunaraTheme.PaletteColors,
+        playbackViewModel: PlaybackViewModel,
+        signOut: @escaping () -> Void,
+        ratingKeys: @escaping (PlexAlbum) -> [String],
+        scrollTarget: String? = nil,
+        sortAlphabetically: Bool = true,
+        trailingContentInset: CGFloat = 0
+    ) {
+        self.albums = albums
+        self.palette = palette
+        self.playbackViewModel = playbackViewModel
+        self.signOut = signOut
+        self.ratingKeys = ratingKeys
+        self.scrollTarget = scrollTarget
+        self.sortAlphabetically = sortAlphabetically
+        self.trailingContentInset = trailingContentInset
+    }
+
     var body: some View {
         GeometryReader { proxy in
             let contentWidth = max(proxy.size.width - (Layout.globalPadding * 2), 0)
             let columnWidth = max((contentWidth - Layout.columnSpacing) / 2, 0)
-            let rows = AlbumGridView.makeRows(from: albums)
+            let sections = AlbumGridView.sections(from: albums, sortAlphabetically: sortAlphabetically)
 
-            ScrollView {
-                LazyVStack(spacing: Layout.rowSpacing) {
-                    ForEach(rows) { row in
-                        AlbumRowView(
-                            row: row,
-                            palette: palette,
-                            width: columnWidth,
-                            playbackViewModel: playbackViewModel,
-                            signOut: signOut,
-                            ratingKeys: ratingKeys
-                        )
+            ScrollViewReader { scrollProxy in
+                ScrollView {
+                    LazyVStack(spacing: Layout.rowSpacing) {
+                        ForEach(sections) { section in
+                            Color.clear
+                                .frame(height: 0.5)
+                                .id(section.id)
+
+                            ForEach(section.rows) { row in
+                                AlbumRowView(
+                                    row: row,
+                                    palette: palette,
+                                    width: columnWidth,
+                                    playbackViewModel: playbackViewModel,
+                                    signOut: signOut,
+                                    ratingKeys: ratingKeys
+                                )
+                            }
+                        }
+                    }
+                    .padding(.horizontal, Layout.globalPadding)
+                    .padding(.trailing, trailingContentInset)
+                    .padding(.bottom, Layout.globalPadding)
+                }
+                .onChange(of: scrollTarget) { _, newValue in
+                    guard let newValue else { return }
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        scrollProxy.scrollTo(newValue, anchor: .top)
                     }
                 }
-                .padding(.horizontal, Layout.globalPadding)
-                .padding(.bottom, Layout.globalPadding)
-                .padding(.top, 8)
             }
         }
     }
 
-    private static func makeRows(from albums: [PlexAlbum]) -> [AlbumRow] {
+    private static func sections(from albums: [PlexAlbum], sortAlphabetically: Bool) -> [AlbumSection] {
+        let base = sortAlphabetically ? albums.sorted { lhs, rhs in
+            let leftKey = sortKey(for: lhs)
+            let rightKey = sortKey(for: rhs)
+            return leftKey.localizedCaseInsensitiveCompare(rightKey) == .orderedAscending
+        } : albums
+        let sections = AlphabetSectionBuilder.sections(from: base) { album in
+            sortKey(for: album)
+        }
+        return sections.map { section in
+            AlbumSection(id: section.id, rows: makeRows(from: section.items, sectionId: section.id))
+        }
+    }
+
+    static func sectionLetters(from albums: [PlexAlbum]) -> [String] {
+        let sorted = albums.sorted { lhs, rhs in
+            let leftKey = sortKey(for: lhs)
+            let rightKey = sortKey(for: rhs)
+            return leftKey.localizedCaseInsensitiveCompare(rightKey) == .orderedAscending
+        }
+        return AlphabetSectionBuilder.sections(from: sorted) { album in
+            sortKey(for: album)
+        }
+        .map(\.id)
+    }
+
+    private static func sortKey(for album: PlexAlbum) -> String {
+        let sort = album.titleSort?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let sort, !sort.isEmpty {
+            return sort
+        }
+        return album.title
+    }
+
+    private static func makeRows(from albums: [PlexAlbum], sectionId: String) -> [AlbumRow] {
         var rows: [AlbumRow] = []
         rows.reserveCapacity((albums.count + 1) / 2)
 
@@ -51,7 +122,7 @@ struct AlbumGridView: View {
         while index < albums.count {
             let left = albums[index]
             let right = index + 1 < albums.count ? albums[index + 1] : nil
-            rows.append(AlbumRow(id: index, left: left, right: right))
+            rows.append(AlbumRow(id: "\(sectionId)-\(index)", left: left, right: right))
             index += 2
         }
 
@@ -59,8 +130,13 @@ struct AlbumGridView: View {
     }
 }
 
+private struct AlbumSection: Identifiable {
+    let id: String
+    let rows: [AlbumRow]
+}
+
 private struct AlbumRow: Identifiable {
-    let id: Int
+    let id: String
     let left: PlexAlbum
     let right: PlexAlbum?
 }

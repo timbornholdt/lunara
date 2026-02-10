@@ -52,7 +52,12 @@ struct StubLibraryService: PlexLibraryServicing {
     let albums: [PlexAlbum]
     let tracks: [PlexTrack]
     let collections: [PlexCollection]
+    let albumDetailsByRatingKey: [String: PlexAlbum]
     let albumsByCollectionKey: [String: [PlexAlbum]]
+    let artists: [PlexArtist]
+    let artistDetail: PlexArtist?
+    let albumsByArtistKey: [String: [PlexAlbum]]
+    let tracksByArtistKey: [String: [PlexTrack]]
     var tracksByAlbumRatingKey: [String: [PlexTrack]] = [:]
     var error: Error?
 
@@ -62,6 +67,11 @@ struct StubLibraryService: PlexLibraryServicing {
         tracks: [PlexTrack],
         collections: [PlexCollection] = [],
         albumsByCollectionKey: [String: [PlexAlbum]] = [:],
+        artists: [PlexArtist] = [],
+        artistDetail: PlexArtist? = nil,
+        albumsByArtistKey: [String: [PlexAlbum]] = [:],
+        tracksByArtistKey: [String: [PlexTrack]] = [:],
+        albumDetailsByRatingKey: [String: PlexAlbum] = [:],
         tracksByAlbumRatingKey: [String: [PlexTrack]] = [:],
         error: Error? = nil
     ) {
@@ -69,7 +79,12 @@ struct StubLibraryService: PlexLibraryServicing {
         self.albums = albums
         self.tracks = tracks
         self.collections = collections
+        self.albumDetailsByRatingKey = albumDetailsByRatingKey
         self.albumsByCollectionKey = albumsByCollectionKey
+        self.artists = artists
+        self.artistDetail = artistDetail
+        self.albumsByArtistKey = albumsByArtistKey
+        self.tracksByArtistKey = tracksByArtistKey
         self.tracksByAlbumRatingKey = tracksByAlbumRatingKey
         self.error = error
     }
@@ -92,6 +107,11 @@ struct StubLibraryService: PlexLibraryServicing {
         return tracks
     }
 
+    func fetchAlbumDetail(albumRatingKey: String) async throws -> PlexAlbum? {
+        if let error { throw error }
+        return albumDetailsByRatingKey[albumRatingKey]
+    }
+
     func fetchCollections(sectionId: String) async throws -> [PlexCollection] {
         if let error { throw error }
         return collections
@@ -100,5 +120,25 @@ struct StubLibraryService: PlexLibraryServicing {
     func fetchAlbumsInCollection(sectionId: String, collectionKey: String) async throws -> [PlexAlbum] {
         if let error { throw error }
         return albumsByCollectionKey[collectionKey] ?? albums
+    }
+
+    func fetchArtists(sectionId: String) async throws -> [PlexArtist] {
+        if let error { throw error }
+        return artists
+    }
+
+    func fetchArtistDetail(artistRatingKey: String) async throws -> PlexArtist? {
+        if let error { throw error }
+        return artistDetail
+    }
+
+    func fetchArtistAlbums(artistRatingKey: String) async throws -> [PlexAlbum] {
+        if let error { throw error }
+        return albumsByArtistKey[artistRatingKey] ?? []
+    }
+
+    func fetchArtistTracks(artistRatingKey: String) async throws -> [PlexTrack] {
+        if let error { throw error }
+        return tracksByArtistKey[artistRatingKey] ?? []
     }
 }

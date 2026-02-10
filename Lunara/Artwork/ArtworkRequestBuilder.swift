@@ -29,4 +29,17 @@ struct ArtworkRequestBuilder {
         let key = ArtworkCacheKey(ratingKey: collection.ratingKey, artworkPath: path, size: size)
         return ArtworkRequest(key: key, url: url)
     }
+
+    func artistRequest(for artist: PlexArtist, size: ArtworkSize) -> ArtworkRequest? {
+        let resolver = ArtistArtworkResolver(artworkBuilder: PlexArtworkURLBuilder(
+            baseURL: baseURL,
+            token: token,
+            maxSize: size.maxPixelSize
+        ))
+        guard let path = resolver.artworkPath(for: artist) else { return nil }
+        let url = resolver.artworkURL(for: artist)
+        guard let url else { return nil }
+        let key = ArtworkCacheKey(ratingKey: artist.ratingKey, artworkPath: path, size: size)
+        return ArtworkRequest(key: key, url: url)
+    }
 }

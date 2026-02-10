@@ -76,11 +76,15 @@
    - Acceptance criteria:
      - Work with the user to define what should be present on a now playing screen
 	 - Tapping the floating "now playing" bar should bring the "now playing" screen up from the bottom. You should be able to pull down from the top of that screen to dismiss it at any time. The now playing bar should fade out when this screen is present and reappear when it is dismissed.
-9. [ ] Artist detail screen v1
-   - Acceptacne criteria:
-     - New tab called "Artists". Shows a list of all artists in the library.
-	 - Artist page shows biography of artist and a list of albums with some expanded detail (year, run time). Does not need to match the 2 column grid; in fact, should be one column to show more detail.
-     - Tapping an album loads that album's page
+9. [x] Artist detail screen v1
+   - Acceptance criteria:
+     - New tab called "Artists" with local search; tab order is Collections, All Albums, Artists.
+     - Artist list is alphabetical (uses `titleSort` when available) and text-only rows.
+     - Artist detail shows hero art with linen fallback, expandable Plex summary, and genre pills.
+     - Artist detail includes Play All and Shuffle actions.
+     - Album list is single-column with thumbnails, year, user rating when present, and runtime only if available from initial fetch.
+     - Albums sorted by release year ascending.
+     - Tapping an album loads that album's page.
 10. [ ] Settings screen (sign out + debug logging)
    - Acceptance criteria:
      - Replace the Library "Sign Out" button with a settings gear icon.
@@ -161,6 +165,7 @@
   - Fetch Wikipedia content when an album is loaded.
   - Cache locally with a 1-month expiry.
   - Prioritize content about album creation and recording context.
+- Convert album detail genre list to pill UI (share component with artist genres).
 - Playlist support (collections view extension)
   - Add playlist browsing alongside collections.
   - Support playlist playback and queue integration.

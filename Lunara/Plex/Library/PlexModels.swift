@@ -22,12 +22,99 @@ struct PlexCollection: Decodable, Equatable, Sendable {
     }
 }
 
+struct PlexArtist: Decodable, Equatable, Sendable {
+    let ratingKey: String
+    let title: String
+    let titleSort: String?
+    let summary: String?
+    let thumb: String?
+    let art: String?
+    let country: String?
+    let genres: [PlexTag]?
+    let userRating: Double?
+    let rating: Double?
+    let albumCount: Int?
+    let trackCount: Int?
+    let addedAt: Int?
+    let updatedAt: Int?
+
+    init(
+        ratingKey: String,
+        title: String,
+        titleSort: String?,
+        summary: String?,
+        thumb: String?,
+        art: String?,
+        country: String?,
+        genres: [PlexTag]?,
+        userRating: Double?,
+        rating: Double?,
+        albumCount: Int?,
+        trackCount: Int?,
+        addedAt: Int?,
+        updatedAt: Int?
+    ) {
+        self.ratingKey = ratingKey
+        self.title = title
+        self.titleSort = titleSort
+        self.summary = summary
+        self.thumb = thumb
+        self.art = art
+        self.country = country
+        self.genres = genres
+        self.userRating = userRating
+        self.rating = rating
+        self.albumCount = albumCount
+        self.trackCount = trackCount
+        self.addedAt = addedAt
+        self.updatedAt = updatedAt
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case ratingKey
+        case title
+        case titleSort
+        case summary
+        case thumb
+        case art
+        case country
+        case genres = "Genre"
+        case userRating
+        case rating = "Rating"
+        case ratingLower = "rating"
+        case albumCount
+        case trackCount
+        case addedAt
+        case updatedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        ratingKey = try container.decode(String.self, forKey: .ratingKey)
+        title = try container.decode(String.self, forKey: .title)
+        titleSort = try container.decodeIfPresent(String.self, forKey: .titleSort)
+        summary = try container.decodeIfPresent(String.self, forKey: .summary)
+        thumb = try container.decodeIfPresent(String.self, forKey: .thumb)
+        art = try container.decodeIfPresent(String.self, forKey: .art)
+        country = try container.decodeIfPresent(String.self, forKey: .country)
+        genres = try container.decodeIfPresent([PlexTag].self, forKey: .genres)
+        userRating = try container.decodeIfPresent(Double.self, forKey: .userRating)
+        rating = try container.decodeIfPresent(Double.self, forKey: .rating)
+            ?? container.decodeIfPresent(Double.self, forKey: .ratingLower)
+        albumCount = try container.decodeIfPresent(Int.self, forKey: .albumCount)
+        trackCount = try container.decodeIfPresent(Int.self, forKey: .trackCount)
+        addedAt = try container.decodeIfPresent(Int.self, forKey: .addedAt)
+        updatedAt = try container.decodeIfPresent(Int.self, forKey: .updatedAt)
+    }
+}
+
 struct PlexAlbum: Decodable, Equatable, Sendable {
     let ratingKey: String
     let title: String
     let thumb: String?
     let art: String?
     let year: Int?
+    let duration: Int?
     let originallyAvailableAt: String?
     let artist: String?
     let titleSort: String?
@@ -51,6 +138,7 @@ struct PlexAlbum: Decodable, Equatable, Sendable {
         thumb: String?,
         art: String?,
         year: Int?,
+        duration: Int? = nil,
         originallyAvailableAt: String? = nil,
         artist: String?,
         titleSort: String?,
@@ -73,6 +161,7 @@ struct PlexAlbum: Decodable, Equatable, Sendable {
         self.thumb = thumb
         self.art = art
         self.year = year
+        self.duration = duration
         self.originallyAvailableAt = originallyAvailableAt
         self.artist = artist
         self.titleSort = titleSort
@@ -107,6 +196,7 @@ struct PlexAlbum: Decodable, Equatable, Sendable {
         case thumb
         case art
         case year
+        case duration
         case originallyAvailableAt
         case artist = "parentTitle"
         case titleSort
