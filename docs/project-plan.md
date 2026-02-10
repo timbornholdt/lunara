@@ -48,19 +48,24 @@
    - Acceptance criteria:
      - Plays a full album sequentially.
      - No truncation on network changes.
-5. [ ] Offline manager v1
+5. [ ] Browse by collection
+   - Acceptance criteria:
+     - App's main interface is the "all albums" interface, but a tab bar at the bottom allows me to browse by Plex album collections.
+     - The main collections view shows all Plex album collections, including the artwork associated with them. Current Vibes and The Key Albums are always at the top, all others are below it alphabetically. Those two are also visually distinct.
+     - Clicking a collection shows the albums in that collection in the same manner as the main library view.
+6. [ ] Offline manager v1
    - Acceptance criteria:
      - Downloads complete files only.
      - Offline playback skips non-downloaded tracks immediately.
-6. [ ] Queue manager v1
+7. [ ] Queue manager v1
    - Acceptance criteria:
      - Play now/next/later works for album insertions.
      - Queue persists across app restarts.
-7. [ ] Lock screen now playing + remote controls
+8. [ ] Lock screen now playing + remote controls
    - Acceptance criteria:
      - Lock screen and Control Center show current track, elapsed time, and duration.
      - Play/Pause/Next/Previous remote commands control playback.
-8. [ ] Settings screen (sign out + debug logging)
+9. [ ] Settings screen (sign out + debug logging)
    - Acceptance criteria:
      - Replace the Library "Sign Out" button with a settings gear icon.
      - Settings screen includes Sign Out action.
@@ -110,6 +115,9 @@
   - Fetch Wikipedia content when an album is loaded.
   - Cache locally with a 1-month expiry.
   - Prioritize content about album creation and recording context.
+- Playlist support (collections view extension)
+  - Add playlist browsing alongside collections.
+  - Support playlist playback and queue integration.
 
 ## Phase 4 — Notes & Deletion Queue
 1. [ ] Personal notes
@@ -138,7 +146,6 @@
      - Browse collections and albums.
      - Shuffle collection.
      - Now Playing controls.
-
 ## First Feature Design Docs (Suggested Order)
 1. `docs/features/plex-auth-library-browse.md`
 2. `docs/features/avplayer-album-playback.md`
