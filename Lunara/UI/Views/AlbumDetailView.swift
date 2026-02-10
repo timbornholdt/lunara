@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AlbumDetailView: View {
     let album: PlexAlbum
+    @ObservedObject var playbackViewModel: PlaybackViewModel
     let sessionInvalidationHandler: () -> Void
     @StateObject private var viewModel: AlbumDetailViewModel
     @Environment(\.colorScheme) private var colorScheme
@@ -21,12 +22,18 @@ struct AlbumDetailView: View {
         static let metadataSpacing: CGFloat = 10
     }
 
-    init(album: PlexAlbum, sessionInvalidationHandler: @escaping () -> Void = {}) {
+    init(
+        album: PlexAlbum,
+        playbackViewModel: PlaybackViewModel,
+        sessionInvalidationHandler: @escaping () -> Void = {}
+    ) {
         self.album = album
+        self.playbackViewModel = playbackViewModel
         self.sessionInvalidationHandler = sessionInvalidationHandler
         _viewModel = StateObject(wrappedValue: AlbumDetailViewModel(
             album: album,
-            sessionInvalidationHandler: sessionInvalidationHandler
+            sessionInvalidationHandler: sessionInvalidationHandler,
+            playbackController: playbackViewModel
         ))
     }
 
@@ -70,7 +77,9 @@ struct AlbumDetailView: View {
                                     .foregroundStyle(palette.textPrimary)
 
                                 ForEach(viewModel.tracks, id: \.ratingKey) { track in
-                                    TrackRowCard(track: track, palette: palette)
+                                    TrackRowCard(track: track, palette: palette) {
+                                        viewModel.playTrack(track)
+                                    }
                                 }
                             }
                             .padding(.horizontal, Layout.globalPadding)
@@ -101,6 +110,25 @@ struct AlbumDetailView: View {
         .task {
             await viewModel.loadTracks()
         }
+        .safeAreaInset(edge: .bottom) {
+            if let nowPlaying = playbackViewModel.nowPlaying {
+                NowPlayingBarView(
+                    state: nowPlaying,
+                    palette: palette,
+                    onTogglePlayPause: { playbackViewModel.togglePlayPause() }
+                )
+                    .padding(.horizontal, Layout.globalPadding)
+                    .padding(.bottom, Layout.globalPadding)
+            }
+        }
+        .overlay(alignment: .top) {
+            if let message = playbackViewModel.errorMessage {
+                PlaybackErrorBanner(message: message, palette: palette) {
+                    playbackViewModel.clearError()
+                }
+                .padding(.horizontal, Layout.globalPadding)
+            }
+        }
     }
 
     @ViewBuilder
@@ -120,11 +148,21 @@ struct AlbumDetailView: View {
 
             Spacer(minLength: 8)
 
-            if let userRating = album.userRating {
-                StarRatingView(ratingOutOfTen: userRating, palette: palette)
-                    .alignmentGuide(.firstTextBaseline) { dimensions in
-                        dimensions[.top]
-                    }
+            VStack(alignment: .trailing, spacing: 8) {
+                if let userRating = album.userRating {
+                    StarRatingView(ratingOutOfTen: userRating, palette: palette)
+                        .alignmentGuide(.firstTextBaseline) { dimensions in
+                            dimensions[.top]
+                        }
+                }
+
+                Button {
+                    viewModel.playAlbum()
+                } label: {
+                    Label("Play", systemImage: "play.fill")
+                }
+                .buttonStyle(PlayButtonStyle(palette: palette))
+                .accessibilityLabel("Play album")
             }
         }
     }
@@ -194,34 +232,38 @@ struct AlbumDetailView: View {
 private struct TrackRowCard: View {
     let track: PlexTrack
     let palette: LunaraTheme.PaletteColors
+    let onTap: () -> Void
 
     var body: some View {
-        HStack(spacing: 10) {
-            Text(track.index.map(String.init) ?? "-")
-                .font(LunaraTheme.Typography.displayRegular(size: 13).monospacedDigit())
-                .foregroundStyle(palette.textSecondary)
-                .frame(width: 22, alignment: .leading)
-
-            Text(track.title)
-                .font(LunaraTheme.Typography.displayRegular(size: 17))
-                .foregroundStyle(palette.textPrimary)
-
-            Spacer(minLength: 8)
-
-            if let duration = track.duration {
-                Text(formatDuration(duration))
+        Button(action: onTap) {
+            HStack(spacing: 10) {
+                Text(track.index.map(String.init) ?? "-")
                     .font(LunaraTheme.Typography.displayRegular(size: 13).monospacedDigit())
                     .foregroundStyle(palette.textSecondary)
+                    .frame(width: 22, alignment: .leading)
+
+                Text(track.title)
+                    .font(LunaraTheme.Typography.displayRegular(size: 17))
+                    .foregroundStyle(palette.textPrimary)
+
+                Spacer(minLength: 8)
+
+                if let duration = track.duration {
+                    Text(formatDuration(duration))
+                        .font(LunaraTheme.Typography.displayRegular(size: 13).monospacedDigit())
+                        .foregroundStyle(palette.textSecondary)
+                }
             }
+            .padding(.vertical, AlbumDetailView.Layout.trackRowVerticalPadding)
+            .padding(.horizontal, AlbumDetailView.Layout.trackRowHorizontalPadding)
+            .background(palette.raised)
+            .overlay(
+                RoundedRectangle(cornerRadius: AlbumDetailView.Layout.cardCornerRadius)
+                    .stroke(palette.borderSubtle, lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: AlbumDetailView.Layout.cardCornerRadius))
         }
-        .padding(.vertical, AlbumDetailView.Layout.trackRowVerticalPadding)
-        .padding(.horizontal, AlbumDetailView.Layout.trackRowHorizontalPadding)
-        .background(palette.raised)
-        .overlay(
-            RoundedRectangle(cornerRadius: AlbumDetailView.Layout.cardCornerRadius)
-                .stroke(palette.borderSubtle, lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: AlbumDetailView.Layout.cardCornerRadius))
+        .buttonStyle(.plain)
     }
 
     private func formatDuration(_ millis: Int) -> String {
@@ -229,6 +271,24 @@ private struct TrackRowCard: View {
         let minutes = totalSeconds / 60
         let seconds = totalSeconds % 60
         return String(format: "%d:%02d", minutes, seconds)
+    }
+}
+
+private struct PlayButtonStyle: ButtonStyle {
+    let palette: LunaraTheme.PaletteColors
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(palette.accentPrimary)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(palette.raised.opacity(configuration.isPressed ? 0.94 : 1.0))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(palette.borderSubtle, lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 }
 

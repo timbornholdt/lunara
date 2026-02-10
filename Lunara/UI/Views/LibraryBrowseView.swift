@@ -2,6 +2,7 @@ import SwiftUI
 
 struct LibraryBrowseView: View {
     @StateObject var viewModel: LibraryViewModel
+    @ObservedObject var playbackViewModel: PlaybackViewModel
     let signOut: () -> Void
     @Environment(\.colorScheme) private var colorScheme
 
@@ -69,7 +70,11 @@ struct LibraryBrowseView: View {
                                 LazyVGrid(columns: columns, spacing: Layout.rowSpacing) {
                                     ForEach(viewModel.albums, id: \.ratingKey) { album in
                                         NavigationLink {
-                                            AlbumDetailView(album: album, sessionInvalidationHandler: signOut)
+                                            AlbumDetailView(
+                                                album: album,
+                                                playbackViewModel: playbackViewModel,
+                                                sessionInvalidationHandler: signOut
+                                            )
                                         } label: {
                                             AlbumCardView(album: album, palette: palette, width: columnWidth)
                                         }
@@ -95,6 +100,25 @@ struct LibraryBrowseView: View {
                 }
             }
         }
+        .safeAreaInset(edge: .bottom) {
+            if let nowPlaying = playbackViewModel.nowPlaying {
+                NowPlayingBarView(
+                    state: nowPlaying,
+                    palette: palette,
+                    onTogglePlayPause: { playbackViewModel.togglePlayPause() }
+                )
+                    .padding(.horizontal, Layout.globalPadding)
+                    .padding(.bottom, Layout.globalPadding)
+            }
+        }
+        .overlay(alignment: .top) {
+            if let message = playbackViewModel.errorMessage {
+                PlaybackErrorBanner(message: message, palette: palette) {
+                    playbackViewModel.clearError()
+                }
+                .padding(.horizontal, Layout.globalPadding)
+            }
+        }
         .task {
             await viewModel.loadSections()
         }
@@ -118,13 +142,15 @@ private struct AlbumCardView: View {
                     .font(LunaraTheme.Typography.displayBold(size: 15))
                     .foregroundStyle(palette.textPrimary)
                     .lineLimit(2)
-                    .frame(height: LibraryBrowseView.Layout.titleHeight, alignment: .topLeading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
 
                 Text(metadataText)
                     .font(LunaraTheme.Typography.display(size: 13))
                     .foregroundStyle(palette.textSecondary)
                     .opacity(metadataText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0 : 1)
-                    .frame(height: LibraryBrowseView.Layout.yearHeight, alignment: .topLeading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
             }
             .padding(.horizontal, 12)
             .padding(.bottom, 12)

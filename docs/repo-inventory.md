@@ -32,6 +32,8 @@ This repo implements Plex auth and read-only library browsing for albums and tra
 - Library sections fetch and album listing.
 - Album detail fetch with track listing.
 - Artwork URL generation and display.
+- AVPlayer album playback with track-level start and sequential play.
+- Global now playing bar with progress and play/pause toggle.
 
 ## Tests
 - Uses Swift Testing (`import Testing`).
@@ -45,10 +47,10 @@ This repo implements Plex auth and read-only library browsing for albums and tra
 - Phase 0 docs: `docs/scope-and-non-goals.md`, `docs/product-north-star.md`.
 
 ## Gaps vs. Project Plan
-- No playback engine (AVPlayer) yet.
 - No offline manager or download verification.
 - No queue manager or shuffle logic.
 - No metadata caching or artwork caching.
 - No notes or deletion queue integration.
 - No theming system beyond basic artwork display.
 - No CarPlay implementation.
+- No lock screen/Control Center now playing metadata or remote command handling.

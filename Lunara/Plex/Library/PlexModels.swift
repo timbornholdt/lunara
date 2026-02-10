@@ -42,4 +42,26 @@ struct PlexTrack: Decodable, Equatable, Sendable {
     let index: Int?
     let parentRatingKey: String?
     let duration: Int?
+    let media: [PlexTrackMedia]?
+
+    private enum CodingKeys: String, CodingKey {
+        case ratingKey
+        case title
+        case index
+        case parentRatingKey
+        case duration
+        case media = "Media"
+    }
+}
+
+struct PlexTrackMedia: Decodable, Equatable, Sendable {
+    let parts: [PlexTrackPart]
+
+    private enum CodingKeys: String, CodingKey {
+        case parts = "Part"
+    }
+}
+
+struct PlexTrackPart: Decodable, Equatable, Sendable {
+    let key: String
 }
