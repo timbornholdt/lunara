@@ -150,6 +150,7 @@
      - Browse collections and albums.
      - Shuffle collection.
      - Now Playing controls.
+	 
 ## Backlog
 - Wikipedia album context (creation/history)
   - Fetch Wikipedia content when an album is loaded.
@@ -161,6 +162,9 @@
 - Show library by artist
   - Artist page shows biography of artist and albums with some expanded detail (year, run time)
   - Tapping an album loads that album's page
+- Dope ass loading indicator
+  - Have the AI make a few that i can switch and review in app using feature flags and on the settings page
+  
 ## First Feature Design Docs (Suggested Order)
 1. `docs/features/plex-auth-library-browse.md`
 2. `docs/features/avplayer-album-playback.md`
