@@ -36,8 +36,8 @@ struct LibraryBrowseView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     if viewModel.isRefreshing {
-                        LunaraLoadingIndicator(palette: palette)
-                            .frame(width: 20, height: 20)
+                        ProgressView()
+                            .controlSize(.small)
                     }
                 }
                 ToolbarItem(placement: .principal) {
