@@ -52,8 +52,8 @@ struct LibraryBrowseView: View {
                     palette: palette,
                     onTogglePlayPause: { playbackViewModel.togglePlayPause() }
                 )
-                    .padding(.horizontal, LunaraTheme.Layout.globalPadding)
-                    .padding(.bottom, LunaraTheme.Layout.globalPadding)
+                .padding(.horizontal, LunaraTheme.Layout.globalPadding)
+                .padding(.bottom, LunaraTheme.Layout.globalPadding)
             }
         }
         .overlay(alignment: .top) {
