@@ -4,7 +4,7 @@
 Provide a branded initial screen that appears on app launch while the saved session is validated, then routes to the library or sign-in screen.
 
 ## Requirements
-- Show a linen background with a simple geometric emblem, the text "Lunara", and a loading indicator when the app loads.
+- Show a linen background with a subtle triangle pattern, the text "Lunara", and a loading indicator when the app loads.
 - Validate any stored token/session on launch.
 - If the session is valid, transition directly into the library view.
 - If the user is not signed in or the session is invalid, show the login screen.
@@ -16,7 +16,7 @@ Provide a branded initial screen that appears on app launch while the saved sess
 - When the token is missing or invalid, the app routes to the sign-in view.
 - The initial screen includes:
   - A linen background
-  - A simple geometric emblem (non-asset is OK)
+  - A subtle triangle pattern (non-asset is OK)
   - The "Lunara" wordmark text
   - A loading indicator
  - The initial screen fades out when validation completes.

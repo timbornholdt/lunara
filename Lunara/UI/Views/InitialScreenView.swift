@@ -4,9 +4,6 @@ struct InitialScreenView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     enum Layout {
-        static let emblemSize: CGFloat = 120
-        static let emblemInnerSize: CGFloat = 64
-        static let emblemRingWidth: CGFloat = 2
         static let stackSpacing: CGFloat = 18
     }
 
@@ -15,8 +12,8 @@ struct InitialScreenView: View {
 
         ZStack {
             LinenBackgroundView(palette: palette)
+            TrianglePatternView(palette: palette)
             VStack(spacing: Layout.stackSpacing) {
-                emblem(palette: palette)
                 Text("Lunara")
                     .font(LunaraTheme.Typography.display(size: 36))
                     .foregroundStyle(palette.textPrimary)
@@ -27,22 +24,96 @@ struct InitialScreenView: View {
         }
         .ignoresSafeArea()
     }
+}
 
-    private func emblem(palette: LunaraTheme.PaletteColors) -> some View {
-        ZStack {
-            Circle()
-                .fill(palette.raised)
-                .shadow(color: palette.borderSubtle.opacity(0.5), radius: 10, x: 0, y: 4)
-            Circle()
-                .stroke(palette.borderSubtle, lineWidth: Layout.emblemRingWidth)
-            Circle()
-                .fill(palette.accentPrimary.opacity(0.15))
-                .frame(width: Layout.emblemInnerSize, height: Layout.emblemInnerSize)
-            Circle()
-                .stroke(palette.accentPrimary, lineWidth: 1)
-                .frame(width: Layout.emblemInnerSize - 10, height: Layout.emblemInnerSize - 10)
+private struct TrianglePatternView: View {
+    let palette: LunaraTheme.PaletteColors
+    @State private var seed: UInt64 = .random(in: 0...UInt64.max)
+
+    var body: some View {
+        GeometryReader { proxy in
+            Canvas { context, size in
+                let columns = max(6, Int(size.width / 48))
+                let triangleWidth = size.width / CGFloat(columns)
+                let triangleHeight = triangleWidth * 0.9
+                let rows = max(6, Int((size.height * 0.6) / triangleHeight) + 2)
+                var rng = SeededGenerator(seed: seed)
+                let fills = [
+                    palette.accentPrimary.opacity(0.18),
+                    palette.accentPrimary.opacity(0.08),
+                    palette.accentSecondary.opacity(0.2),
+                    palette.accentSecondary.opacity(0.1),
+                    palette.borderSubtle.opacity(0.35),
+                    palette.textPrimary.opacity(0.06)
+                ]
+
+                for row in 0..<rows {
+                    for column in 0..<columns {
+                        let originX = CGFloat(column) * triangleWidth
+                        let originY = CGFloat(row) * triangleHeight * 0.88
+                        let isPointingDown = (row + column) % 2 == 0
+                        let path = trianglePath(
+                            originX: originX,
+                            originY: originY,
+                            width: triangleWidth,
+                            height: triangleHeight,
+                            pointingDown: isPointingDown
+                        )
+                        let color = fills[Int(rng.next() % UInt64(fills.count))]
+                        context.fill(path, with: .color(color))
+                    }
+                }
+            }
+            .mask(
+                LinearGradient(
+                    stops: [
+                        .init(color: .white, location: 0.0),
+                        .init(color: .white, location: 0.5),
+                        .init(color: .clear, location: 0.62)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .allowsHitTesting(false)
         }
-        .frame(width: Layout.emblemSize, height: Layout.emblemSize)
+        .onAppear {
+            seed = .random(in: 0...UInt64.max)
+        }
+    }
+
+    private func trianglePath(
+        originX: CGFloat,
+        originY: CGFloat,
+        width: CGFloat,
+        height: CGFloat,
+        pointingDown: Bool
+    ) -> Path {
+        Path { path in
+            if pointingDown {
+                path.move(to: CGPoint(x: originX, y: originY))
+                path.addLine(to: CGPoint(x: originX + width, y: originY))
+                path.addLine(to: CGPoint(x: originX + width * 0.5, y: originY + height))
+            } else {
+                path.move(to: CGPoint(x: originX, y: originY + height))
+                path.addLine(to: CGPoint(x: originX + width, y: originY + height))
+                path.addLine(to: CGPoint(x: originX + width * 0.5, y: originY))
+            }
+            path.closeSubpath()
+        }
+    }
+}
+
+private struct SeededGenerator {
+    private var state: UInt64
+
+    init(seed: UInt64) {
+        state = seed
+    }
+
+    mutating func next() -> UInt64 {
+        state = state &* 2862933555777941757 &+ 3037000493
+        return state
     }
 }
 
