@@ -10,6 +10,7 @@ final class LibraryViewModel: ObservableObject {
     @Published var selectedSection: PlexLibrarySection?
     @Published var albums: [PlexAlbum] = []
     @Published var isLoading = false
+    @Published var isRefreshing = false
     @Published var errorMessage: String?
     @Published private(set) var hasLoadedSections = false
 
@@ -18,6 +19,8 @@ final class LibraryViewModel: ObservableObject {
     private var selectionStore: PlexLibrarySelectionStoring
     private let libraryServiceFactory: PlexLibraryServiceFactory
     private let sessionInvalidationHandler: () -> Void
+    private let snapshotStore: LibrarySnapshotStoring
+    private let artworkPrefetcher: ArtworkPrefetching
     private var albumGroups: [String: [PlexAlbum]] = [:]
 
     init(
@@ -33,6 +36,8 @@ final class LibraryViewModel: ObservableObject {
                 paginator: PlexPaginator(pageSize: 50)
             )
         },
+        snapshotStore: LibrarySnapshotStoring = LibrarySnapshotStore(),
+        artworkPrefetcher: ArtworkPrefetching = ArtworkLoader.shared,
         sessionInvalidationHandler: @escaping () -> Void = {}
     ) {
         self.tokenStore = tokenStore
@@ -40,10 +45,13 @@ final class LibraryViewModel: ObservableObject {
         self.selectionStore = selectionStore
         self.libraryServiceFactory = libraryServiceFactory
         self.sessionInvalidationHandler = sessionInvalidationHandler
+        self.snapshotStore = snapshotStore
+        self.artworkPrefetcher = artworkPrefetcher
     }
 
     func loadSections() async {
         errorMessage = nil
+        let hadSnapshot = loadSnapshotIfAvailable()
         guard let serverURL = serverStore.serverURL else {
             errorMessage = "Missing server URL."
             return
@@ -54,8 +62,15 @@ final class LibraryViewModel: ObservableObject {
             return
         }
 
-        isLoading = true
-        defer { isLoading = false }
+        if hadSnapshot {
+            isRefreshing = true
+        } else {
+            isLoading = true
+        }
+        defer {
+            isLoading = false
+            isRefreshing = false
+        }
 
         do {
             let service = libraryServiceFactory(serverURL, token)
@@ -70,6 +85,8 @@ final class LibraryViewModel: ObservableObject {
             }
             if let selected = selectedSection {
                 try await loadAlbums(section: selected)
+                saveSnapshot(albums: albums)
+                prefetchArtwork(for: albums)
             }
             hasLoadedSections = true
         } catch {
@@ -98,6 +115,8 @@ final class LibraryViewModel: ObservableObject {
         selectionStore.selectedSectionKey = section.key
         do {
             try await loadAlbums(section: section)
+            saveSnapshot(albums: albums)
+            prefetchArtwork(for: albums)
         } catch {
             if PlexErrorHelpers.isUnauthorized(error) {
                 try? tokenStore.clear()
@@ -214,5 +233,36 @@ final class LibraryViewModel: ObservableObject {
         if album.art != nil { score += 2 }
         if album.thumb != nil { score += 1 }
         return score
+    }
+
+    func clearError() {
+        errorMessage = nil
+    }
+
+    private func loadSnapshotIfAvailable() -> Bool {
+        guard let snapshot = try? snapshotStore.load() else { return false }
+        let snapshotAlbums = snapshot.albums.map { $0.toPlexAlbum() }
+        guard !snapshotAlbums.isEmpty else { return false }
+        albums = snapshotAlbums
+        return true
+    }
+
+    private func saveSnapshot(albums: [PlexAlbum]) {
+        let existing = (try? snapshotStore.load()) ?? LibrarySnapshot(albums: [], collections: [])
+        let snapshot = LibrarySnapshot(
+            albums: albums.map { LibrarySnapshot.Album(album: $0) },
+            collections: existing.collections,
+            musicSectionKey: existing.musicSectionKey
+        )
+        try? snapshotStore.save(snapshot)
+    }
+
+    private func prefetchArtwork(for albums: [PlexAlbum]) {
+        guard let baseURL = serverStore.serverURL else { return }
+        let storedToken = try? tokenStore.load()
+        guard let token = storedToken ?? nil else { return }
+        let builder = ArtworkRequestBuilder(baseURL: baseURL, token: token)
+        let requests = albums.prefix(24).compactMap { builder.albumRequest(for: $0, size: .grid) }
+        artworkPrefetcher.prefetch(requests)
     }
 }

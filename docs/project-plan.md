@@ -53,42 +53,47 @@
      - App's main interface is the "all albums" interface, but a tab bar at the bottom allows me to browse by Plex album collections.
      - The main collections view shows all Plex album collections, including the artwork associated with them. Current Vibes and The Key Albums are always at the top, all others are below it alphabetically. Those two are also visually distinct.
      - Clicking a collection shows the albums in that collection in the same manner as the main library view.
-6. [ ] Caching: artwork + metadata (requirements pending)
-   - Product requirements to define:
-     - Artwork caching strategy: prefetch during sync vs on-demand + cache.
-     - Cache policy: size cap, eviction, and retention rules.
-     - Cache separation: artwork vs metadata vs offline audio responsibilities.
+6. [x] Caching: artwork + metadata (requirements defined in `docs/features/caching-artwork-metadata.md`)
+   - Requirements summary:
+     - Hybrid artwork caching with first-screen prefetch.
+     - 250 MB cache cap, LRU eviction by last access.
+     - Dual artwork sizes: 2048 (detail), 1024 (grid).
+     - Lightweight metadata snapshot for fast initial render.
+     - Loading indicator during live refresh.
    - Acceptance criteria:
      - Album artwork is downloaded and stored locally (per chosen strategy).
      - Artwork cache survives app restarts.
      - Library scroll does not block on live artwork fetch if cached exists.
-     - Cache policy is explicitly documented in the product requirements.
-7. [ ] Selective library sync (metadata caching)
-   - Acceptance criteria:
-     - Cache library contents locally for fast diffing.
+     - On launch, cached metadata renders immediately, then refreshes live with a loading indicator.
      - Selective sync uses cached index to minimize full refreshes.
      - Sync plans compute adds/removes without re-fetching the full library.
-8. [ ] Offline manager v1
+7. [ ] Initial screen
    - Acceptance criteria:
-     - Downloads complete files only.
-     - Offline playback skips non-downloaded tracks immediately.
-9. [ ] Queue manager v1
-   - Acceptance criteria:
-     - Play now/next/later works for album insertions.
-     - Queue persists across app restarts.
-10. [ ] Now playing screen v1
+     - When the app loads, it should show an image of some sort along with the text "Lunara" and a loading indicator
+	 - The app should check if the token is still valid or if the user is not signed in. If the user is valid, move right into the library view.
+	 - Otherwise, show the login screen.
+8. [ ] Now playing screen v1
    - Acceptance criteria:
      - Work with the user to define what should be present on a now playing screen
 	 - Tapping the floating "now playing" bar should bring the "now playing" screen up from the bottom. You should be able to pull down from the top of that screen to dismiss it at any time. The now playing bar should fade out when this screen is present and reappear when it is dismissed.
-11. [ ] Lock screen now playing + remote controls
-   - Acceptance criteria:
-     - Lock screen and Control Center show current track, elapsed time, and duration.
-     - Play/Pause/Next/Previous remote commands control playback.
-12. [ ] Settings screen (sign out + debug logging)
+9. [ ] Settings screen (sign out + debug logging)
    - Acceptance criteria:
      - Replace the Library "Sign Out" button with a settings gear icon.
      - Settings screen includes Sign Out action.
      - Settings screen includes a toggle to enable album de-dup debug logging.
+10. [ ] Offline manager v1
+   - Acceptance criteria:
+     - Downloads complete files only.
+     - Offline playback skips non-downloaded tracks immediately.
+11. [ ] Queue manager v1
+   - Acceptance criteria:
+     - Play now/next/later works for album insertions.
+     - Queue persists across app restarts.
+12. [ ] Lock screen now playing + remote controls
+   - Acceptance criteria:
+     - Lock screen and Control Center show current track, elapsed time, and duration.
+     - Play/Pause/Next/Previous remote commands control playback.
+
 
 ## Phase 2 — Primary Interaction: Shuffle
 1. [ ] Collection shuffle (primary mode)
@@ -153,6 +158,9 @@
 - Playlist support (collections view extension)
   - Add playlist browsing alongside collections.
   - Support playlist playback and queue integration.
+- Show library by artist
+  - Artist page shows biography of artist and albums with some expanded detail (year, run time)
+  - Tapping an album loads that album's page
 ## First Feature Design Docs (Suggested Order)
 1. `docs/features/plex-auth-library-browse.md`
 2. `docs/features/avplayer-album-playback.md`

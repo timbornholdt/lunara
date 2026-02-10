@@ -36,7 +36,9 @@ struct AlbumGridView: View {
                         )
                     }
                 }
-                .padding(Layout.globalPadding)
+                .padding(.horizontal, Layout.globalPadding)
+                .padding(.bottom, Layout.globalPadding)
+                .padding(.top, 8)
             }
         }
     }
@@ -200,44 +202,31 @@ private extension View {
 struct AlbumArtworkView: View {
     let album: PlexAlbum
     let palette: LunaraTheme.PaletteColors?
+    let size: ArtworkSize
 
-    init(album: PlexAlbum, palette: LunaraTheme.PaletteColors? = nil) {
+    init(album: PlexAlbum, palette: LunaraTheme.PaletteColors? = nil, size: ArtworkSize = .grid) {
         self.album = album
         self.palette = palette
+        self.size = size
     }
 
     var body: some View {
         let placeholder = palette?.raised ?? Color.gray.opacity(0.2)
         let secondaryText = palette?.textSecondary ?? Color.secondary
 
-        if let url = artworkURL() {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .empty:
-                    ZStack {
-                        placeholder
-                        ProgressView()
-                    }
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFill()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .clipped()
-                case .failure:
-                    placeholder
-                        .overlay(Text("No Art").font(.caption).foregroundStyle(secondaryText))
-                @unknown default:
-                    placeholder
-                }
-            }
+        if let request = artworkRequest() {
+            ArtworkView(
+                request: request,
+                placeholder: placeholder,
+                secondaryText: secondaryText
+            )
         } else {
             placeholder
                 .overlay(Text("No Art").font(.caption).foregroundStyle(secondaryText))
         }
     }
 
-    private func artworkURL() -> URL? {
+    private func artworkRequest() -> ArtworkRequest? {
         guard let serverURL = UserDefaults.standard.string(forKey: "plex.server.baseURL"),
               let baseURL = URL(string: serverURL) else {
             return nil
@@ -246,8 +235,7 @@ struct AlbumArtworkView: View {
         guard let token = storedToken ?? nil else {
             return nil
         }
-        let builder = PlexArtworkURLBuilder(baseURL: baseURL, token: token, maxSize: PlexDefaults.maxArtworkSize)
-        let resolver = AlbumArtworkResolver(artworkBuilder: builder)
-        return resolver.artworkURL(for: album)
+        let builder = ArtworkRequestBuilder(baseURL: baseURL, token: token)
+        return builder.albumRequest(for: album, size: size)
     }
 }

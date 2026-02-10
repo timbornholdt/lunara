@@ -5,6 +5,7 @@ struct CollectionsBrowseView: View {
     @ObservedObject var playbackViewModel: PlaybackViewModel
     let signOut: () -> Void
     @Environment(\.colorScheme) private var colorScheme
+    @State private var errorToken = UUID()
 
     enum Layout {
         static let globalPadding = LunaraTheme.Layout.globalPadding
@@ -23,10 +24,10 @@ struct CollectionsBrowseView: View {
             ZStack {
                 LinenBackgroundView(palette: palette)
                 VStack(spacing: 0) {
-                    if viewModel.isLoading {
+                    if viewModel.isLoading && viewModel.collections.isEmpty {
                         ProgressView("Loading collections...")
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else if let error = viewModel.errorMessage {
+                    } else if viewModel.collections.isEmpty, let error = viewModel.errorMessage {
                         Text(error)
                             .foregroundStyle(palette.stateError)
                             .padding(Layout.globalPadding)
@@ -55,13 +56,21 @@ struct CollectionsBrowseView: View {
                                         }
                                     }
                                 }
-                                .padding(Layout.globalPadding)
+                                .padding(.horizontal, Layout.globalPadding)
+                                .padding(.bottom, Layout.globalPadding)
+                                .padding(.top, 8)
                             }
                         }
                     }
                 }
             }
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    if viewModel.isRefreshing {
+                        LunaraLoadingIndicator(palette: palette)
+                            .frame(width: 20, height: 20)
+                    }
+                }
                 ToolbarItem(placement: .principal) {
                     Text("Collections")
                         .font(LunaraTheme.Typography.displayBold(size: 20))
@@ -72,6 +81,16 @@ struct CollectionsBrowseView: View {
                         signOut()
                     }
                 }
+            }
+        }
+        .overlay(alignment: .top) {
+            if let error = viewModel.errorMessage, viewModel.collections.isEmpty == false {
+                PlaybackErrorBanner(message: error, palette: palette) {
+                    viewModel.clearError()
+                }
+                .padding(.horizontal, Layout.globalPadding)
+                .padding(.top, 8)
+                .transition(.opacity)
             }
         }
         .safeAreaInset(edge: .bottom) {
@@ -95,6 +114,17 @@ struct CollectionsBrowseView: View {
         }
         .task {
             await viewModel.loadCollectionsIfNeeded()
+        }
+        .onChange(of: viewModel.errorMessage) { _, newValue in
+            guard newValue != nil else { return }
+            let token = UUID()
+            errorToken = token
+            Task {
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                if errorToken == token {
+                    viewModel.clearError()
+                }
+            }
         }
     }
 
@@ -243,44 +273,31 @@ private extension View {
 private struct CollectionArtworkView: View {
     let collection: PlexCollection
     let palette: LunaraTheme.PaletteColors?
+    let size: ArtworkSize
 
-    init(collection: PlexCollection, palette: LunaraTheme.PaletteColors? = nil) {
+    init(collection: PlexCollection, palette: LunaraTheme.PaletteColors? = nil, size: ArtworkSize = .grid) {
         self.collection = collection
         self.palette = palette
+        self.size = size
     }
 
     var body: some View {
         let placeholder = palette?.raised ?? Color.gray.opacity(0.2)
         let secondaryText = palette?.textSecondary ?? Color.secondary
 
-        if let url = artworkURL() {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .empty:
-                    ZStack {
-                        placeholder
-                        ProgressView()
-                    }
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFill()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .clipped()
-                case .failure:
-                    placeholder
-                        .overlay(Text("No Art").font(.caption).foregroundStyle(secondaryText))
-                @unknown default:
-                    placeholder
-                }
-            }
+        if let request = artworkRequest() {
+            ArtworkView(
+                request: request,
+                placeholder: placeholder,
+                secondaryText: secondaryText
+            )
         } else {
             placeholder
                 .overlay(Text("No Art").font(.caption).foregroundStyle(secondaryText))
         }
     }
 
-    private func artworkURL() -> URL? {
+    private func artworkRequest() -> ArtworkRequest? {
         guard let serverURL = UserDefaults.standard.string(forKey: "plex.server.baseURL"),
               let baseURL = URL(string: serverURL) else {
             return nil
@@ -289,8 +306,7 @@ private struct CollectionArtworkView: View {
         guard let token = storedToken ?? nil else {
             return nil
         }
-        let builder = PlexArtworkURLBuilder(baseURL: baseURL, token: token, maxSize: PlexDefaults.maxArtworkSize)
-        let resolver = CollectionArtworkResolver(artworkBuilder: builder)
-        return resolver.artworkURL(for: collection)
+        let builder = ArtworkRequestBuilder(baseURL: baseURL, token: token)
+        return builder.collectionRequest(for: collection, size: size)
     }
 }

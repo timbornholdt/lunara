@@ -5,6 +5,7 @@ struct LibraryBrowseView: View {
     @ObservedObject var playbackViewModel: PlaybackViewModel
     let signOut: () -> Void
     @Environment(\.colorScheme) private var colorScheme
+    @State private var errorToken = UUID()
 
     var body: some View {
         let palette = LunaraTheme.Palette.colors(for: colorScheme)
@@ -13,10 +14,10 @@ struct LibraryBrowseView: View {
             ZStack {
                 LinenBackgroundView(palette: palette)
                 VStack(spacing: 0) {
-                    if viewModel.isLoading {
+                    if viewModel.isLoading && viewModel.albums.isEmpty {
                         ProgressView("Loading library...")
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else if let error = viewModel.errorMessage {
+                    } else if viewModel.albums.isEmpty, let error = viewModel.errorMessage {
                         Text(error)
                             .foregroundStyle(palette.stateError)
                             .padding(LunaraTheme.Layout.globalPadding)
@@ -33,6 +34,12 @@ struct LibraryBrowseView: View {
                 }
             }
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    if viewModel.isRefreshing {
+                        LunaraLoadingIndicator(palette: palette)
+                            .frame(width: 20, height: 20)
+                    }
+                }
                 ToolbarItem(placement: .principal) {
                     Text("Library")
                         .font(LunaraTheme.Typography.displayBold(size: 20))
@@ -43,6 +50,16 @@ struct LibraryBrowseView: View {
                         signOut()
                     }
                 }
+            }
+        }
+        .overlay(alignment: .top) {
+            if let error = viewModel.errorMessage, viewModel.albums.isEmpty == false {
+                PlaybackErrorBanner(message: error, palette: palette) {
+                    viewModel.clearError()
+                }
+                .padding(.horizontal, LunaraTheme.Layout.globalPadding)
+                .padding(.top, 8)
+                .transition(.opacity)
             }
         }
         .safeAreaInset(edge: .bottom) {
@@ -66,6 +83,17 @@ struct LibraryBrowseView: View {
         }
         .task {
             await viewModel.loadSectionsIfNeeded()
+        }
+        .onChange(of: viewModel.errorMessage) { _, newValue in
+            guard newValue != nil else { return }
+            let token = UUID()
+            errorToken = token
+            Task {
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                if errorToken == token {
+                    viewModel.clearError()
+                }
+            }
         }
     }
 }
