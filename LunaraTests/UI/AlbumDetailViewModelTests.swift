@@ -12,6 +12,13 @@ struct AlbumDetailViewModelTests {
             art: nil,
             year: 2022,
             artist: nil,
+            titleSort: nil,
+            originalTitle: nil,
+            editionTitle: nil,
+            guid: "plex://album/test",
+            librarySectionID: 1,
+            parentRatingKey: nil,
+            studio: nil,
             summary: nil,
             genres: nil,
             styles: nil,
@@ -25,7 +32,7 @@ struct AlbumDetailViewModelTests {
         let service = StubLibraryService(
             sections: [],
             albums: [],
-            tracks: [PlexTrack(ratingKey: "1", title: "Track", index: 1, parentRatingKey: "10", duration: nil, media: nil)]
+            tracks: [PlexTrack(ratingKey: "1", title: "Track", index: 1, parentIndex: nil, parentRatingKey: "10", duration: nil, media: nil)]
         )
         var invalidated = false
         let viewModel = AlbumDetailViewModel(
@@ -42,6 +49,57 @@ struct AlbumDetailViewModelTests {
         #expect(invalidated == false)
     }
 
+    @Test func mergesTracksAcrossDuplicateAlbumRatingKeys() async {
+        let album = PlexAlbum(
+            ratingKey: "10",
+            title: "Album",
+            thumb: nil,
+            art: nil,
+            year: 2022,
+            artist: nil,
+            titleSort: nil,
+            originalTitle: nil,
+            editionTitle: nil,
+            guid: "plex://album/test",
+            librarySectionID: 1,
+            parentRatingKey: nil,
+            studio: nil,
+            summary: nil,
+            genres: nil,
+            styles: nil,
+            moods: nil,
+            rating: nil,
+            userRating: nil,
+            key: nil
+        )
+        let tokenStore = InMemoryTokenStore(token: "token")
+        let serverStore = InMemoryServerStore(url: URL(string: "https://example.com:32400")!)
+        let trackOne = PlexTrack(ratingKey: "1", title: "One", index: 1, parentIndex: nil, parentRatingKey: "10", duration: nil, media: nil)
+        let trackTwo = PlexTrack(ratingKey: "2", title: "Two", index: 2, parentIndex: nil, parentRatingKey: "11", duration: nil, media: nil)
+        let trackThree = PlexTrack(ratingKey: "3", title: "Three", index: 3, parentIndex: nil, parentRatingKey: "10", duration: nil, media: nil)
+        let service = StubLibraryService(
+            sections: [],
+            albums: [],
+            tracks: [],
+            tracksByAlbumRatingKey: [
+                "10": [trackOne, trackThree],
+                "11": [trackTwo, trackOne]
+            ]
+        )
+        let viewModel = AlbumDetailViewModel(
+            album: album,
+            albumRatingKeys: ["10", "11"],
+            tokenStore: tokenStore,
+            serverStore: serverStore,
+            libraryServiceFactory: { _, _ in service }
+        )
+
+        await viewModel.loadTracks()
+
+        #expect(viewModel.tracks.count == 3)
+        #expect(viewModel.tracks.map(\.ratingKey) == ["1", "2", "3"])
+    }
+
     @Test func unauthorizedClearsTokenAndInvalidatesSession() async {
         let album = PlexAlbum(
             ratingKey: "10",
@@ -50,6 +108,13 @@ struct AlbumDetailViewModelTests {
             art: nil,
             year: 2022,
             artist: nil,
+            titleSort: nil,
+            originalTitle: nil,
+            editionTitle: nil,
+            guid: "plex://album/test",
+            librarySectionID: 1,
+            parentRatingKey: nil,
+            studio: nil,
             summary: nil,
             genres: nil,
             styles: nil,
@@ -90,6 +155,13 @@ struct AlbumDetailViewModelTests {
             art: nil,
             year: 2022,
             artist: nil,
+            titleSort: nil,
+            originalTitle: nil,
+            editionTitle: nil,
+            guid: "plex://album/test",
+            librarySectionID: 1,
+            parentRatingKey: nil,
+            studio: nil,
             summary: nil,
             genres: nil,
             styles: nil,
@@ -101,8 +173,8 @@ struct AlbumDetailViewModelTests {
         let playback = StubPlaybackController()
         let viewModel = AlbumDetailViewModel(album: album, playbackController: playback)
         viewModel.tracks = [
-            PlexTrack(ratingKey: "1", title: "One", index: 1, parentRatingKey: "10", duration: nil, media: nil),
-            PlexTrack(ratingKey: "2", title: "Two", index: 2, parentRatingKey: "10", duration: nil, media: nil)
+            PlexTrack(ratingKey: "1", title: "One", index: 1, parentIndex: nil, parentRatingKey: "10", duration: nil, media: nil),
+            PlexTrack(ratingKey: "2", title: "Two", index: 2, parentIndex: nil, parentRatingKey: "10", duration: nil, media: nil)
         ]
 
         viewModel.playAlbum()
@@ -119,6 +191,13 @@ struct AlbumDetailViewModelTests {
             art: nil,
             year: 2022,
             artist: nil,
+            titleSort: nil,
+            originalTitle: nil,
+            editionTitle: nil,
+            guid: "plex://album/test",
+            librarySectionID: 1,
+            parentRatingKey: nil,
+            studio: nil,
             summary: nil,
             genres: nil,
             styles: nil,
@@ -129,8 +208,8 @@ struct AlbumDetailViewModelTests {
         )
         let playback = StubPlaybackController()
         let viewModel = AlbumDetailViewModel(album: album, playbackController: playback)
-        let trackOne = PlexTrack(ratingKey: "1", title: "One", index: 1, parentRatingKey: "10", duration: nil, media: nil)
-        let trackTwo = PlexTrack(ratingKey: "2", title: "Two", index: 2, parentRatingKey: "10", duration: nil, media: nil)
+        let trackOne = PlexTrack(ratingKey: "1", title: "One", index: 1, parentIndex: nil, parentRatingKey: "10", duration: nil, media: nil)
+        let trackTwo = PlexTrack(ratingKey: "2", title: "Two", index: 2, parentIndex: nil, parentRatingKey: "10", duration: nil, media: nil)
         viewModel.tracks = [trackOne, trackTwo]
 
         viewModel.playTrack(trackTwo)

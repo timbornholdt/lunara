@@ -20,9 +20,9 @@ struct PlaybackEngineTests {
             audioSession: audioSession
         )
         let tracks = [
-            PlexTrack(ratingKey: "1", title: "One", index: 1, parentRatingKey: "10", duration: 1000, media: nil),
-            PlexTrack(ratingKey: "2", title: "Two", index: 2, parentRatingKey: "10", duration: 2000, media: nil),
-            PlexTrack(ratingKey: "3", title: "Three", index: 3, parentRatingKey: "10", duration: 3000, media: nil)
+            PlexTrack(ratingKey: "1", title: "One", index: 1, parentIndex: nil, parentRatingKey: "10", duration: 1000, media: nil),
+            PlexTrack(ratingKey: "2", title: "Two", index: 2, parentIndex: nil, parentRatingKey: "10", duration: 2000, media: nil),
+            PlexTrack(ratingKey: "3", title: "Three", index: 3, parentIndex: nil, parentRatingKey: "10", duration: 3000, media: nil)
         ]
         var latestState: NowPlayingState?
         engine.onStateChange = { latestState = $0 }
@@ -55,8 +55,8 @@ struct PlaybackEngineTests {
             audioSession: audioSession
         )
         let tracks = [
-            PlexTrack(ratingKey: "1", title: "One", index: 1, parentRatingKey: "10", duration: 1000, media: nil),
-            PlexTrack(ratingKey: "2", title: "Two", index: 2, parentRatingKey: "10", duration: 2000, media: nil)
+            PlexTrack(ratingKey: "1", title: "One", index: 1, parentIndex: nil, parentRatingKey: "10", duration: 1000, media: nil),
+            PlexTrack(ratingKey: "2", title: "Two", index: 2, parentIndex: nil, parentRatingKey: "10", duration: 2000, media: nil)
         ]
 
         engine.play(tracks: tracks, startIndex: 9)
@@ -78,7 +78,7 @@ struct PlaybackEngineTests {
             audioSession: audioSession
         )
         let tracks = [
-            PlexTrack(ratingKey: "1", title: "One", index: 1, parentRatingKey: "10", duration: 1000, media: nil)
+            PlexTrack(ratingKey: "1", title: "One", index: 1, parentIndex: nil, parentRatingKey: "10", duration: 1000, media: nil)
         ]
 
         engine.play(tracks: tracks, startIndex: 0)
@@ -101,7 +101,7 @@ struct PlaybackEngineTests {
             audioSession: audioSession
         )
         let tracks = [
-            PlexTrack(ratingKey: "1", title: "One", index: 1, parentRatingKey: "10", duration: 1000, media: nil)
+            PlexTrack(ratingKey: "1", title: "One", index: 1, parentIndex: nil, parentRatingKey: "10", duration: 1000, media: nil)
         ]
         var errorMessage: String?
         engine.onError = { errorMessage = $0.message }
@@ -125,7 +125,7 @@ struct PlaybackEngineTests {
             audioSession: audioSession
         )
         let tracks = [
-            PlexTrack(ratingKey: "1", title: "One", index: 1, parentRatingKey: "10", duration: 1000, media: nil)
+            PlexTrack(ratingKey: "1", title: "One", index: 1, parentIndex: nil, parentRatingKey: "10", duration: 1000, media: nil)
         ]
         var errorMessage: String?
         engine.onError = { errorMessage = $0.message }
@@ -150,7 +150,7 @@ struct PlaybackEngineTests {
             audioSession: audioSession
         )
         let tracks = [
-            PlexTrack(ratingKey: "1", title: "One", index: 1, parentRatingKey: "10", duration: 1000, media: nil)
+            PlexTrack(ratingKey: "1", title: "One", index: 1, parentIndex: nil, parentRatingKey: "10", duration: 1000, media: nil)
         ]
         var latestState: NowPlayingState?
         engine.onStateChange = { latestState = $0 }
@@ -175,7 +175,7 @@ struct PlaybackEngineTests {
             audioSession: audioSession
         )
         let tracks = [
-            PlexTrack(ratingKey: "1", title: "One", index: 1, parentRatingKey: "10", duration: 1000, media: nil)
+            PlexTrack(ratingKey: "1", title: "One", index: 1, parentIndex: nil, parentRatingKey: "10", duration: 1000, media: nil)
         ]
         var latestState: NowPlayingState?
         engine.onStateChange = { latestState = $0 }
@@ -201,7 +201,7 @@ struct PlaybackEngineTests {
             audioSession: audioSession
         )
         let tracks = [
-            PlexTrack(ratingKey: "1", title: "One", index: 1, parentRatingKey: "10", duration: 1000, media: nil)
+            PlexTrack(ratingKey: "1", title: "One", index: 1, parentIndex: nil, parentRatingKey: "10", duration: 1000, media: nil)
         ]
 
         engine.play(tracks: tracks, startIndex: 0)
@@ -224,7 +224,7 @@ struct PlaybackEngineTests {
             audioSession: audioSession
         )
         let tracks = [
-            PlexTrack(ratingKey: "1", title: "One", index: 1, parentRatingKey: "10", duration: 1000, media: nil)
+            PlexTrack(ratingKey: "1", title: "One", index: 1, parentIndex: nil, parentRatingKey: "10", duration: 1000, media: nil)
         ]
 
         engine.play(tracks: tracks, startIndex: 0)
