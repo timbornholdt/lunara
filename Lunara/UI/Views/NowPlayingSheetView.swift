@@ -84,12 +84,11 @@ struct NowPlayingSheetView: View {
 
     private var titleSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(state.trackTitle)
-                .font(LunaraTheme.Typography.displayBold(size: 28))
-                .foregroundStyle(palette.textPrimary)
-                .lineLimit(3)
-                .multilineTextAlignment(.leading)
-                .fixedSize(horizontal: false, vertical: true)
+            MarqueeText(
+                text: state.trackTitle,
+                font: LunaraTheme.Typography.displayBold(size: 28),
+                color: palette.textPrimary
+            )
 
             Text(context?.album.title ?? "Unknown Album")
                 .font(LunaraTheme.Typography.displayRegular(size: 17))
@@ -195,6 +194,124 @@ struct NowPlayingSheetView: View {
         let minutes = totalSeconds / 60
         let remaining = totalSeconds % 60
         return String(format: "%d:%02d", minutes, remaining)
+    }
+}
+
+private struct MarqueeText: View {
+    let text: String
+    let font: Font
+    let color: Color
+
+    @State private var textWidth: CGFloat = 0
+    @State private var containerWidth: CGFloat = 0
+    @State private var offset: CGFloat = 0
+    @State private var animationToken = UUID()
+
+    private enum Timing {
+        static let startHold: TimeInterval = 1.0
+        static let endHold: TimeInterval = 1.0
+        static let forwardSpeed: CGFloat = 28
+        static let returnSpeed: CGFloat = 60
+    }
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            Text(text)
+                .font(font)
+                .foregroundStyle(color)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .background(WidthReader(key: TextWidthKey.self))
+                .offset(x: offset)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(WidthReader(key: ContainerWidthKey.self))
+        .clipped()
+        .onPreferenceChange(TextWidthKey.self) { width in
+            if textWidth != width {
+                textWidth = width
+                animationToken = UUID()
+            }
+        }
+        .onPreferenceChange(ContainerWidthKey.self) { width in
+            if containerWidth != width {
+                containerWidth = width
+                animationToken = UUID()
+            }
+        }
+        .onChange(of: text) { _, _ in
+            textWidth = 0
+            containerWidth = 0
+            offset = 0
+            animationToken = UUID()
+        }
+        .task(id: animationToken) {
+            await runMarqueeIfNeeded()
+        }
+    }
+
+    private var shouldScroll: Bool {
+        textWidth > containerWidth && containerWidth > 0
+    }
+
+    private var scrollDistance: CGFloat {
+        max(textWidth - containerWidth, 0)
+    }
+
+    @MainActor
+    private func runMarqueeIfNeeded() async {
+        guard shouldScroll else {
+            offset = 0
+            return
+        }
+
+        while !Task.isCancelled {
+            offset = 0
+            try? await Task.sleep(nanoseconds: UInt64(Timing.startHold * 1_000_000_000))
+            if Task.isCancelled { break }
+
+            let forwardDuration = TimeInterval(scrollDistance / Timing.forwardSpeed)
+            withAnimation(.linear(duration: forwardDuration)) {
+                offset = -scrollDistance
+            }
+            try? await Task.sleep(nanoseconds: UInt64(forwardDuration * 1_000_000_000))
+            if Task.isCancelled { break }
+
+            try? await Task.sleep(nanoseconds: UInt64(Timing.endHold * 1_000_000_000))
+            if Task.isCancelled { break }
+
+            let returnDuration = TimeInterval(scrollDistance / Timing.returnSpeed)
+            withAnimation(.linear(duration: returnDuration)) {
+                offset = 0
+            }
+            try? await Task.sleep(nanoseconds: UInt64(returnDuration * 1_000_000_000))
+        }
+    }
+}
+
+private struct TextWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+private struct ContainerWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+private struct WidthReader<Key: PreferenceKey>: View where Key.Value == CGFloat {
+    var key: Key.Type
+
+    var body: some View {
+        GeometryReader { proxy in
+            Color.clear.preference(key: key, value: proxy.size.width)
+        }
     }
 }
 
