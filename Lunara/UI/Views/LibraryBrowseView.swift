@@ -61,7 +61,7 @@ struct LibraryBrowseView: View {
                     }
                 }
                 ToolbarItem(placement: .principal) {
-                    Text("Library")
+                    Text("Albums")
                         .font(LunaraTheme.Typography.displayBold(size: 20))
                         .foregroundStyle(palette.textPrimary)
                 }

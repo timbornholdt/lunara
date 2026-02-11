@@ -28,21 +28,25 @@ struct NowPlayingSheetView: View {
         ZStack {
             ThemedBackgroundView(theme: theme ?? AlbumTheme.fallback())
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    artworkSection
+            GeometryReader { proxy in
+                let contentWidth = max(proxy.size.width - (Layout.globalPadding * 2), 0)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        artworkSection
 
-                    titleSection
+                    titleSection(contentWidth: contentWidth)
 
-                    controlsSection
+                        controlsSection
 
-                    scrubberSection
+                        scrubberSection
 
-                    upNextSection
+                        upNextSection
+                    }
+                    .frame(width: contentWidth, alignment: .leading)
+                    .padding(.horizontal, Layout.globalPadding)
+                    .padding(.bottom, Layout.globalPadding)
+                    .padding(.top, 16)
                 }
-                .padding(.horizontal, Layout.globalPadding)
-                .padding(.bottom, Layout.globalPadding)
-                .padding(.top, 16)
             }
         }
         .onAppear {
@@ -63,27 +67,33 @@ struct NowPlayingSheetView: View {
 
     private var artworkSection: some View {
         Button(action: onNavigateToAlbum) {
-            ZStack {
-                if let album = context?.album {
-                    AlbumArtworkView(album: album, palette: nil, size: .detail)
-                        .aspectRatio(1, contentMode: .fit)
-                        .clipShape(RoundedRectangle(cornerRadius: Layout.artworkCornerRadius))
-                } else {
-                    RoundedRectangle(cornerRadius: Layout.artworkCornerRadius)
-                        .fill(palette.raised)
-                        .aspectRatio(1, contentMode: .fit)
-                }
-            }
+            Color.clear
+                .aspectRatio(1, contentMode: .fit)
+                .overlay(
+                    Group {
+                        if let album = context?.album {
+                            AlbumArtworkView(album: album, palette: nil, size: .detail)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .clipped()
+                        } else {
+                            RoundedRectangle(cornerRadius: Layout.artworkCornerRadius)
+                                .fill(palette.raised)
+                        }
+                    }
+                )
+                .clipShape(RoundedRectangle(cornerRadius: Layout.artworkCornerRadius))
         }
         .buttonStyle(.plain)
     }
 
-    private var titleSection: some View {
+    private func titleSection(contentWidth: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(state.trackTitle)
-                .font(LunaraTheme.Typography.displayBold(size: 28))
-                .foregroundStyle(palette.textPrimary)
-                .lineLimit(2)
+            MarqueeText(
+                text: state.trackTitle,
+                font: LunaraTheme.Typography.displayBold(size: 28),
+                color: palette.textPrimary,
+                containerWidth: contentWidth
+            )
 
             Text(context?.album.title ?? "Unknown Album")
                 .font(LunaraTheme.Typography.displayRegular(size: 17))
@@ -192,6 +202,130 @@ struct NowPlayingSheetView: View {
     }
 }
 
+private struct MarqueeText: View {
+    let text: String
+    let font: Font
+    let color: Color
+    let containerWidth: CGFloat
+
+    @State private var textWidth: CGFloat = 0
+    @State private var startDate = Date()
+
+    private enum Timing {
+        static let startHold: TimeInterval = 1.0
+        static let endHold: TimeInterval = 1.0
+        static let forwardSpeed: CGFloat = 28
+        static let returnSpeed: CGFloat = 60
+        static let tickRate: TimeInterval = 1.0 / 30.0
+        static let minForwardDuration: TimeInterval = 2.5
+        static let minReturnDuration: TimeInterval = 1.2
+        static let extraGap: CGFloat = 60
+    }
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: Timing.tickRate)) { context in
+            let effectiveWidth = max(containerWidth, 0)
+            ZStack(alignment: .leading) {
+                Text(text)
+                    .font(font)
+                    .foregroundStyle(color)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .offset(x: offset(at: context.date))
+            }
+            .frame(width: effectiveWidth, alignment: .leading)
+            .overlay(alignment: .leading) {
+                Text(text)
+                    .font(font)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .background(WidthReader(key: TextWidthKey.self))
+                    .hidden()
+            }
+            .clipped()
+            .onPreferenceChange(TextWidthKey.self) { width in
+                if textWidth != width {
+                    textWidth = width
+                    resetCycle()
+                }
+            }
+            .onChange(of: containerWidth) { _, _ in
+                resetCycle()
+            }
+            .onChange(of: text) { _, _ in
+                resetCycle()
+            }
+        }
+    }
+
+    private var shouldScroll: Bool {
+        textWidth > containerWidth && containerWidth > 0
+    }
+
+    private var scrollDistance: CGFloat {
+        max(textWidth - containerWidth + Timing.extraGap, 0)
+    }
+
+    private func resetCycle() {
+        startDate = Date()
+    }
+
+    private func offset(at date: Date) -> CGFloat {
+        guard shouldScroll, scrollDistance > 0 else { return 0 }
+
+        let forwardDuration = max(
+            Timing.minForwardDuration,
+            TimeInterval(scrollDistance / Timing.forwardSpeed)
+        )
+        let returnDuration = max(
+            Timing.minReturnDuration,
+            TimeInterval(scrollDistance / Timing.returnSpeed)
+        )
+        let cycleDuration = Timing.startHold + forwardDuration + Timing.endHold + returnDuration
+        guard cycleDuration > 0 else { return 0 }
+
+        let elapsed = date.timeIntervalSince(startDate)
+        let t = elapsed.truncatingRemainder(dividingBy: cycleDuration)
+
+        if t < Timing.startHold {
+            return 0
+        }
+
+        let forwardStart = Timing.startHold
+        let forwardEnd = Timing.startHold + forwardDuration
+        if t < forwardEnd {
+            let progress = (t - forwardStart) / forwardDuration
+            return -scrollDistance * progress
+        }
+
+        let endHoldEnd = forwardEnd + Timing.endHold
+        if t < endHoldEnd {
+            return -scrollDistance
+        }
+
+        let backProgress = (t - endHoldEnd) / returnDuration
+        return -scrollDistance + (scrollDistance * backProgress)
+    }
+}
+
+private struct TextWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+private struct WidthReader<Key: PreferenceKey>: View where Key.Value == CGFloat {
+    var key: Key.Type
+
+    var body: some View {
+        GeometryReader { proxy in
+            Color.clear.preference(key: key, value: proxy.size.width)
+        }
+    }
+}
+
 private struct UpNextRow: View {
     let track: PlexTrack
     let albumArtist: String?
@@ -200,7 +334,7 @@ private struct UpNextRow: View {
 
     var body: some View {
         Button(action: onTap) {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
                 Text(trackNumber)
                     .font(LunaraTheme.Typography.displayRegular(size: 13).monospacedDigit())
                     .foregroundStyle(palette.textSecondary)
@@ -210,7 +344,9 @@ private struct UpNextRow: View {
                     Text(track.title)
                         .font(LunaraTheme.Typography.displayRegular(size: 16))
                         .foregroundStyle(palette.textPrimary)
-                        .lineLimit(1)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
 
                     if let artist = TrackArtistDisplayResolver.displayArtist(for: track, albumArtist: albumArtist) {
                         Text(artist)

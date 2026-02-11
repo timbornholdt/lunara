@@ -6,6 +6,7 @@ struct CollectionDetailView: View {
     @ObservedObject var playbackViewModel: PlaybackViewModel
     let signOut: () -> Void
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.nowPlayingInsetHeight) private var nowPlayingInsetHeight
 
     @StateObject private var viewModel: CollectionAlbumsViewModel
 
@@ -67,6 +68,11 @@ struct CollectionDetailView: View {
                             }
                             .padding(.horizontal, LunaraTheme.Layout.globalPadding)
                             .padding(.bottom, LunaraTheme.Layout.globalPadding)
+                        }
+                        .safeAreaInset(edge: .bottom) {
+                            if nowPlayingInsetHeight > 0 {
+                                Color.clear.frame(height: nowPlayingInsetHeight)
+                            }
                         }
                     }
                 }
