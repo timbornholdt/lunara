@@ -85,7 +85,9 @@ struct NowPlayingSheetView: View {
             Text(state.trackTitle)
                 .font(LunaraTheme.Typography.displayBold(size: 28))
                 .foregroundStyle(palette.textPrimary)
-                .lineLimit(2)
+                .lineLimit(3)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
 
             Text(context?.album.title ?? "Unknown Album")
                 .font(LunaraTheme.Typography.displayRegular(size: 17))
@@ -202,7 +204,7 @@ private struct UpNextRow: View {
 
     var body: some View {
         Button(action: onTap) {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
                 Text(trackNumber)
                     .font(LunaraTheme.Typography.displayRegular(size: 13).monospacedDigit())
                     .foregroundStyle(palette.textSecondary)
@@ -212,7 +214,9 @@ private struct UpNextRow: View {
                     Text(track.title)
                         .font(LunaraTheme.Typography.displayRegular(size: 16))
                         .foregroundStyle(palette.textPrimary)
-                        .lineLimit(1)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
 
                     if let artist = TrackArtistDisplayResolver.displayArtist(for: track, albumArtist: albumArtist) {
                         Text(artist)
