@@ -63,19 +63,21 @@ struct NowPlayingSheetView: View {
 
     private var artworkSection: some View {
         Button(action: onNavigateToAlbum) {
-            ZStack {
-                if let album = context?.album {
-                    AlbumArtworkView(album: album, palette: nil, size: .detail)
-                        .frame(maxWidth: .infinity)
-                        .aspectRatio(1, contentMode: .fit)
-                        .clipped()
-                        .clipShape(RoundedRectangle(cornerRadius: Layout.artworkCornerRadius))
-                } else {
-                    RoundedRectangle(cornerRadius: Layout.artworkCornerRadius)
-                        .fill(palette.raised)
-                        .aspectRatio(1, contentMode: .fit)
-                }
-            }
+            Color.clear
+                .aspectRatio(1, contentMode: .fit)
+                .overlay(
+                    Group {
+                        if let album = context?.album {
+                            AlbumArtworkView(album: album, palette: nil, size: .detail)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .clipped()
+                        } else {
+                            RoundedRectangle(cornerRadius: Layout.artworkCornerRadius)
+                                .fill(palette.raised)
+                        }
+                    }
+                )
+                .clipShape(RoundedRectangle(cornerRadius: Layout.artworkCornerRadius))
         }
         .buttonStyle(.plain)
     }
