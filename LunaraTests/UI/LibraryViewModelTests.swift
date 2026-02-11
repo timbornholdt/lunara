@@ -210,6 +210,7 @@ struct LibraryViewModelTests {
                     .init(
                         ratingKey: "snap",
                         title: "Snapshot Album",
+                        titleSort: "Snapshot Album",
                         thumb: "/thumb/snap",
                         art: "/art/snap",
                         year: 2024,

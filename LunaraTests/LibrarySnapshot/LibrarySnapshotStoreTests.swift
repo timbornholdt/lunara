@@ -13,6 +13,7 @@ struct LibrarySnapshotStoreTests {
                 LibrarySnapshot.Album(
                     ratingKey: "1",
                     title: "Album",
+                    titleSort: nil,
                     thumb: "/thumb/1",
                     art: "/art/1",
                     year: 2024,
@@ -58,6 +59,7 @@ struct LibrarySnapshotStoreTests {
                 .init(
                     ratingKey: "fallback",
                     title: "Fallback Album",
+                    titleSort: nil,
                     thumb: nil,
                     art: nil,
                     year: nil,

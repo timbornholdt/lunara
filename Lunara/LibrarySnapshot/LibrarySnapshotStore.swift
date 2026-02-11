@@ -4,6 +4,7 @@ struct LibrarySnapshot: Codable, Sendable {
     struct Album: Codable, Sendable {
         let ratingKey: String
         let title: String
+        let titleSort: String?
         let thumb: String?
         let art: String?
         let year: Int?
@@ -121,6 +122,7 @@ extension LibrarySnapshot.Album {
         self.init(
             ratingKey: album.ratingKey,
             title: album.title,
+            titleSort: album.titleSort,
             thumb: album.thumb,
             art: album.art,
             year: album.year,
@@ -136,7 +138,7 @@ extension LibrarySnapshot.Album {
             art: art,
             year: year,
             artist: artist,
-            titleSort: nil,
+            titleSort: titleSort,
             originalTitle: nil,
             editionTitle: nil,
             guid: nil,
