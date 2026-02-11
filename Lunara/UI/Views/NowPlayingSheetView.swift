@@ -217,6 +217,9 @@ private struct MarqueeText: View {
         static let forwardSpeed: CGFloat = 28
         static let returnSpeed: CGFloat = 60
         static let tickRate: TimeInterval = 1.0 / 30.0
+        static let minForwardDuration: TimeInterval = 2.5
+        static let minReturnDuration: TimeInterval = 1.2
+        static let extraGap: CGFloat = 60
     }
 
     var body: some View {
@@ -260,7 +263,7 @@ private struct MarqueeText: View {
     }
 
     private var scrollDistance: CGFloat {
-        max(textWidth - containerWidth, 0)
+        max(textWidth - containerWidth + Timing.extraGap, 0)
     }
 
     private func resetCycle() {
@@ -270,8 +273,14 @@ private struct MarqueeText: View {
     private func offset(at date: Date) -> CGFloat {
         guard shouldScroll, scrollDistance > 0 else { return 0 }
 
-        let forwardDuration = TimeInterval(scrollDistance / Timing.forwardSpeed)
-        let returnDuration = TimeInterval(scrollDistance / Timing.returnSpeed)
+        let forwardDuration = max(
+            Timing.minForwardDuration,
+            TimeInterval(scrollDistance / Timing.forwardSpeed)
+        )
+        let returnDuration = max(
+            Timing.minReturnDuration,
+            TimeInterval(scrollDistance / Timing.returnSpeed)
+        )
         let cycleDuration = Timing.startHold + forwardDuration + Timing.endHold + returnDuration
         guard cycleDuration > 0 else { return 0 }
 
