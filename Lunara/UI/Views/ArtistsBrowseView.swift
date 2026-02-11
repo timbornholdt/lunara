@@ -6,6 +6,7 @@ struct ArtistsBrowseView: View {
     let signOut: () -> Void
     @Binding var navigationPath: NavigationPath
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.nowPlayingInsetHeight) private var nowPlayingInsetHeight
     @State private var searchQuery = ""
     @State private var errorToken = UUID()
     @State private var artistScrollTarget: String?
@@ -70,6 +71,11 @@ struct ArtistsBrowseView: View {
                                     .padding(.horizontal, Layout.globalPadding)
                                     .padding(.trailing, Layout.indexInset)
                                     .padding(.bottom, Layout.globalPadding)
+                                }
+                                .safeAreaInset(edge: .bottom) {
+                                    if nowPlayingInsetHeight > 0 {
+                                        Color.clear.frame(height: nowPlayingInsetHeight)
+                                    }
                                 }
                                 .onChange(of: artistScrollTarget) { _, newValue in
                                     guard let newValue else { return }

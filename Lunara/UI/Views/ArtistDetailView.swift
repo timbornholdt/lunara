@@ -6,6 +6,7 @@ struct ArtistDetailView: View {
     let sessionInvalidationHandler: () -> Void
     @StateObject private var viewModel: ArtistDetailViewModel
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.nowPlayingInsetHeight) private var nowPlayingInsetHeight
     @State private var isBioExpanded = false
 
     enum Layout {
@@ -52,6 +53,11 @@ struct ArtistDetailView: View {
                 }
                 .padding(.horizontal, Layout.globalPadding)
                 .padding(.bottom, Layout.globalPadding)
+            }
+            .safeAreaInset(edge: .bottom) {
+                if nowPlayingInsetHeight > 0 {
+                    Color.clear.frame(height: nowPlayingInsetHeight)
+                }
             }
         }
         .navigationBarTitleDisplayMode(.inline)

@@ -6,6 +6,7 @@ struct CollectionsBrowseView: View {
     let signOut: () -> Void
     @Binding var navigationPath: NavigationPath
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.nowPlayingInsetHeight) private var nowPlayingInsetHeight
     @State private var errorToken = UUID()
 
     enum Layout {
@@ -65,6 +66,11 @@ struct CollectionsBrowseView: View {
                                 }
                                 .padding(.horizontal, Layout.globalPadding)
                                 .padding(.bottom, Layout.globalPadding)
+                            }
+                            .safeAreaInset(edge: .bottom) {
+                                if nowPlayingInsetHeight > 0 {
+                                    Color.clear.frame(height: nowPlayingInsetHeight)
+                                }
                             }
                         }
                     }

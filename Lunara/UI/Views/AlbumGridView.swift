@@ -9,6 +9,7 @@ struct AlbumGridView: View {
     let scrollTarget: String?
     let sortAlphabetically: Bool
     let trailingContentInset: CGFloat
+    @Environment(\.nowPlayingInsetHeight) private var nowPlayingInsetHeight
 
     enum Layout {
         static let globalPadding = LunaraTheme.Layout.globalPadding
@@ -69,6 +70,11 @@ struct AlbumGridView: View {
                     .padding(.horizontal, Layout.globalPadding)
                     .padding(.trailing, trailingContentInset)
                     .padding(.bottom, Layout.globalPadding)
+                }
+                .safeAreaInset(edge: .bottom) {
+                    if nowPlayingInsetHeight > 0 {
+                        Color.clear.frame(height: nowPlayingInsetHeight)
+                    }
                 }
                 .onChange(of: scrollTarget) { _, newValue in
                     guard let newValue else { return }
