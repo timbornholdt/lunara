@@ -9,6 +9,7 @@ struct AlbumDetailView: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var scrollOffset: CGFloat = 0
     @State private var albumTheme: AlbumTheme?
+    @Environment(\.nowPlayingInsetHeight) private var nowPlayingInsetHeight
 
     enum Layout {
         static let globalPadding = LunaraTheme.Layout.globalPadding
@@ -111,6 +112,11 @@ struct AlbumDetailView: View {
                             .padding(.horizontal, Layout.globalPadding)
                     }
                     .padding(.bottom, Layout.globalPadding)
+                }
+                .safeAreaInset(edge: .bottom) {
+                    if nowPlayingInsetHeight > 0 {
+                        Color.clear.frame(height: nowPlayingInsetHeight)
+                    }
                 }
                 .coordinateSpace(name: "albumScroll")
                 .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in

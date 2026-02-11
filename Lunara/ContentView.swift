@@ -62,6 +62,7 @@ private struct MainTabView: View {
     @State private var collectionsPath = NavigationPath()
     @State private var artistsPath = NavigationPath()
     @State private var hadNowPlaying = false
+    @State private var nowPlayingInsetHeight: CGFloat = 0
     @Environment(\.colorScheme) private var colorScheme
 
     init(
@@ -118,6 +119,7 @@ private struct MainTabView: View {
             }
             .tag(Tab.artists)
         }
+        .environment(\.nowPlayingInsetHeight, nowPlayingInsetHeight)
         .safeAreaInset(edge: .bottom) {
             if let nowPlaying = playbackViewModel.nowPlaying {
                 NowPlayingBarView(
@@ -126,12 +128,21 @@ private struct MainTabView: View {
                     onTogglePlayPause: { playbackViewModel.togglePlayPause() },
                     onOpenNowPlaying: { showNowPlaying = true }
                 )
+                .background(
+                    GeometryReader { proxy in
+                        Color.clear
+                            .preference(key: NowPlayingInsetHeightKey.self, value: proxy.size.height)
+                    }
+                )
                 .padding(.horizontal, LunaraTheme.Layout.globalPadding)
                 .padding(.bottom, tabBarHeight + 8)
                 .opacity(showNowPlaying ? 0 : 1)
                 .animation(.easeInOut(duration: 0.2), value: showNowPlaying)
                 .allowsHitTesting(!showNowPlaying)
             }
+        }
+        .onPreferenceChange(NowPlayingInsetHeightKey.self) { height in
+            nowPlayingInsetHeight = height > 0 ? height + tabBarHeight + 8 : 0
         }
         .sheet(isPresented: $showNowPlaying) {
             if let nowPlaying = playbackViewModel.nowPlaying {
@@ -178,6 +189,9 @@ private struct MainTabView: View {
                 showNowPlaying = true
             }
             hadNowPlaying = isPlayingNow
+            if !isPlayingNow {
+                nowPlayingInsetHeight = 0
+            }
         }
     }
 
@@ -187,6 +201,25 @@ private struct MainTabView: View {
         case artists
     }
 
+}
+
+private struct NowPlayingInsetHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+private struct NowPlayingInsetHeightEnvironmentKey: EnvironmentKey {
+    static let defaultValue: CGFloat = 0
+}
+
+extension EnvironmentValues {
+    var nowPlayingInsetHeight: CGFloat {
+        get { self[NowPlayingInsetHeightEnvironmentKey.self] }
+        set { self[NowPlayingInsetHeightEnvironmentKey.self] = newValue }
+    }
 }
 
 #Preview {
