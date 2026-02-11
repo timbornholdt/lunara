@@ -85,7 +85,13 @@
      - Album list is single-column with thumbnails, year, user rating when present, and runtime only if available from initial fetch.
      - Albums sorted by release year ascending.
      - Tapping an album loads that album's page.
-10. [ ] Settings screen (sign out + debug logging)
+10. [x] Settings screen (sign out + debug logging)
+   - Requirements defined in `docs/features/settings-screen-v1.md`
+   - Requirements summary:
+     - Replace top-right Sign Out actions with a shared settings gear entry point.
+     - Settings includes Sign Out and an album de-dup debug logging toggle.
+     - De-dup debug logging preference is persisted and gates logging output at runtime.
+     - Settings structure is extensible for future A/B experiment toggles.
    - Acceptance criteria:
      - Replace the Library "Sign Out" button with a settings gear icon.
      - Settings screen includes Sign Out action.

@@ -4,6 +4,7 @@ struct LibraryBrowseView: View {
     @StateObject var viewModel: LibraryViewModel
     @ObservedObject var playbackViewModel: PlaybackViewModel
     let signOut: () -> Void
+    let openSettings: () -> Void
     @Binding var navigationPath: NavigationPath
     @Environment(\.colorScheme) private var colorScheme
     @State private var errorToken = UUID()
@@ -66,8 +67,10 @@ struct LibraryBrowseView: View {
                         .foregroundStyle(palette.textPrimary)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Sign Out") {
-                        signOut()
+                    Button {
+                        openSettings()
+                    } label: {
+                        Image(systemName: "gearshape")
                     }
                 }
             }

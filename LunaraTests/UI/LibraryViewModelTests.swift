@@ -200,6 +200,89 @@ struct LibraryViewModelTests {
         #expect(viewModel.albums.first?.ratingKey == "10" || viewModel.albums.first?.ratingKey == "11")
     }
 
+    @Test func dedupDebugLoggingRespectsSettingsToggle() async {
+        let tokenStore = InMemoryTokenStore(token: "token")
+        let serverStore = InMemoryServerStore(url: URL(string: "https://example.com:32400")!)
+        let selectionStore = InMemorySelectionStore(key: "1")
+        let albumA = PlexAlbum(
+            ratingKey: "10",
+            title: "Album",
+            thumb: nil,
+            art: nil,
+            year: 2022,
+            artist: "Artist",
+            titleSort: nil,
+            originalTitle: nil,
+            editionTitle: nil,
+            guid: nil,
+            librarySectionID: 1,
+            parentRatingKey: nil,
+            studio: nil,
+            summary: nil,
+            genres: nil,
+            styles: nil,
+            moods: nil,
+            rating: nil,
+            userRating: nil,
+            key: nil
+        )
+        let albumB = PlexAlbum(
+            ratingKey: "11",
+            title: "Album",
+            thumb: nil,
+            art: nil,
+            year: 2022,
+            artist: "Artist",
+            titleSort: nil,
+            originalTitle: nil,
+            editionTitle: nil,
+            guid: nil,
+            librarySectionID: 1,
+            parentRatingKey: nil,
+            studio: nil,
+            summary: nil,
+            genres: nil,
+            styles: nil,
+            moods: nil,
+            rating: nil,
+            userRating: nil,
+            key: nil
+        )
+        let service = StubLibraryService(
+            sections: [PlexLibrarySection(key: "1", title: "Music", type: "music")],
+            albums: [albumA, albumB],
+            tracks: []
+        )
+        let settings = InMemoryAppSettingsStore()
+
+        var logLines: [String] = []
+        settings.isAlbumDedupDebugEnabled = false
+        let disabledViewModel = LibraryViewModel(
+            tokenStore: tokenStore,
+            serverStore: serverStore,
+            selectionStore: selectionStore,
+            libraryServiceFactory: { _, _ in service },
+            settingsStore: settings,
+            logger: { logLines.append($0) },
+            sessionInvalidationHandler: {}
+        )
+        await disabledViewModel.loadSections()
+        #expect(logLines.isEmpty)
+
+        settings.isAlbumDedupDebugEnabled = true
+        let enabledViewModel = LibraryViewModel(
+            tokenStore: tokenStore,
+            serverStore: serverStore,
+            selectionStore: selectionStore,
+            libraryServiceFactory: { _, _ in service },
+            settingsStore: settings,
+            logger: { logLines.append($0) },
+            sessionInvalidationHandler: {}
+        )
+        await enabledViewModel.loadSections()
+        #expect(logLines.contains { $0.contains("Album De-dup Debug") })
+    }
+
     @Test func loadsSnapshotBeforeRefreshingLive() async {
         let tokenStore = InMemoryTokenStore(token: "token")
         let serverStore = InMemoryServerStore(url: URL(string: "https://example.com:32400")!)

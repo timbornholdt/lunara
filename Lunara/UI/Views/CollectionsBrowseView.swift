@@ -4,6 +4,7 @@ struct CollectionsBrowseView: View {
     @StateObject var viewModel: CollectionsViewModel
     @ObservedObject var playbackViewModel: PlaybackViewModel
     let signOut: () -> Void
+    let openSettings: () -> Void
     @Binding var navigationPath: NavigationPath
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.nowPlayingInsetHeight) private var nowPlayingInsetHeight
@@ -89,8 +90,10 @@ struct CollectionsBrowseView: View {
                         .foregroundStyle(palette.textPrimary)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Sign Out") {
-                        signOut()
+                    Button {
+                        openSettings()
+                    } label: {
+                        Image(systemName: "gearshape")
                     }
                 }
             }

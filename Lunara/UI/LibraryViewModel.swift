@@ -4,8 +4,6 @@ import SwiftUI
 
 @MainActor
 final class LibraryViewModel: ObservableObject {
-    private static let enableAlbumDedupDebug = true
-
     @Published var sections: [PlexLibrarySection] = []
     @Published var selectedSection: PlexLibrarySection?
     @Published var albums: [PlexAlbum] = []
@@ -21,6 +19,8 @@ final class LibraryViewModel: ObservableObject {
     private let sessionInvalidationHandler: () -> Void
     private let snapshotStore: LibrarySnapshotStoring
     private let artworkPrefetcher: ArtworkPrefetching
+    private let settingsStore: AppSettingsStoring
+    private let logger: (String) -> Void
     private var albumGroups: [String: [PlexAlbum]] = [:]
 
     init(
@@ -38,6 +38,8 @@ final class LibraryViewModel: ObservableObject {
         },
         snapshotStore: LibrarySnapshotStoring = LibrarySnapshotStore(),
         artworkPrefetcher: ArtworkPrefetching = ArtworkLoader.shared,
+        settingsStore: AppSettingsStoring = UserDefaultsAppSettingsStore(),
+        logger: @escaping (String) -> Void = { print($0) },
         sessionInvalidationHandler: @escaping () -> Void = {}
     ) {
         self.tokenStore = tokenStore
@@ -47,6 +49,8 @@ final class LibraryViewModel: ObservableObject {
         self.sessionInvalidationHandler = sessionInvalidationHandler
         self.snapshotStore = snapshotStore
         self.artworkPrefetcher = artworkPrefetcher
+        self.settingsStore = settingsStore
+        self.logger = logger
     }
 
     func loadSections() async {
@@ -140,7 +144,7 @@ final class LibraryViewModel: ObservableObject {
         let fetchedAlbums = try await service.fetchAlbums(sectionId: section.key)
         albumGroups = Dictionary(grouping: fetchedAlbums, by: albumDedupKey(for:))
         let dedupedAlbums = dedupeAlbums(fetchedAlbums)
-        if Self.enableAlbumDedupDebug {
+        if settingsStore.isAlbumDedupDebugEnabled {
             logAlbumDedupDebug(albums: fetchedAlbums)
         }
         albums = dedupedAlbums
@@ -164,11 +168,11 @@ final class LibraryViewModel: ObservableObject {
         let duplicates = grouped.filter { $0.value.count > 1 }
         guard !duplicates.isEmpty else { return }
 
-        print("----- Album De-dup Debug (duplicates: \(duplicates.count)) -----")
+        logger("----- Album De-dup Debug (duplicates: \(duplicates.count)) -----")
         for (key, items) in duplicates {
-            print("Duplicate group: \(key) (count: \(items.count))")
+            logger("Duplicate group: \(key) (count: \(items.count))")
             for album in items {
-                print("""
+                logger("""
                 - ratingKey: \(album.ratingKey)
                   title: \(album.title)
                   artist: \(album.artist ?? "nil")
@@ -186,7 +190,7 @@ final class LibraryViewModel: ObservableObject {
                 """)
             }
         }
-        print("----- End Album De-dup Debug -----")
+        logger("----- End Album De-dup Debug -----")
     }
 
     private func dedupeAlbums(_ albums: [PlexAlbum]) -> [PlexAlbum] {
