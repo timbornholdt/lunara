@@ -66,7 +66,9 @@ struct NowPlayingSheetView: View {
             ZStack {
                 if let album = context?.album {
                     AlbumArtworkView(album: album, palette: nil, size: .detail)
+                        .frame(maxWidth: .infinity)
                         .aspectRatio(1, contentMode: .fit)
+                        .clipped()
                         .clipShape(RoundedRectangle(cornerRadius: Layout.artworkCornerRadius))
                 } else {
                     RoundedRectangle(cornerRadius: Layout.artworkCornerRadius)
