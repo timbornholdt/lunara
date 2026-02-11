@@ -34,7 +34,7 @@ struct NowPlayingSheetView: View {
                     VStack(alignment: .leading, spacing: 18) {
                         artworkSection
 
-                        titleSection
+                    titleSection(contentWidth: contentWidth)
 
                         controlsSection
 
@@ -86,12 +86,13 @@ struct NowPlayingSheetView: View {
         .buttonStyle(.plain)
     }
 
-    private var titleSection: some View {
+    private func titleSection(contentWidth: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             MarqueeText(
                 text: state.trackTitle,
                 font: LunaraTheme.Typography.displayBold(size: 28),
-                color: palette.textPrimary
+                color: palette.textPrimary,
+                containerWidth: contentWidth
             )
 
             Text(context?.album.title ?? "Unknown Album")
@@ -205,52 +206,52 @@ private struct MarqueeText: View {
     let text: String
     let font: Font
     let color: Color
+    let containerWidth: CGFloat
 
     @State private var textWidth: CGFloat = 0
-    @State private var containerWidth: CGFloat = 0
-    @State private var offset: CGFloat = 0
-    @State private var animationToken = UUID()
+    @State private var startDate = Date()
 
     private enum Timing {
         static let startHold: TimeInterval = 1.0
         static let endHold: TimeInterval = 1.0
         static let forwardSpeed: CGFloat = 28
         static let returnSpeed: CGFloat = 60
+        static let tickRate: TimeInterval = 1.0 / 30.0
     }
 
     var body: some View {
-        ZStack(alignment: .leading) {
-            Text(text)
-                .font(font)
-                .foregroundStyle(color)
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
-                .background(WidthReader(key: TextWidthKey.self))
-                .offset(x: offset)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(WidthReader(key: ContainerWidthKey.self))
-        .clipped()
-        .onPreferenceChange(TextWidthKey.self) { width in
-            if textWidth != width {
-                textWidth = width
-                animationToken = UUID()
+        TimelineView(.periodic(from: .now, by: Timing.tickRate)) { context in
+            let effectiveWidth = max(containerWidth, 0)
+            ZStack(alignment: .leading) {
+                Text(text)
+                    .font(font)
+                    .foregroundStyle(color)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .offset(x: offset(at: context.date))
             }
-        }
-        .onPreferenceChange(ContainerWidthKey.self) { width in
-            if containerWidth != width {
-                containerWidth = width
-                animationToken = UUID()
+            .frame(width: effectiveWidth, alignment: .leading)
+            .overlay(alignment: .leading) {
+                Text(text)
+                    .font(font)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .background(WidthReader(key: TextWidthKey.self))
+                    .hidden()
             }
-        }
-        .onChange(of: text) { _, _ in
-            textWidth = 0
-            containerWidth = 0
-            offset = 0
-            animationToken = UUID()
-        }
-        .task(id: animationToken) {
-            await runMarqueeIfNeeded()
+            .clipped()
+            .onPreferenceChange(TextWidthKey.self) { width in
+                if textWidth != width {
+                    textWidth = width
+                    resetCycle()
+                }
+            }
+            .onChange(of: containerWidth) { _, _ in
+                resetCycle()
+            }
+            .onChange(of: text) { _, _ in
+                resetCycle()
+            }
         }
     }
 
@@ -262,46 +263,43 @@ private struct MarqueeText: View {
         max(textWidth - containerWidth, 0)
     }
 
-    @MainActor
-    private func runMarqueeIfNeeded() async {
-        guard shouldScroll else {
-            offset = 0
-            return
+    private func resetCycle() {
+        startDate = Date()
+    }
+
+    private func offset(at date: Date) -> CGFloat {
+        guard shouldScroll, scrollDistance > 0 else { return 0 }
+
+        let forwardDuration = TimeInterval(scrollDistance / Timing.forwardSpeed)
+        let returnDuration = TimeInterval(scrollDistance / Timing.returnSpeed)
+        let cycleDuration = Timing.startHold + forwardDuration + Timing.endHold + returnDuration
+        guard cycleDuration > 0 else { return 0 }
+
+        let elapsed = date.timeIntervalSince(startDate)
+        let t = elapsed.truncatingRemainder(dividingBy: cycleDuration)
+
+        if t < Timing.startHold {
+            return 0
         }
 
-        while !Task.isCancelled {
-            offset = 0
-            try? await Task.sleep(nanoseconds: UInt64(Timing.startHold * 1_000_000_000))
-            if Task.isCancelled { break }
-
-            let forwardDuration = TimeInterval(scrollDistance / Timing.forwardSpeed)
-            withAnimation(.linear(duration: forwardDuration)) {
-                offset = -scrollDistance
-            }
-            try? await Task.sleep(nanoseconds: UInt64(forwardDuration * 1_000_000_000))
-            if Task.isCancelled { break }
-
-            try? await Task.sleep(nanoseconds: UInt64(Timing.endHold * 1_000_000_000))
-            if Task.isCancelled { break }
-
-            let returnDuration = TimeInterval(scrollDistance / Timing.returnSpeed)
-            withAnimation(.linear(duration: returnDuration)) {
-                offset = 0
-            }
-            try? await Task.sleep(nanoseconds: UInt64(returnDuration * 1_000_000_000))
+        let forwardStart = Timing.startHold
+        let forwardEnd = Timing.startHold + forwardDuration
+        if t < forwardEnd {
+            let progress = (t - forwardStart) / forwardDuration
+            return -scrollDistance * progress
         }
+
+        let endHoldEnd = forwardEnd + Timing.endHold
+        if t < endHoldEnd {
+            return -scrollDistance
+        }
+
+        let backProgress = (t - endHoldEnd) / returnDuration
+        return -scrollDistance + (scrollDistance * backProgress)
     }
 }
 
 private struct TextWidthKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
-    }
-}
-
-private struct ContainerWidthKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
 
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
