@@ -28,21 +28,25 @@ struct NowPlayingSheetView: View {
         ZStack {
             ThemedBackgroundView(theme: theme ?? AlbumTheme.fallback())
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    artworkSection
+            GeometryReader { proxy in
+                let contentWidth = max(proxy.size.width - (Layout.globalPadding * 2), 0)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        artworkSection
 
-                    titleSection
+                        titleSection
 
-                    controlsSection
+                        controlsSection
 
-                    scrubberSection
+                        scrubberSection
 
-                    upNextSection
+                        upNextSection
+                    }
+                    .frame(width: contentWidth, alignment: .leading)
+                    .padding(.horizontal, Layout.globalPadding)
+                    .padding(.bottom, Layout.globalPadding)
+                    .padding(.top, 16)
                 }
-                .padding(.horizontal, Layout.globalPadding)
-                .padding(.bottom, Layout.globalPadding)
-                .padding(.top, 16)
             }
         }
         .onAppear {
