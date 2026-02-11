@@ -50,6 +50,17 @@ protocol PlexLibrarySelectionStoring {
     var selectedSectionKey: String? { get set }
 }
 
+enum AppSettingBoolKey: String, CaseIterable, Sendable {
+    case albumDedupDebugLogging = "app.settings.albumDedupDebugEnabled"
+    case newQueueAlgorithm = "app.settings.experiment.newQueueAlgorithm"
+}
+
+protocol AppSettingsStoring: AnyObject {
+    var isAlbumDedupDebugEnabled: Bool { get set }
+    func bool(for key: AppSettingBoolKey) -> Bool
+    func set(_ value: Bool, for key: AppSettingBoolKey)
+}
+
 protocol PlexTokenValidating {
     func validate(serverURL: URL, token: String) async throws
 }

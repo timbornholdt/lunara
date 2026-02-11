@@ -142,3 +142,24 @@ struct StubLibraryService: PlexLibraryServicing {
         return tracksByArtistKey[artistRatingKey] ?? []
     }
 }
+
+final class InMemoryAppSettingsStore: AppSettingsStoring {
+    private var values: [AppSettingBoolKey: Bool]
+
+    init(values: [AppSettingBoolKey: Bool] = [:]) {
+        self.values = values
+    }
+
+    var isAlbumDedupDebugEnabled: Bool {
+        get { bool(for: .albumDedupDebugLogging) }
+        set { set(newValue, for: .albumDedupDebugLogging) }
+    }
+
+    func bool(for key: AppSettingBoolKey) -> Bool {
+        values[key] ?? false
+    }
+
+    func set(_ value: Bool, for key: AppSettingBoolKey) {
+        values[key] = value
+    }
+}

@@ -17,11 +17,16 @@ struct ContentView: View {
         ZStack {
             switch authViewModel.launchState {
             case .authenticated:
+                let settingsStore = UserDefaultsAppSettingsStore()
                 MainTabView(
-                    libraryViewModel: LibraryViewModel(sessionInvalidationHandler: { authViewModel.signOut() }),
+                    libraryViewModel: LibraryViewModel(
+                        settingsStore: settingsStore,
+                        sessionInvalidationHandler: { authViewModel.signOut() }
+                    ),
                     collectionsViewModel: CollectionsViewModel(sessionInvalidationHandler: { authViewModel.signOut() }),
                     artistsViewModel: ArtistsViewModel(sessionInvalidationHandler: { authViewModel.signOut() }),
-                    playbackViewModel: playbackViewModel
+                    playbackViewModel: playbackViewModel,
+                    settingsStore: settingsStore
                 ) {
                     playbackViewModel.stop()
                     authViewModel.signOut()
@@ -63,6 +68,8 @@ private struct MainTabView: View {
     @State private var artistsPath = NavigationPath()
     @State private var hadNowPlaying = false
     @State private var nowPlayingInsetHeight: CGFloat = 0
+    @State private var showSettings = false
+    @StateObject private var settingsViewModel: SettingsViewModel
     @Environment(\.colorScheme) private var colorScheme
 
     init(
@@ -70,11 +77,18 @@ private struct MainTabView: View {
         collectionsViewModel: CollectionsViewModel,
         artistsViewModel: ArtistsViewModel,
         playbackViewModel: PlaybackViewModel,
+        settingsStore: AppSettingsStoring = UserDefaultsAppSettingsStore(),
         signOut: @escaping () -> Void
     ) {
         _libraryViewModel = StateObject(wrappedValue: libraryViewModel)
         _collectionsViewModel = StateObject(wrappedValue: collectionsViewModel)
         _artistsViewModel = StateObject(wrappedValue: artistsViewModel)
+        _settingsViewModel = StateObject(
+            wrappedValue: SettingsViewModel(
+                settingsStore: settingsStore,
+                onSignOut: signOut
+            )
+        )
         self.playbackViewModel = playbackViewModel
         self.signOut = signOut
     }
@@ -90,6 +104,7 @@ private struct MainTabView: View {
                 viewModel: collectionsViewModel,
                 playbackViewModel: playbackViewModel,
                 signOut: signOut,
+                openSettings: { showSettings = true },
                 navigationPath: $collectionsPath
             )
             .tabItem {
@@ -101,6 +116,7 @@ private struct MainTabView: View {
                 viewModel: libraryViewModel,
                 playbackViewModel: playbackViewModel,
                 signOut: signOut,
+                openSettings: { showSettings = true },
                 navigationPath: $libraryPath
             )
             .tabItem {
@@ -112,6 +128,7 @@ private struct MainTabView: View {
                 viewModel: artistsViewModel,
                 playbackViewModel: playbackViewModel,
                 signOut: signOut,
+                openSettings: { showSettings = true },
                 navigationPath: $artistsPath
             )
             .tabItem {
@@ -182,6 +199,9 @@ private struct MainTabView: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
             }
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView(viewModel: settingsViewModel)
         }
         .onChange(of: playbackViewModel.nowPlaying?.trackRatingKey) { _, newValue in
             let isPlayingNow = newValue != nil
