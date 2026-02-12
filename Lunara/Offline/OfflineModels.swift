@@ -132,6 +132,13 @@ struct OfflineManifest: Codable, Equatable, Sendable {
                 partial + (track.actualBytes ?? 0)
             }
     }
+
+    var containsLegacyAudioFiles: Bool {
+        tracks.values.contains { record in
+            guard let relativePath = record.relativeFilePath else { return false }
+            return relativePath.lowercased().hasSuffix(".audio")
+        }
+    }
 }
 
 protocol OfflineManifestStoring {

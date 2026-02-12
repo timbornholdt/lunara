@@ -29,6 +29,9 @@ final class OfflinePlaybackIndex: LocalPlaybackIndexing {
         else {
             return nil
         }
+        if relativePath.lowercased().hasSuffix(".audio") {
+            return nil
+        }
 
         let url = fileStore.absoluteURL(forRelativePath: relativePath)
         guard fileManager.fileExists(atPath: url.path) else {

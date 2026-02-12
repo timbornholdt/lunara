@@ -1,4 +1,5 @@
 import Foundation
+import UniformTypeIdentifiers
 
 final class AppOfflineTrackDownloader: OfflineTrackDownloading {
     private let tokenStore: PlexAuthTokenStoring
@@ -38,7 +39,47 @@ final class AppOfflineTrackDownloader: OfflineTrackDownloading {
             throw OfflineRuntimeError.unexpectedHTTPStatus(httpResponse.statusCode)
         }
         let expected = response.expectedContentLength > 0 ? response.expectedContentLength : nil
+        let suggestedExtension = resolveFileExtension(
+            response: response,
+            requestedURL: url,
+            partKey: partKey
+        )
         progress(Int64(data.count), expected)
-        return OfflineDownloadedPayload(data: data, expectedBytes: expected)
+        return OfflineDownloadedPayload(
+            data: data,
+            expectedBytes: expected,
+            suggestedFileExtension: suggestedExtension
+        )
+    }
+
+    private func resolveFileExtension(
+        response: URLResponse,
+        requestedURL: URL,
+        partKey: String
+    ) -> String? {
+        let mimeExtension = response.mimeType
+            .flatMap { UTType(mimeType: $0)?.preferredFilenameExtension }
+            .flatMap(normalizeFileExtension)
+
+        let responseExtension = normalizeFileExtension(response.url?.pathExtension)
+        let requestedExtension = normalizeFileExtension(requestedURL.pathExtension)
+        let partExtension = normalizeFileExtension(URL(string: partKey)?.pathExtension)
+
+        return mimeExtension ?? responseExtension ?? requestedExtension ?? partExtension
+    }
+
+    private func normalizeFileExtension(_ value: String?) -> String? {
+        guard var ext = value?.trimmingCharacters(in: .whitespacesAndNewlines), ext.isEmpty == false else {
+            return nil
+        }
+        if ext.hasPrefix(".") {
+            ext.removeFirst()
+        }
+        ext = ext.lowercased()
+        let allowed = CharacterSet.alphanumerics
+        let filteredScalars = ext.unicodeScalars.filter { allowed.contains($0) }
+        let filtered = String(String.UnicodeScalarView(filteredScalars))
+        guard filtered.isEmpty == false else { return nil }
+        return filtered
     }
 }

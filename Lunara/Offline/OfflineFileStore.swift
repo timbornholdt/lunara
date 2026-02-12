@@ -16,11 +16,18 @@ final class OfflineFileStore {
         }
     }
 
-    func makeTrackRelativePath(trackRatingKey: String, partKey: String?) -> String {
+    func makeTrackRelativePath(
+        trackRatingKey: String,
+        partKey: String?,
+        fileExtension: String? = nil
+    ) -> String {
         let input = "\(trackRatingKey)|\(partKey ?? "")"
         let digest = SHA256.hash(data: Data(input.utf8))
         let hex = digest.map { String(format: "%02x", $0) }.joined()
-        return "tracks/\(hex).audio"
+        let ext = normalizedFileExtension(fileExtension)
+            ?? normalizedFileExtension(URL(string: partKey ?? "")?.pathExtension)
+            ?? "mp3"
+        return "tracks/\(hex).\(ext)"
     }
 
     func absoluteURL(forRelativePath relativePath: String) -> URL {
@@ -54,5 +61,20 @@ final class OfflineFileStore {
             return
         }
         try fileManager.removeItem(at: baseURL)
+    }
+
+    private func normalizedFileExtension(_ value: String?) -> String? {
+        guard var ext = value?.trimmingCharacters(in: .whitespacesAndNewlines), ext.isEmpty == false else {
+            return nil
+        }
+        if ext.hasPrefix(".") {
+            ext.removeFirst()
+        }
+        ext = ext.lowercased()
+        let allowed = CharacterSet.alphanumerics
+        let filteredScalars = ext.unicodeScalars.filter { allowed.contains($0) }
+        let filtered = String(String.UnicodeScalarView(filteredScalars))
+        guard filtered.isEmpty == false else { return nil }
+        return filtered
     }
 }

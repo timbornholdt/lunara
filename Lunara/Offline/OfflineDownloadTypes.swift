@@ -22,6 +22,7 @@ enum OfflineDownloadSource: Equatable, Sendable {
 struct OfflineDownloadedPayload: Sendable {
     let data: Data
     let expectedBytes: Int64?
+    let suggestedFileExtension: String?
 
     var actualBytes: Int64 {
         Int64(data.count)

@@ -433,7 +433,8 @@ actor OfflineDownloadsCoordinator: OfflineOpportunisticCaching, OfflineDownloadQ
             try verify(payload, trackRatingKey: request.trackRatingKey)
             let relativePath = fileStore.makeTrackRelativePath(
                 trackRatingKey: request.trackRatingKey,
-                partKey: request.partKey
+                partKey: request.partKey,
+                fileExtension: payload.suggestedFileExtension
             )
             try fileStore.write(payload.data, toRelativePath: relativePath)
 

@@ -20,6 +20,11 @@ final class OfflineServices {
     ) {
         self.manifestStore = manifestStore
         self.fileStore = fileStore
+        if let manifest = try? manifestStore.load(),
+           manifest.containsLegacyAudioFiles {
+            try? fileStore.removeAll()
+            try? manifestStore.clear()
+        }
         let resolvedPlaybackIndex = playbackIndex ?? OfflinePlaybackIndex(
             manifestStore: manifestStore,
             fileStore: fileStore
