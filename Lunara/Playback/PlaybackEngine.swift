@@ -29,7 +29,9 @@ final class PlaybackEngine: PlaybackEngineing {
     }
 
     func play(tracks: [PlexTrack], startIndex: Int) {
+        log("play requested trackCount=\(tracks.count) startIndex=\(startIndex)")
         guard !tracks.isEmpty else {
+            log("play aborted reason=empty_tracks")
             onError?(PlaybackError(message: "Playback unavailable for this track."))
             return
         }
@@ -43,16 +45,20 @@ final class PlaybackEngine: PlaybackEngineing {
         let items = tracks.compactMap { track -> PlaybackQueueItem? in
             guard let source = sourceResolver.resolveSource(for: track) else { return nil }
             let fallback = fallbackURLBuilder.makeTranscodeURL(trackRatingKey: track.ratingKey)
+            log("queue item track=\(track.ratingKey) source=\(source.url.absoluteString) fallback=\(fallback?.absoluteString ?? "nil")")
             return PlaybackQueueItem(track: track, primaryURL: source.url, fallbackURL: fallback)
         }
         guard !items.isEmpty else {
+            log("play aborted reason=no_playable_items")
             onError?(PlaybackError(message: "Playback unavailable for this track."))
             return
         }
         let resolvedStart = resolveStartIndex(requestedStart: start, originalTracks: tracks, playableItems: items)
+        log("resolved start index=\(resolvedStart)")
         do {
             try audioSession.configureForPlayback()
         } catch {
+            log("audio session configure failed error=\(error.localizedDescription)")
             onError?(PlaybackError(message: "Playback failed."))
             return
         }
@@ -64,10 +70,12 @@ final class PlaybackEngine: PlaybackEngineing {
         player.setQueue(urls: items[resolvedStart...].map { $0.primaryURL })
         player.play()
         isPlaying = true
+        log("play started queueSize=\(items.count - resolvedStart)")
         publishState()
     }
 
     func stop() {
+        log("stop requested")
         player.stop()
         queueItems.removeAll()
         queueBaseIndex = 0
@@ -80,8 +88,10 @@ final class PlaybackEngine: PlaybackEngineing {
     func togglePlayPause() {
         guard !queueItems.isEmpty else { return }
         if isPlaying {
+            log("toggle -> pause")
             player.pause()
         } else {
+            log("toggle -> play")
             player.play()
         }
     }
@@ -121,6 +131,7 @@ final class PlaybackEngine: PlaybackEngineing {
     private func handleItemChanged(index: Int) {
         let newIndex = queueBaseIndex + index
         guard newIndex >= 0, newIndex < queueItems.count else { return }
+        log("item changed index=\(index) mappedIndex=\(newIndex)")
         currentIndex = newIndex
         currentElapsed = 0
         publishState()
@@ -129,15 +140,19 @@ final class PlaybackEngine: PlaybackEngineing {
     private func handleItemFailure(index: Int) {
         let mappedIndex = queueBaseIndex + index
         guard mappedIndex >= 0, mappedIndex < queueItems.count else { return }
+        log("item failed index=\(index) mappedIndex=\(mappedIndex) didUseFallback=\(queueItems[mappedIndex].didUseFallback)")
         if queueItems[mappedIndex].didUseFallback {
+            log("playback failure after fallback track=\(queueItems[mappedIndex].track.ratingKey)")
             onError?(PlaybackError(message: "Playback failed."))
             return
         }
         guard let fallbackURL = queueItems[mappedIndex].fallbackURL else {
+            log("no fallback url for track=\(queueItems[mappedIndex].track.ratingKey)")
             onError?(PlaybackError(message: "Playback failed."))
             return
         }
         queueItems[mappedIndex].didUseFallback = true
+        log("replacing current item with fallback url=\(fallbackURL.absoluteString)")
         player.replaceCurrentItem(url: fallbackURL)
     }
 
@@ -148,6 +163,7 @@ final class PlaybackEngine: PlaybackEngineing {
 
     private func handlePlaybackStateChange(isPlaying: Bool) {
         self.isPlaying = isPlaying
+        log("playback state changed isPlaying=\(isPlaying)")
         publishState()
     }
 
@@ -197,6 +213,12 @@ final class PlaybackEngine: PlaybackEngineing {
         }
 
         return 0
+    }
+
+    private func log(_ message: String) {
+#if DEBUG
+        print("[PlaybackDebug][Engine] \(message)")
+#endif
     }
 }
 
