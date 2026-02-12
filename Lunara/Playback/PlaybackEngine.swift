@@ -146,15 +146,32 @@ final class PlaybackEngine: PlaybackEngineing {
             onError?(PlaybackError(message: "Playback failed."))
             return
         }
-        guard let fallbackURL = queueItems[mappedIndex].fallbackURL else {
+        guard queueItems[mappedIndex].fallbackURL != nil else {
             log("no fallback url for track=\(queueItems[mappedIndex].track.ratingKey)")
             onError?(PlaybackError(message: "Playback failed."))
             return
         }
-        queueItems[mappedIndex].didUseFallback = true
-        log("replacing current item with fallback url=\(fallbackURL.absoluteString)")
-        player.replaceCurrentItem(url: fallbackURL)
+
+        // Rebuild the remainder of the queue with remote fallback URLs to avoid AVQueue stalling
+        // when a local asset cannot be opened.
+        var fallbackURLs: [URL] = []
+        fallbackURLs.reserveCapacity(queueItems.count - mappedIndex)
+        for queueIndex in mappedIndex..<queueItems.count {
+            let fallbackURL = queueItems[queueIndex].fallbackURL ?? queueItems[queueIndex].primaryURL
+            if queueItems[queueIndex].fallbackURL != nil {
+                queueItems[queueIndex].didUseFallback = true
+            }
+            fallbackURLs.append(fallbackURL)
+        }
+
+        log("rebuilding queue from mappedIndex=\(mappedIndex) fallbackCount=\(fallbackURLs.count)")
+        queueBaseIndex = mappedIndex
+        currentIndex = mappedIndex
+        currentElapsed = 0
+        player.setQueue(urls: fallbackURLs)
         player.play()
+        isPlaying = true
+        publishState()
     }
 
     private func handleTimeUpdate(_ time: TimeInterval) {
