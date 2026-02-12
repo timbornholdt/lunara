@@ -139,6 +139,72 @@ struct OfflineDownloadsCoordinatorTests {
         #expect(manifest.tracks.values.filter { $0.isOpportunistic }.count == 6)
     }
 
+    @Test func manageDownloadsSnapshotIncludesStreamCachedTrackMetadata() async throws {
+        let base = FileManager.default.temporaryDirectory
+            .appendingPathComponent("OfflineDownloadsCoordinatorTests.\(UUID().uuidString)", isDirectory: true)
+        let manifestStore = OfflineManifestStore(baseURL: base.appendingPathComponent("manifest", isDirectory: true))
+        let fileStore = OfflineFileStore(baseURL: base.appendingPathComponent("files", isDirectory: true))
+        try manifestStore.save(
+            OfflineManifest(
+                tracks: [
+                    "track-a": OfflineTrackRecord(
+                        trackRatingKey: "track-a",
+                        trackTitle: "First Song",
+                        artistName: "A Artist",
+                        partKey: "/parts/a",
+                        relativeFilePath: nil,
+                        expectedBytes: 10,
+                        actualBytes: 10,
+                        state: .completed,
+                        isOpportunistic: true,
+                        lastPlayedAt: nil,
+                        completedAt: Date(timeIntervalSince1970: 100)
+                    ),
+                    "track-b": OfflineTrackRecord(
+                        trackRatingKey: "track-b",
+                        trackTitle: "Second Song",
+                        artistName: "B Artist",
+                        partKey: "/parts/b",
+                        relativeFilePath: nil,
+                        expectedBytes: 10,
+                        actualBytes: 10,
+                        state: .completed,
+                        isOpportunistic: true,
+                        lastPlayedAt: nil,
+                        completedAt: Date(timeIntervalSince1970: 101)
+                    )
+                ],
+                albums: [
+                    "album-1": OfflineAlbumRecord(
+                        albumIdentity: "album-1",
+                        displayTitle: "Album One",
+                        artistName: "A Artist",
+                        artworkPath: nil,
+                        trackKeys: ["track-a", "track-b"],
+                        isExplicit: false,
+                        collectionKeys: []
+                    )
+                ]
+            )
+        )
+
+        let coordinator = OfflineDownloadsCoordinator.make(
+            manifestStore: manifestStore,
+            fileStore: fileStore,
+            trackFetcher: StubTrackFetcher(trackMap: [:]),
+            downloader: StubDownloader(payloadByTrack: [:]),
+            wifiMonitor: StubWiFiMonitor(isOnWiFi: true),
+            nowProvider: Date.init
+        )
+
+        let snapshot = await coordinator.manageDownloadsSnapshot()
+        #expect(snapshot.streamCachedTracks.count == 2)
+        #expect(snapshot.streamCachedTracks.map(\.trackRatingKey) == ["track-a", "track-b"])
+        #expect(snapshot.streamCachedTracks.map(\.trackTitle) == ["First Song", "Second Song"])
+        #expect(snapshot.streamCachedTracks.map(\.artistName) == ["A Artist", "B Artist"])
+        #expect(snapshot.streamCachedTracks.map(\.albumIdentity) == ["album-1", "album-1"])
+    }
+
     @Test func publishesInProgressBytesDuringDownload() async throws {
         let track = makeTrack("progress-track", partKey: "/library/parts/p/file.mp3")
         let downloader = StubDownloader(
