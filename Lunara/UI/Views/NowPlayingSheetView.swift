@@ -173,15 +173,9 @@ struct NowPlayingSheetView: View {
                         track: item.track,
                         albumArtist: context?.album.artist,
                         palette: palette,
-                        onTap: { onSelectTrack(item.track) }
+                        onTap: { onSelectTrack(item.track) },
+                        onRemove: { onRemoveUpNextAtIndex(item.absoluteIndex) }
                     )
-                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                        Button(role: .destructive) {
-                            onRemoveUpNextAtIndex(item.absoluteIndex)
-                        } label: {
-                            Label("Remove", systemImage: "trash")
-                        }
-                    }
                 }
             }
         }
@@ -345,37 +339,91 @@ private struct UpNextRow: View {
     let albumArtist: String?
     let palette: ThemePalette
     let onTap: () -> Void
+    let onRemove: () -> Void
+
+    @State private var dragOffset: CGFloat = 0
+
+    private enum Swipe {
+        static let actionWidth: CGFloat = 88
+        static let revealThreshold: CGFloat = 56
+        static let fullDeleteThreshold: CGFloat = 140
+    }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Text(trackNumber)
-                .font(LunaraTheme.Typography.displayRegular(size: 13).monospacedDigit())
-                .foregroundStyle(palette.textSecondary)
-                .frame(width: 24, alignment: .leading)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(track.title)
-                    .font(LunaraTheme.Typography.displayRegular(size: 16))
-                    .foregroundStyle(palette.textPrimary)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                if let artist = TrackArtistDisplayResolver.displayArtist(for: track, albumArtist: albumArtist) {
-                    Text(artist)
-                        .font(LunaraTheme.Typography.displayRegular(size: 13))
-                        .foregroundStyle(palette.textSecondary)
-                        .lineLimit(1)
-                }
+        ZStack(alignment: .trailing) {
+            Button(role: .destructive, action: onRemove) {
+                Label("Remove", systemImage: "trash")
+                    .font(LunaraTheme.Typography.displayRegular(size: 13))
+                    .frame(width: Swipe.actionWidth, height: 44)
             }
+            .buttonStyle(.borderedProminent)
+            .tint(.red)
+            .opacity(actionOpacity)
 
-            Spacer(minLength: 8)
-
-            if let duration = track.duration {
-                Text(formatDuration(duration))
+            HStack(alignment: .top, spacing: 12) {
+                Text(trackNumber)
                     .font(LunaraTheme.Typography.displayRegular(size: 13).monospacedDigit())
                     .foregroundStyle(palette.textSecondary)
+                    .frame(width: 24, alignment: .leading)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(track.title)
+                        .font(LunaraTheme.Typography.displayRegular(size: 16))
+                        .foregroundStyle(palette.textPrimary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if let artist = TrackArtistDisplayResolver.displayArtist(for: track, albumArtist: albumArtist) {
+                        Text(artist)
+                            .font(LunaraTheme.Typography.displayRegular(size: 13))
+                            .foregroundStyle(palette.textSecondary)
+                            .lineLimit(1)
+                    }
+                }
+
+                Spacer(minLength: 8)
+
+                if let duration = track.duration {
+                    Text(formatDuration(duration))
+                        .font(LunaraTheme.Typography.displayRegular(size: 13).monospacedDigit())
+                        .foregroundStyle(palette.textSecondary)
+                }
             }
+            .offset(x: dragOffset)
+            .gesture(
+                DragGesture(minimumDistance: 10)
+                    .onChanged { value in
+                        let translation = value.translation.width
+                        if translation < 0 {
+                            dragOffset = max(translation, -Swipe.fullDeleteThreshold)
+                        } else {
+                            dragOffset = min(translation - Swipe.actionWidth, 0)
+                        }
+                    }
+                    .onEnded { value in
+                        let translation = value.translation.width
+                        if translation < -Swipe.fullDeleteThreshold {
+                            onRemove()
+                            dragOffset = 0
+                            return
+                        }
+                        withAnimation(.spring(response: 0.22, dampingFraction: 0.9)) {
+                            dragOffset = translation < -Swipe.revealThreshold ? -Swipe.actionWidth : 0
+                        }
+                    }
+            )
+            .simultaneousGesture(
+                TapGesture().onEnded {
+                    if dragOffset == 0 {
+                        onTap()
+                    } else {
+                        withAnimation(.spring(response: 0.22, dampingFraction: 0.9)) {
+                            dragOffset = 0
+                        }
+                    }
+                }
+            )
         }
         .padding(.vertical, 10)
         .padding(.horizontal, 12)
@@ -386,7 +434,10 @@ private struct UpNextRow: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: LunaraTheme.Layout.cardCornerRadius))
         .contentShape(Rectangle())
-        .onTapGesture(perform: onTap)
+    }
+
+    private var actionOpacity: Double {
+        min(max(Double(-dragOffset / Swipe.actionWidth), 0), 1)
     }
 
     private var trackNumber: String {
