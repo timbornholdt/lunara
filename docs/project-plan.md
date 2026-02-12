@@ -96,7 +96,7 @@
      - Replace the Library "Sign Out" button with a settings gear icon.
      - Settings screen includes Sign Out action.
      - Settings screen includes a toggle to enable album de-dup debug logging.
-11. [ ] Offline manager v1
+11. [x] Offline manager v1
    - Requirements defined in `docs/features/offline-manager-v1.md`
    - Progress update (2026-02-11):
      - Implemented Wi-Fi-only offline download queue, local-first playback integration, opportunistic current+next-5 caching hooks, manage downloads screen, collection reconciliation on refresh, 120 GB eviction with non-explicit LRU policy, and sign-out offline purge.
@@ -198,6 +198,7 @@
   - On the settings page, I see a page that lets me browse these todos. Tapping a todo shows me enough detail (e.g. the track title, artist name, collection name, album name, whatever context is appropriate) and the note I made. I can mark the task as complete.
 - Dope ass loading indicator
   - Have the AI make a few that i can switch and review in app using feature flags and on the settings page
+- Make the colors in the tab bar change when you are on an album view (the default blue looks like shit)
   
 ## First Feature Design Docs (Suggested Order)
 1. `docs/features/plex-auth-library-browse.md`
