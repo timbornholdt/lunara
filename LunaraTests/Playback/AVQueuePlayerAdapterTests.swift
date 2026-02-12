@@ -50,6 +50,21 @@ struct AVQueuePlayerAdapterTests {
         #expect(failedIndex == 0)
     }
 
+    @Test func errorLogNotificationTriggersFailureCallback() async throws {
+        let player = AVQueuePlayer()
+        let adapter = AVQueuePlayerAdapter(player: player)
+        var failedIndex: Int?
+        adapter.onItemFailed = { failedIndex = $0 }
+        adapter.setQueue(urls: [
+            URL(string: "https://example.com/1.mp3")!
+        ])
+
+        let currentItem = try #require(player.currentItem)
+        NotificationCenter.default.post(name: .AVPlayerItemNewErrorLogEntry, object: currentItem)
+
+        #expect(failedIndex == 0)
+    }
+
     @Test func replaceCurrentItemSwapsURL() async throws {
         let player = AVQueuePlayer()
         let adapter = AVQueuePlayerAdapter(player: player)
