@@ -201,12 +201,30 @@ actor OfflineDownloadsCoordinator: OfflineOpportunisticCaching, OfflineDownloadQ
             .map { track in
                 OfflineStreamCachedTrackSummary(
                     trackRatingKey: track.trackRatingKey,
+                    trackTitle: track.trackTitle,
+                    artistName: track.artistName,
                     albumIdentity: manifest.albums.values.first(where: { $0.trackKeys.contains(track.trackRatingKey) })?.albumIdentity,
                     completedAt: track.completedAt
                 )
             }
             .sorted { lhs, rhs in
-                lhs.trackRatingKey.localizedCaseInsensitiveCompare(rhs.trackRatingKey) == .orderedAscending
+                let lhsArtist = lhs.artistName?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let rhsArtist = rhs.artistName?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let lhsArtistKey = (lhsArtist?.isEmpty == false ? lhsArtist : "~")?.localizedLowercase ?? "~"
+                let rhsArtistKey = (rhsArtist?.isEmpty == false ? rhsArtist : "~")?.localizedLowercase ?? "~"
+                if lhsArtistKey != rhsArtistKey {
+                    return lhsArtistKey < rhsArtistKey
+                }
+
+                let lhsTitle = lhs.trackTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let rhsTitle = rhs.trackTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let lhsTitleKey = (lhsTitle?.isEmpty == false ? lhsTitle : lhs.trackRatingKey)?.localizedLowercase ?? lhs.trackRatingKey.localizedLowercase
+                let rhsTitleKey = (rhsTitle?.isEmpty == false ? rhsTitle : rhs.trackRatingKey)?.localizedLowercase ?? rhs.trackRatingKey.localizedLowercase
+                if lhsTitleKey != rhsTitleKey {
+                    return lhsTitleKey < rhsTitleKey
+                }
+
+                return lhs.trackRatingKey.localizedCaseInsensitiveCompare(rhs.trackRatingKey) == .orderedAscending
             }
 
         return OfflineManageDownloadsSnapshot(

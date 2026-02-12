@@ -154,6 +154,8 @@ struct OfflineDownloadedCollectionSummary: Equatable, Sendable, Identifiable {
 
 struct OfflineStreamCachedTrackSummary: Equatable, Sendable, Identifiable {
     let trackRatingKey: String
+    let trackTitle: String?
+    let artistName: String?
     let albumIdentity: String?
     let completedAt: Date?
 

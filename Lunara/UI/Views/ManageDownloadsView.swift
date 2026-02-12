@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ManageDownloadsView: View {
     @StateObject private var viewModel: ManageDownloadsViewModel
+    @State private var isShowingStreamCachedTracks = false
     @ObservedObject var playbackViewModel: PlaybackViewModel
     let signOut: () -> Void
     @Environment(\.colorScheme) private var colorScheme
@@ -183,9 +184,42 @@ struct ManageDownloadsView: View {
                 Text("No stream-cached tracks.")
                     .foregroundStyle(palette.textSecondary)
             } else {
-                ForEach(viewModel.snapshot.streamCachedTracks) { track in
-                    Text(track.trackRatingKey)
-                }
+                DisclosureGroup(
+                    isExpanded: $isShowingStreamCachedTracks,
+                    content: {
+                        ForEach(viewModel.snapshot.streamCachedTracks) { track in
+                            streamCachedTrackRow(track: track, palette: palette)
+                        }
+                    },
+                    label: {
+                        Text("\(viewModel.snapshot.streamCachedTracks.count) cached tracks")
+                            .foregroundStyle(palette.textPrimary)
+                    }
+                )
+                .tint(palette.textPrimary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func streamCachedTrackRow(
+        track: OfflineStreamCachedTrackSummary,
+        palette: LunaraTheme.PaletteColors
+    ) -> some View {
+        let trimmedTitle = track.trackTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let displayTitle = (trimmedTitle?.isEmpty == false) ? (trimmedTitle ?? "Unknown Track") : "Unknown Track"
+
+        VStack(alignment: .leading, spacing: 4) {
+            Text(displayTitle)
+                .foregroundStyle(palette.textPrimary)
+            if let artist = track.artistName?.trimmingCharacters(in: .whitespacesAndNewlines), artist.isEmpty == false {
+                Text(artist)
+                    .font(.caption)
+                    .foregroundStyle(palette.textSecondary)
+            } else {
+                Text("Unknown Artist")
+                    .font(.caption)
+                    .foregroundStyle(palette.textSecondary)
             }
         }
     }
