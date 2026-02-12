@@ -97,13 +97,28 @@
      - Settings screen includes Sign Out action.
      - Settings screen includes a toggle to enable album de-dup debug logging.
 11. [ ] Offline manager v1
+   - Requirements defined in `docs/features/offline-manager-v1.md`
+   - Progress update (2026-02-11):
+     - Implemented Wi-Fi-only offline download queue, local-first playback integration, opportunistic current+next-5 caching hooks, manage downloads screen, collection reconciliation on refresh, 120 GB eviction with non-explicit LRU policy, and sign-out offline purge.
+     - Remaining polish: verify final UX/error messaging details during manual QA.
    - Acceptance criteria:
-     - Downloads complete files only.
+     - A user can tap a "download" button on the "show album" page that triggers a download of all tracks on that album
+	 - A user can also download a "collection", which will download all albums from that collection
+	 	- If an album within a collection is already downloaded, it will not download it again
+	 - The settings screen will have a "Manage downloads" section where I can see all downloaded albums and collections
+	   - I should also see a progress indicator of the tracks that are downloading at the moment
+     - Must download complete files only. If a track cannot finish downloading, it will be removed from downloads.
      - Offline playback skips non-downloaded tracks immediately.
+	 - When an album is played and a stream of the song is started, each complete stream should be saved for offline playback later
+	 - The playback tool checks the local cache of songs first before reaching out to download it.
 12. [ ] Queue manager v1
    - Acceptance criteria:
      - Play now/next/later works for album insertions.
+	   - Play Now removes all items from the queue and beings playing the album from track 1
+	   - Play next preserves the existing queue and inserts all tracks from the album to the top of the queue
+	   - Play later preserves the existing queue and inserts all tracks from the album to the bottom of the queue
      - Queue persists across app restarts.
+	 - Long pressing on an individual track opens a menu which allows me to add the track in the same manner as the albums described above
 13. [ ] Lock screen now playing + remote controls
    - Acceptance criteria:
      - Lock screen and Control Center show current track, elapsed time, and duration.
@@ -134,6 +149,7 @@
 3. [ ] Album change detection
    - Acceptance criteria:
      - Changes in Plex trigger re-download on Wi-Fi only.
+	 
 ## Phase 4 — Deep linking
 1. Boot from the side button on the iPhone 15 Pro
   - Pushing that button starts playing a random album as fast as possible (loads the "now playing" screen)
@@ -175,7 +191,11 @@
 - Playlist support (collections view extension)
   - Add playlist browsing alongside collections.
   - Support playlist playback and queue integration.
-
+- Digital gardening tool (maybe we can call it The Weeder)
+  - An album or track or collection or artist can have a "todo" gardening action
+  - From the now playing screen, I can tap a garden-esque icon (a plant or something) that brings up a pop up text box
+  - The text box allows me to type in something (e.g. "fix album art")
+  - On the settings page, I see a page that lets me browse these todos. Tapping a todo shows me enough detail (e.g. the track title, artist name, collection name, album name, whatever context is appropriate) and the note I made. I can mark the task as complete.
 - Dope ass loading indicator
   - Have the AI make a few that i can switch and review in app using feature flags and on the settings page
   

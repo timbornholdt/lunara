@@ -154,6 +154,7 @@ private struct AlbumRowView: View {
     let playbackViewModel: PlaybackViewModel
     let signOut: () -> Void
     let ratingKeys: (PlexAlbum) -> [String]
+    @State private var quickActionAlbum: PlexAlbum?
 
     @State private var leftHeight: CGFloat = 0
     @State private var rightHeight: CGFloat = 0
@@ -167,6 +168,28 @@ private struct AlbumRowView: View {
             } else {
                 Color.clear
                     .frame(width: width)
+            }
+        }
+        .confirmationDialog(
+            "Album Actions",
+            isPresented: Binding(
+                get: { quickActionAlbum != nil },
+                set: { isPresented in
+                    if isPresented == false {
+                        quickActionAlbum = nil
+                    }
+                }
+            ),
+            titleVisibility: .visible
+        ) {
+            if let album = quickActionAlbum {
+                Button("Download Album") {
+                    playbackViewModel.downloadAlbum(album: album, albumRatingKeys: ratingKeys(album))
+                    quickActionAlbum = nil
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                quickActionAlbum = nil
             }
         }
     }
@@ -193,6 +216,15 @@ private struct AlbumRowView: View {
             )
         }
         .buttonStyle(.plain)
+        .simultaneousGesture(
+            LongPressGesture(minimumDuration: 0.2)
+                .onEnded { _ in
+                    quickActionAlbum = album
+                }
+        )
+        .accessibilityAction(named: "Download Album") {
+            playbackViewModel.downloadAlbum(album: album, albumRatingKeys: ratingKeys(album))
+        }
     }
 }
 

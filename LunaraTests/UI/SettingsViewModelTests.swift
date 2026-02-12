@@ -50,17 +50,26 @@ struct SettingsViewModelTests {
         #expect(viewModel.experimentToggles.map(\.id) == [.newQueueAlgorithm])
     }
 
-    @Test func signOutUsesConfirmationAndCallsCallbackOnlyAfterConfirm() {
+    @Test func signOutUsesConfirmationAndCallsCallbackOnlyAfterConfirm() async {
         let store = InMemoryAppSettingsStore()
         var signOutCount = 0
-        let viewModel = SettingsViewModel(settingsStore: store, onSignOut: { signOutCount += 1 })
+        let lifecycle = RecordingOfflineLifecycleManager()
+        let viewModel = SettingsViewModel(
+            settingsStore: store,
+            offlineLifecycleManager: lifecycle,
+            onSignOut: { signOutCount += 1 }
+        )
 
         viewModel.requestSignOut()
         #expect(viewModel.isSignOutConfirmationPresented == true)
         #expect(signOutCount == 0)
 
         viewModel.confirmSignOut()
+        while signOutCount == 0 {
+            await Task.yield()
+        }
         #expect(signOutCount == 1)
+        #expect(lifecycle.purgeCallCount == 1)
         #expect(viewModel.isSignOutConfirmationPresented == false)
     }
 
@@ -73,5 +82,13 @@ struct SettingsViewModelTests {
 
         viewModel.cancelSignOut()
         #expect(viewModel.isSignOutConfirmationPresented == false)
+    }
+}
+
+private final class RecordingOfflineLifecycleManager: OfflineDownloadsLifecycleManaging {
+    private(set) var purgeCallCount = 0
+
+    func purgeAll() async throws {
+        purgeCallCount += 1
     }
 }

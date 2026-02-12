@@ -39,6 +39,7 @@ final class PlaybackEngine: PlaybackEngineing {
         } else {
             start = startIndex
         }
+
         let items = tracks.compactMap { track -> PlaybackQueueItem? in
             guard let source = sourceResolver.resolveSource(for: track) else { return nil }
             let fallback: URL?
@@ -54,6 +55,7 @@ final class PlaybackEngine: PlaybackEngineing {
             onError?(PlaybackError(message: "Playback unavailable for this track."))
             return
         }
+        let resolvedStart = resolveStartIndex(requestedStart: start, originalTracks: tracks, playableItems: items)
         do {
             try audioSession.configureForPlayback()
         } catch {
@@ -62,10 +64,10 @@ final class PlaybackEngine: PlaybackEngineing {
         }
 
         queueItems = items
-        queueBaseIndex = start
-        currentIndex = start
+        queueBaseIndex = resolvedStart
+        currentIndex = resolvedStart
         currentElapsed = 0
-        player.setQueue(urls: items[start...].map { $0.primaryURL })
+        player.setQueue(urls: items[resolvedStart...].map { $0.primaryURL })
         player.play()
         isPlaying = true
         publishState()
@@ -182,6 +184,25 @@ final class PlaybackEngine: PlaybackEngineing {
         player.play()
         isPlaying = true
         publishState()
+    }
+
+    private func resolveStartIndex(
+        requestedStart: Int,
+        originalTracks: [PlexTrack],
+        playableItems: [PlaybackQueueItem]
+    ) -> Int {
+        guard requestedStart < originalTracks.count else {
+            return 0
+        }
+
+        for index in requestedStart..<originalTracks.count {
+            let key = originalTracks[index].ratingKey
+            if let playableIndex = playableItems.firstIndex(where: { $0.track.ratingKey == key }) {
+                return playableIndex
+            }
+        }
+
+        return 0
     }
 }
 

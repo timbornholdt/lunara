@@ -17,6 +17,7 @@ final class CollectionsViewModel: ObservableObject {
     private let logger: ([String]) -> Void
     private let snapshotStore: LibrarySnapshotStoring
     private let artworkPrefetcher: ArtworkPrefetching
+    private let offlineDownloadQueue: OfflineDownloadQueuing?
 
     private(set) var sectionKey: String?
 
@@ -39,7 +40,8 @@ final class CollectionsViewModel: ObservableObject {
             print("----- End Collection Titles -----")
         },
         snapshotStore: LibrarySnapshotStoring = LibrarySnapshotStore(),
-        artworkPrefetcher: ArtworkPrefetching = ArtworkLoader.shared
+        artworkPrefetcher: ArtworkPrefetching = ArtworkLoader.shared,
+        offlineDownloadQueue: OfflineDownloadQueuing? = OfflineServices.shared.coordinator
     ) {
         self.tokenStore = tokenStore
         self.serverStore = serverStore
@@ -48,6 +50,7 @@ final class CollectionsViewModel: ObservableObject {
         self.logger = logger
         self.snapshotStore = snapshotStore
         self.artworkPrefetcher = artworkPrefetcher
+        self.offlineDownloadQueue = offlineDownloadQueue
     }
 
     func loadCollections() async {
@@ -90,6 +93,11 @@ final class CollectionsViewModel: ObservableObject {
             collections = sortCollections(fetchedCollections)
             saveSnapshot(collections: collections)
             prefetchArtwork(for: collections)
+            await reconcileOfflineCollectionMemberships(
+                service: service,
+                sectionKey: firstMusic.key,
+                liveCollections: fetchedCollections
+            )
             hasLoadedCollections = true
         } catch {
             print("CollectionsViewModel.loadCollections error: \(error)")
@@ -161,5 +169,64 @@ final class CollectionsViewModel: ObservableObject {
         let builder = ArtworkRequestBuilder(baseURL: baseURL, token: token)
         let requests = collections.prefix(24).compactMap { builder.collectionRequest(for: $0, size: .grid) }
         artworkPrefetcher.prefetch(requests)
+    }
+
+    private func reconcileOfflineCollectionMemberships(
+        service: PlexLibraryServicing,
+        sectionKey: String,
+        liveCollections: [PlexCollection]
+    ) async {
+        guard let offlineDownloadQueue else { return }
+
+        do {
+            let downloadedCollectionKeys = await offlineDownloadQueue.downloadedCollectionKeys()
+            guard downloadedCollectionKeys.isEmpty == false else { return }
+
+            let collectionsByKey = Dictionary(uniqueKeysWithValues: liveCollections.map { ($0.ratingKey, $0) })
+            for collectionKey in downloadedCollectionKeys {
+                guard let collection = collectionsByKey[collectionKey] else {
+                    try await offlineDownloadQueue.removeCollectionDownload(collectionKey: collectionKey)
+                    continue
+                }
+
+                let albums = try await service.fetchAlbumsInCollection(
+                    sectionId: sectionKey,
+                    collectionKey: collection.ratingKey
+                )
+                let groups = makeAlbumGroups(from: albums)
+                try await offlineDownloadQueue.reconcileCollectionDownload(
+                    collectionKey: collection.ratingKey,
+                    title: collection.title,
+                    albumGroups: groups
+                )
+            }
+        } catch {
+            if let statusCode = (error as? PlexHTTPError)?.statusCode {
+                errorMessage = "Failed to reconcile downloads (HTTP \(statusCode))."
+            } else {
+                errorMessage = "Failed to reconcile downloads."
+            }
+        }
+    }
+
+    private func makeAlbumGroups(from albums: [PlexAlbum]) -> [OfflineCollectionAlbumGroup] {
+        var byIdentity: [String: [PlexAlbum]] = [:]
+        for album in albums {
+            byIdentity[OfflineAlbumIdentity.make(for: album), default: []].append(album)
+        }
+
+        return byIdentity.values.compactMap { groupedAlbums in
+            guard let first = groupedAlbums.first else { return nil }
+            return OfflineCollectionAlbumGroup(
+                albumIdentity: OfflineAlbumIdentity.make(for: first),
+                displayTitle: first.title,
+                artistName: first.artist,
+                artworkPath: first.thumb ?? first.art,
+                albumRatingKeys: groupedAlbums.map(\.ratingKey).sorted()
+            )
+        }
+        .sorted { lhs, rhs in
+            lhs.displayTitle.localizedCaseInsensitiveCompare(rhs.displayTitle) == .orderedAscending
+        }
     }
 }

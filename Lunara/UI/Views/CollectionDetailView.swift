@@ -64,6 +64,16 @@ struct CollectionDetailView: View {
                                         CollectionAlbumCardView(album: album, palette: palette, width: columnWidth)
                                     }
                                     .buttonStyle(.plain)
+                                    .contextMenu {
+                                        Button {
+                                            playbackViewModel.downloadAlbum(
+                                                album: album,
+                                                albumRatingKeys: viewModel.ratingKeys(for: album)
+                                            )
+                                        } label: {
+                                            Label("Download Album", systemImage: "arrow.down.circle")
+                                        }
+                                    }
                                 }
                             }
                             .padding(.horizontal, LunaraTheme.Layout.globalPadding)

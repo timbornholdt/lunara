@@ -7,6 +7,7 @@ final class AlbumDetailViewModel: ObservableObject {
     @Published var tracks: [PlexTrack] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
+    @Published private(set) var albumDownloadProgress: OfflineAlbumDownloadProgress?
 
     private let album: PlexAlbum
     private let albumRatingKeys: [String]
@@ -15,6 +16,8 @@ final class AlbumDetailViewModel: ObservableObject {
     private let libraryServiceFactory: PlexLibraryServiceFactory
     private let sessionInvalidationHandler: () -> Void
     private let playbackController: PlaybackControlling
+    private let downloadStatusProvider: OfflineDownloadStatusProviding?
+    private var cancellables: Set<AnyCancellable> = []
 
     init(
         album: PlexAlbum,
@@ -31,7 +34,8 @@ final class AlbumDetailViewModel: ObservableObject {
             )
         },
         sessionInvalidationHandler: @escaping () -> Void = {},
-        playbackController: PlaybackControlling? = nil
+        playbackController: PlaybackControlling? = nil,
+        downloadStatusProvider: OfflineDownloadStatusProviding? = OfflineServices.shared.coordinator
     ) {
         self.album = album
         self.albumRatingKeys = albumRatingKeys
@@ -40,6 +44,16 @@ final class AlbumDetailViewModel: ObservableObject {
         self.libraryServiceFactory = libraryServiceFactory
         self.sessionInvalidationHandler = sessionInvalidationHandler
         self.playbackController = playbackController ?? PlaybackNoopController()
+        self.downloadStatusProvider = downloadStatusProvider
+        NotificationCenter.default.publisher(for: .offlineDownloadsDidChange)
+            .debounce(for: .milliseconds(200), scheduler: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                Task {
+                    await self.refreshDownloadProgress()
+                }
+            }
+            .store(in: &cancellables)
     }
 
     func loadTracks() async {
@@ -89,6 +103,15 @@ final class AlbumDetailViewModel: ObservableObject {
             startIndex: index,
             context: makeNowPlayingContext()
         )
+    }
+
+    func refreshDownloadProgress() async {
+        guard let downloadStatusProvider else {
+            albumDownloadProgress = nil
+            return
+        }
+        let identity = OfflineAlbumIdentity.make(for: album)
+        albumDownloadProgress = await downloadStatusProvider.albumDownloadProgress(albumIdentity: identity)
     }
 
     private func fetchMergedTracks(

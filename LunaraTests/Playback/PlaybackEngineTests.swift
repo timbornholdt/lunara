@@ -65,6 +65,34 @@ struct PlaybackEngineTests {
         #expect(player.setQueueURLs.count == 2)
     }
 
+    @Test func startIndexSkipsUnavailableTracksAndStartsAtNextPlayable() async throws {
+        let player = TestPlaybackPlayer()
+        let resolver = StubPlaybackSourceResolver(urls: [
+            "1": URL(string: "https://example.com/1.mp3")!,
+            "3": URL(string: "https://example.com/3.mp3")!
+        ])
+        let fallbackBuilder = StubFallbackURLBuilder(url: URL(string: "https://example.com/fallback.m3u8")!)
+        let audioSession = StubAudioSessionManager()
+        let engine = PlaybackEngine(
+            player: player,
+            sourceResolver: resolver,
+            fallbackURLBuilder: fallbackBuilder,
+            audioSession: audioSession
+        )
+        let tracks = [
+            PlexTrack(ratingKey: "1", title: "One", index: 1, parentIndex: nil, parentRatingKey: "10", duration: 1000, media: nil),
+            PlexTrack(ratingKey: "2", title: "Two", index: 2, parentIndex: nil, parentRatingKey: "10", duration: 2000, media: nil),
+            PlexTrack(ratingKey: "3", title: "Three", index: 3, parentIndex: nil, parentRatingKey: "10", duration: 3000, media: nil)
+        ]
+        var latestState: NowPlayingState?
+        engine.onStateChange = { latestState = $0 }
+
+        engine.play(tracks: tracks, startIndex: 1)
+
+        #expect(player.setQueueURLs == [URL(string: "https://example.com/3.mp3")!])
+        #expect(latestState?.trackRatingKey == "3")
+    }
+
     @Test func fallbackReplacesCurrentItemOnFailure() async throws {
         let player = TestPlaybackPlayer()
         let resolver = StubPlaybackSourceResolver(urls: [

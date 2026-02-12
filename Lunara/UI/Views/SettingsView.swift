@@ -2,6 +2,8 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var viewModel: SettingsViewModel
+    @ObservedObject var playbackViewModel: PlaybackViewModel
+    let signOut: () -> Void
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
 
@@ -12,6 +14,17 @@ struct SettingsView: View {
             ZStack {
                 LinenBackgroundView(palette: palette)
                 Form {
+                    Section("Downloads") {
+                        NavigationLink {
+                            ManageDownloadsView(
+                                playbackViewModel: playbackViewModel,
+                                signOut: signOut
+                            )
+                        } label: {
+                            Label("Manage Downloads", systemImage: "arrow.down.circle")
+                        }
+                    }
+
                     Section("Diagnostics") {
                         ForEach(viewModel.diagnosticToggles) { toggle in
                             Toggle(

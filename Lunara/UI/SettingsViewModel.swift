@@ -34,15 +34,18 @@ final class SettingsViewModel: ObservableObject {
 
     private let settingsStore: AppSettingsStoring
     private let toggleDescriptors: [AppSettingToggleDescriptor]
+    private let offlineLifecycleManager: OfflineDownloadsLifecycleManaging?
     private let onSignOut: () -> Void
 
     init(
         settingsStore: AppSettingsStoring,
         toggleDescriptors: [AppSettingToggleDescriptor]? = nil,
+        offlineLifecycleManager: OfflineDownloadsLifecycleManaging? = OfflineServices.shared.coordinator,
         onSignOut: @escaping () -> Void
     ) {
         self.settingsStore = settingsStore
         self.toggleDescriptors = toggleDescriptors ?? Self.defaultToggleDescriptors
+        self.offlineLifecycleManager = offlineLifecycleManager
         self.onSignOut = onSignOut
     }
 
@@ -64,7 +67,12 @@ final class SettingsViewModel: ObservableObject {
 
     func confirmSignOut() {
         isSignOutConfirmationPresented = false
-        onSignOut()
+        Task {
+            try? await offlineLifecycleManager?.purgeAll()
+            await MainActor.run {
+                onSignOut()
+            }
+        }
     }
 
     private static let defaultToggleDescriptors: [AppSettingToggleDescriptor] = [

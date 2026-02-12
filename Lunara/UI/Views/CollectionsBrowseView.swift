@@ -63,6 +63,16 @@ struct CollectionsBrowseView: View {
                                             )
                                         }
                                         .buttonStyle(.plain)
+                                        .contextMenu {
+                                            Button {
+                                                playbackViewModel.downloadCollection(
+                                                    collection: collection,
+                                                    sectionKey: viewModel.sectionKey ?? ""
+                                                )
+                                            } label: {
+                                                Label("Download Collection", systemImage: "arrow.down.circle")
+                                            }
+                                        }
                                     }
                                 }
                                 .padding(.horizontal, Layout.globalPadding)
