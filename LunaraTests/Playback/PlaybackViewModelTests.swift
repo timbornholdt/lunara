@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import UIKit
 @testable import Lunara
 
 @MainActor
@@ -20,7 +21,14 @@ struct PlaybackViewModelTests {
 
     @Test func updatesNowPlayingFromEngineState() async {
         let engine = StubPlaybackEngine()
-        let viewModel = PlaybackViewModel(engine: engine, themeProvider: StubThemeProvider())
+        let nowPlayingCenter = RecordingNowPlayingInfoCenter()
+        let viewModel = PlaybackViewModel(
+            engine: engine,
+            themeProvider: StubThemeProvider(),
+            nowPlayingInfoCenter: nowPlayingCenter,
+            remoteCommandCenter: RecordingRemoteCommandCenter(),
+            lockScreenArtworkProvider: StubLockScreenArtworkProvider()
+        )
         let state = NowPlayingState(
             trackRatingKey: "1",
             trackTitle: "Track",
@@ -34,6 +42,120 @@ struct PlaybackViewModelTests {
         try? await Task.sleep(nanoseconds: 10_000_000)
 
         #expect(viewModel.nowPlaying == state)
+        #expect(nowPlayingCenter.updates.last?.title == "Track")
+        #expect(nowPlayingCenter.updates.last?.artist == "Artist")
+        #expect(nowPlayingCenter.updates.last?.elapsedTime == 10)
+        #expect(nowPlayingCenter.updates.last?.duration == 120)
+    }
+
+    @Test func lockScreenMetadataIncludesArtworkWhenAvailable() async {
+        let engine = StubPlaybackEngine()
+        let nowPlayingCenter = RecordingNowPlayingInfoCenter()
+        let artworkProvider = StubLockScreenArtworkProvider(
+            image: makeTestImage(color: .purple)
+        )
+        let viewModel = PlaybackViewModel(
+            engine: engine,
+            themeProvider: StubThemeProvider(),
+            nowPlayingInfoCenter: nowPlayingCenter,
+            remoteCommandCenter: RecordingRemoteCommandCenter(),
+            lockScreenArtworkProvider: artworkProvider
+        )
+        let album = PlexAlbum(
+            ratingKey: "a1",
+            title: "Album One",
+            thumb: nil,
+            art: nil,
+            year: 2001,
+            artist: "Artist",
+            titleSort: nil,
+            originalTitle: nil,
+            editionTitle: nil,
+            guid: nil,
+            librarySectionID: nil,
+            parentRatingKey: nil,
+            studio: nil,
+            summary: nil,
+            genres: nil,
+            styles: nil,
+            moods: nil,
+            rating: nil,
+            userRating: nil,
+            key: nil
+        )
+        let track = PlexTrack(
+            ratingKey: "t1",
+            title: "One",
+            index: 1,
+            parentIndex: nil,
+            parentRatingKey: "a1",
+            duration: 120_000,
+            media: nil
+        )
+        let artworkRequest = ArtworkRequest(
+            key: ArtworkCacheKey(ratingKey: "a1", artworkPath: "/art/1", size: .detail),
+            url: URL(string: "https://example.com/1.png")!
+        )
+        let context = NowPlayingContext(
+            album: album,
+            albumRatingKeys: ["a1"],
+            tracks: [track],
+            artworkRequest: artworkRequest
+        )
+        let state = NowPlayingState(
+            trackRatingKey: "t1",
+            trackTitle: "One",
+            artistName: "Artist",
+            isPlaying: true,
+            elapsedTime: 10,
+            duration: 120
+        )
+
+        viewModel.play(tracks: [track], startIndex: 0, context: context)
+        engine.emitState(state)
+        _ = await waitUntil {
+            nowPlayingCenter.updates.last?.artworkImage != nil
+        }
+
+        #expect(nowPlayingCenter.updates.last?.albumTitle == "Album One")
+        #expect(nowPlayingCenter.updates.last?.artworkImage != nil)
+    }
+
+    @Test func lockScreenMetadataOmitsArtworkWhenUnavailable() async {
+        let engine = StubPlaybackEngine()
+        let nowPlayingCenter = RecordingNowPlayingInfoCenter()
+        let viewModel = PlaybackViewModel(
+            engine: engine,
+            themeProvider: StubThemeProvider(),
+            nowPlayingInfoCenter: nowPlayingCenter,
+            remoteCommandCenter: RecordingRemoteCommandCenter(),
+            lockScreenArtworkProvider: StubLockScreenArtworkProvider(image: nil)
+        )
+        let track = PlexTrack(
+            ratingKey: "t1",
+            title: "One",
+            index: 1,
+            parentIndex: nil,
+            parentRatingKey: "a1",
+            duration: 120_000,
+            media: nil
+        )
+        let state = NowPlayingState(
+            trackRatingKey: "t1",
+            trackTitle: "One",
+            artistName: "Artist",
+            isPlaying: true,
+            elapsedTime: 0,
+            duration: 120
+        )
+
+        viewModel.play(tracks: [track], startIndex: 0, context: nil)
+        engine.emitState(state)
+        _ = await waitUntil {
+            nowPlayingCenter.updates.isEmpty == false
+        }
+
+        #expect(nowPlayingCenter.updates.last?.artworkImage == nil)
     }
 
     @Test func updatesErrorMessageFromEngine() async {
@@ -52,6 +174,36 @@ struct PlaybackViewModelTests {
         viewModel.togglePlayPause()
 
         #expect(engine.toggleCallCount == 1)
+    }
+
+    @Test func stopClearsLockScreenAndTearsDownRemoteCommands() async {
+        let engine = StubPlaybackEngine()
+        let nowPlayingCenter = RecordingNowPlayingInfoCenter()
+        let remoteCommands = RecordingRemoteCommandCenter()
+        let viewModel = PlaybackViewModel(
+            engine: engine,
+            themeProvider: StubThemeProvider(),
+            nowPlayingInfoCenter: nowPlayingCenter,
+            remoteCommandCenter: remoteCommands,
+            lockScreenArtworkProvider: StubLockScreenArtworkProvider()
+        )
+
+        engine.emitState(
+            NowPlayingState(
+                trackRatingKey: "1",
+                trackTitle: "Track",
+                artistName: "Artist",
+                isPlaying: true,
+                elapsedTime: 0,
+                duration: 100
+            )
+        )
+        _ = await waitUntil { remoteCommands.configureCallCount == 1 }
+
+        viewModel.stop()
+
+        #expect(nowPlayingCenter.clearCallCount == 1)
+        #expect(remoteCommands.teardownCallCount == 1)
     }
 
     @Test func playStoresContextAndRequestsThemeOncePerAlbum() async {
@@ -476,6 +628,46 @@ private final class StubThemeProvider: ArtworkThemeProviding {
     }
 }
 
+private final class RecordingNowPlayingInfoCenter: NowPlayingInfoCenterUpdating {
+    private(set) var updates: [LockScreenNowPlayingMetadata] = []
+    private(set) var clearCallCount = 0
+
+    func update(with metadata: LockScreenNowPlayingMetadata) {
+        updates.append(metadata)
+    }
+
+    func clear() {
+        clearCallCount += 1
+    }
+}
+
+private final class RecordingRemoteCommandCenter: RemoteCommandCenterHandling {
+    private(set) var configureCallCount = 0
+    private(set) var teardownCallCount = 0
+    private(set) var handlers: RemoteCommandHandlers?
+
+    func configure(handlers: RemoteCommandHandlers) {
+        configureCallCount += 1
+        self.handlers = handlers
+    }
+
+    func teardown() {
+        teardownCallCount += 1
+    }
+}
+
+private final class StubLockScreenArtworkProvider: LockScreenArtworkProviding {
+    let image: UIImage?
+
+    init(image: UIImage? = nil) {
+        self.image = image
+    }
+
+    func resolveArtwork(for request: ArtworkRequest?) async -> UIImage? {
+        image
+    }
+}
+
 private final class RecordingLocalPlaybackIndex: LocalPlaybackIndexing {
     private(set) var markPlayedTrackKeys: [String] = []
 
@@ -583,4 +775,11 @@ private func waitUntil(
         try? await Task.sleep(nanoseconds: pollNanoseconds)
     }
     return condition()
+}
+
+private func makeTestImage(color: UIColor) -> UIImage {
+    UIGraphicsImageRenderer(size: CGSize(width: 2, height: 2)).image { context in
+        color.setFill()
+        context.fill(CGRect(x: 0, y: 0, width: 2, height: 2))
+    }
 }
