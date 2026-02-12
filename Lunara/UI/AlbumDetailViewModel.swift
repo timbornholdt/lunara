@@ -89,11 +89,6 @@ final class AlbumDetailViewModel: ObservableObject {
     }
 
     func playAlbum() {
-        NSLog(
-            "[PlaybackDebug][AlbumDetailVM] playAlbum album=%@ trackCount=%d",
-            album.ratingKey,
-            tracks.count
-        )
         playbackController.play(
             tracks: tracks,
             startIndex: 0,
@@ -102,11 +97,6 @@ final class AlbumDetailViewModel: ObservableObject {
     }
 
     func playTrack(_ track: PlexTrack) {
-        NSLog(
-            "[PlaybackDebug][AlbumDetailVM] playTrack album=%@ track=%@",
-            album.ratingKey,
-            track.ratingKey
-        )
         guard let index = tracks.firstIndex(where: { $0.ratingKey == track.ratingKey }) else { return }
         playbackController.play(
             tracks: tracks,

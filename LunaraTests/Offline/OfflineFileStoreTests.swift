@@ -12,7 +12,7 @@ struct OfflineFileStoreTests {
 
         #expect(a == b)
         #expect(a.hasPrefix("tracks/"))
-        #expect(a.hasSuffix(".audio"))
+        #expect(a.hasSuffix(".flac"))
     }
 
     @Test func trackRelativePathDiffersByPartKey() throws {

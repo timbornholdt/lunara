@@ -8,7 +8,7 @@ struct OfflinePlaybackIndexTests {
             .appendingPathComponent("OfflinePlaybackIndexTests.\(UUID().uuidString)", isDirectory: true)
         let manifestStore = OfflineManifestStore(baseURL: base.appendingPathComponent("manifest", isDirectory: true))
         let fileStore = OfflineFileStore(baseURL: base.appendingPathComponent("files", isDirectory: true))
-        let relativePath = "tracks/track.audio"
+        let relativePath = "tracks/track.mp3"
         try fileStore.write(Data([0x01, 0x02]), toRelativePath: relativePath)
         let manifest = OfflineManifest(
             tracks: [
@@ -59,7 +59,7 @@ struct OfflinePlaybackIndexTests {
                     trackTitle: nil,
                     artistName: nil,
                     partKey: "/library/parts/done/file.mp3",
-                    relativeFilePath: "tracks/done.audio",
+                    relativeFilePath: "tracks/done.mp3",
                     expectedBytes: 2,
                     actualBytes: 2,
                     state: .completed,

@@ -86,38 +86,31 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
     }
 
     func play(tracks: [PlexTrack], startIndex: Int, context: NowPlayingContext?) {
-        log("play requested trackCount=\(tracks.count) startIndex=\(startIndex)")
         errorMessage = nil
         setNowPlayingContext(context)
         if bypassAuthChecks {
-            log("bypass auth checks enabled")
             engine?.play(tracks: tracks, startIndex: startIndex)
             return
         }
         guard let serverURL = serverStore.serverURL else {
-            log("play aborted reason=missing_server_url")
             errorMessage = "Missing server URL."
             return
         }
         let storedToken = try? tokenStore.load()
         guard let token = storedToken ?? nil else {
-            log("play aborted reason=missing_auth_token")
             errorMessage = "Missing auth token."
             return
         }
         if engine == nil || lastServerURL != serverURL || lastToken != token {
-            log("creating playback engine server=\(serverURL.absoluteString)")
             engine = engineFactory(serverURL, token)
             lastServerURL = serverURL
             lastToken = token
             bindEngineCallbacks()
         }
-        log("invoking engine.play")
         engine?.play(tracks: tracks, startIndex: startIndex)
     }
 
     func togglePlayPause() {
-        log("togglePlayPause")
         engine?.togglePlayPause()
     }
 
@@ -204,12 +197,10 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
     private func bindEngineCallbacks() {
         engine?.onStateChange = { [weak self] state in
             Task { @MainActor in
-                self?.log("engine state change track=\(state?.trackRatingKey ?? "nil") isPlaying=\(state?.isPlaying.description ?? "nil") elapsed=\(state?.elapsedTime ?? -1)")
                 self?.handleStateChange(state)
             }
         }
         engine?.onError = { [weak self] error in
-            self?.log("engine error message=\(error.message)")
             self?.errorMessage = error.message
         }
     }
@@ -292,10 +283,6 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
             fallbackURLBuilder: builder,
             audioSession: AudioSessionManager()
         )
-    }
-
-    private func log(_ message: String) {
-        NSLog("[PlaybackDebug][ViewModel] %@", message)
     }
 
     private func makeCollectionAlbumGroups(from albums: [PlexAlbum]) -> [OfflineCollectionAlbumGroup] {

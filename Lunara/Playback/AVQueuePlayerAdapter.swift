@@ -42,10 +42,6 @@ final class AVQueuePlayerAdapter: PlaybackPlayer {
     }
 
     func setQueue(urls: [URL]) {
-        log("setQueue count=\(urls.count)")
-        for (index, url) in urls.enumerated() {
-            log("queue[\(index)]=\(url.absoluteString)")
-        }
         player.removeAllItems()
         items = urls.map { AVPlayerItem(url: $0) }
         itemIndex = Dictionary(uniqueKeysWithValues: items.enumerated().map { (ObjectIdentifier($0.element), $0.offset) })
@@ -60,17 +56,14 @@ final class AVQueuePlayerAdapter: PlaybackPlayer {
     }
 
     func play() {
-        log("play()")
         player.play()
     }
 
     func pause() {
-        log("pause()")
         player.pause()
     }
 
     func stop() {
-        log("stop()")
         player.pause()
         player.removeAllItems()
         items.removeAll()
@@ -80,7 +73,6 @@ final class AVQueuePlayerAdapter: PlaybackPlayer {
 
     func replaceCurrentItem(url: URL) {
         guard currentIndex >= 0, currentIndex < items.count else { return }
-        log("replaceCurrentItem index=\(currentIndex) url=\(url.absoluteString)")
         let newItem = AVPlayerItem(url: url)
         items[currentIndex] = newItem
         itemIndex[ObjectIdentifier(newItem)] = currentIndex
@@ -89,7 +81,6 @@ final class AVQueuePlayerAdapter: PlaybackPlayer {
     }
 
     func seek(to seconds: TimeInterval) {
-        log("seek(\(seconds))")
         let time = CMTime(seconds: max(seconds, 0), preferredTimescale: 600)
         player.seek(to: time)
     }
@@ -126,7 +117,6 @@ final class AVQueuePlayerAdapter: PlaybackPlayer {
             self?.bindCurrentItemStatusObserver()
         }
         statusObserver = player.observe(\AVQueuePlayer.timeControlStatus, options: [.initial, .new]) { [weak self] player, _ in
-            self?.log("timeControlStatus=\(Self.timeControlStatusName(player.timeControlStatus)) reason=\(player.reasonForWaitingToPlay?.rawValue ?? "none") rate=\(player.rate)")
             self?.onPlaybackStateChanged?(player.timeControlStatus == .playing)
         }
     }
@@ -135,7 +125,6 @@ final class AVQueuePlayerAdapter: PlaybackPlayer {
         guard let item = notification.object as? AVPlayerItem,
               let index = itemIndex[ObjectIdentifier(item)],
               index == currentIndex else { return }
-        log("item did end index=\(index)")
         player.advanceToNextItem()
         currentIndex = min(currentIndex + 1, items.count)
         if currentIndex < items.count {
@@ -177,24 +166,6 @@ final class AVQueuePlayerAdapter: PlaybackPlayer {
 
     private func emitFailure(forIndex index: Int, reason: String) {
         guard index >= 0, index < items.count else { return }
-        log("item failed index=\(index) reason=\(reason)")
         onItemFailed?(index)
-    }
-
-    private static func timeControlStatusName(_ status: AVPlayer.TimeControlStatus) -> String {
-        switch status {
-        case .paused:
-            return "paused"
-        case .waitingToPlayAtSpecifiedRate:
-            return "waiting"
-        case .playing:
-            return "playing"
-        @unknown default:
-            return "unknown"
-        }
-    }
-
-    private func log(_ message: String) {
-        NSLog("[PlaybackDebug][AVQueue] %@", message)
     }
 }

@@ -93,7 +93,7 @@ struct PlaybackEngineTests {
         #expect(latestState?.trackRatingKey == "3")
     }
 
-    @Test func fallbackReplacesCurrentItemOnFailure() async throws {
+    @Test func failureRebuildsQueueWithFallbackURL() async throws {
         let player = TestPlaybackPlayer()
         let resolver = StubPlaybackSourceResolver(urls: [
             "1": URL(string: "https://example.com/1.mp3")!
@@ -113,7 +113,8 @@ struct PlaybackEngineTests {
         engine.play(tracks: tracks, startIndex: 0)
         player.emitFailure(index: 0)
 
-        #expect(player.replacedCurrentItemURL == URL(string: "https://example.com/fallback.m3u8")!)
+        #expect(player.setQueueURLs == [URL(string: "https://example.com/fallback.m3u8")!])
+        #expect(player.playCallCount == 2)
     }
 
     @Test func localSourceFailureFallsBackToRemoteStream() async throws {
@@ -137,7 +138,8 @@ struct PlaybackEngineTests {
         engine.play(tracks: tracks, startIndex: 0)
         player.emitFailure(index: 0)
 
-        #expect(player.replacedCurrentItemURL == URL(string: "https://example.com/fallback.m3u8")!)
+        #expect(player.setQueueURLs == [URL(string: "https://example.com/fallback.m3u8")!])
+        #expect(player.playCallCount == 2)
     }
 
     @Test func secondFailureEmitsError() async throws {

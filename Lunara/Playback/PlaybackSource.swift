@@ -48,22 +48,14 @@ struct PlaybackSourceResolver: PlaybackSourceResolving {
     }
 
     func resolveSource(for track: PlexTrack) -> PlaybackSource? {
-        log("resolveSource track=\(track.ratingKey) title=\(track.title)")
         if let fileURL = localIndex?.fileURL(for: track.ratingKey) {
-            log("using local source track=\(track.ratingKey) url=\(fileURL.path)")
             return .local(fileURL: fileURL)
         }
         if let networkMonitor, networkMonitor.isReachable == false {
-            log("no source track=\(track.ratingKey) reason=network_unreachable")
             return nil
         }
         guard let partKey = track.media?.first?.parts.first?.key else { return nil }
         let remoteURL = urlBuilder.makeDirectPlayURL(partKey: partKey)
-        log("using remote source track=\(track.ratingKey) partKey=\(partKey)")
         return .remote(url: remoteURL)
-    }
-
-    private func log(_ message: String) {
-        NSLog("[PlaybackDebug][Resolver] %@", message)
     }
 }

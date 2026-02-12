@@ -9,7 +9,7 @@ struct OfflineDownloadsCoordinatorTests {
             wifiOn: false,
             trackMap: ["album-1": [makeTrack("track-1", partKey: "/library/parts/1/file.mp3")]],
             downloader: StubDownloader(payloadByTrack: [
-                "track-1": OfflineDownloadedPayload(data: Data([0x01, 0x02, 0x03]), expectedBytes: 3)
+                "track-1": OfflineDownloadedPayload(data: Data([0x01, 0x02, 0x03]), expectedBytes: 3, suggestedFileExtension: "mp3")
             ])
         )
 
@@ -48,7 +48,7 @@ struct OfflineDownloadsCoordinatorTests {
             wifiOn: true,
             trackMap: ["album-a": [makeTrack("track-a", partKey: "/library/parts/a/file.mp3")]],
             downloader: StubDownloader(payloadByTrack: [
-                "track-a": OfflineDownloadedPayload(data: Data([0x0A, 0x0B, 0x0C]), expectedBytes: 10)
+                "track-a": OfflineDownloadedPayload(data: Data([0x0A, 0x0B, 0x0C]), expectedBytes: 10, suggestedFileExtension: "mp3")
             ])
         )
 
@@ -77,7 +77,7 @@ struct OfflineDownloadsCoordinatorTests {
             wifiOn: true,
             trackMap: ["album-z": [makeTrack("track-z", partKey: "/library/parts/z/file.mp3")]],
             downloader: StubDownloader(payloadByTrack: [
-                "track-z": OfflineDownloadedPayload(data: Data(), expectedBytes: nil)
+                "track-z": OfflineDownloadedPayload(data: Data(), expectedBytes: nil, suggestedFileExtension: "mp3")
             ])
         )
 
@@ -106,7 +106,7 @@ struct OfflineDownloadsCoordinatorTests {
                 makeTrack("t\(index)", partKey: "/library/parts/\(index)/file.mp3")
             }
         let payloads = Dictionary(uniqueKeysWithValues: tracks.map { track in
-            (track.ratingKey, OfflineDownloadedPayload(data: Data([0x01]), expectedBytes: 1))
+            (track.ratingKey, OfflineDownloadedPayload(data: Data([0x01]), expectedBytes: 1, suggestedFileExtension: "mp3"))
         })
         let context = makeContext(
             wifiOn: false,
@@ -143,7 +143,7 @@ struct OfflineDownloadsCoordinatorTests {
         let track = makeTrack("progress-track", partKey: "/library/parts/p/file.mp3")
         let downloader = StubDownloader(
             payloadByTrack: [
-                "progress-track": OfflineDownloadedPayload(data: Data(repeating: 0x01, count: 10), expectedBytes: 10)
+                "progress-track": OfflineDownloadedPayload(data: Data(repeating: 0x01, count: 10), expectedBytes: 10, suggestedFileExtension: "mp3")
             ],
             progressBytes: 5,
             delayAfterProgressNanoseconds: 200_000_000
@@ -185,7 +185,7 @@ struct OfflineDownloadsCoordinatorTests {
             wifiOn: true,
             trackMap: ["album-remove": [makeTrack("track-remove", partKey: "/library/parts/r/file.mp3")]],
             downloader: StubDownloader(payloadByTrack: [
-                "track-remove": OfflineDownloadedPayload(data: Data([0x01, 0x02]), expectedBytes: 2)
+                "track-remove": OfflineDownloadedPayload(data: Data([0x01, 0x02]), expectedBytes: 2, suggestedFileExtension: "mp3")
             ])
         )
 
@@ -221,7 +221,7 @@ struct OfflineDownloadsCoordinatorTests {
             wifiOn: true,
             trackMap: ["album-preserve": [makeTrack("track-preserve", partKey: "/library/parts/preserve/file.mp3")]],
             downloader: StubDownloader(payloadByTrack: [
-                "track-preserve": OfflineDownloadedPayload(data: Data([0x05, 0x06]), expectedBytes: 2)
+                "track-preserve": OfflineDownloadedPayload(data: Data([0x05, 0x06]), expectedBytes: 2, suggestedFileExtension: "mp3")
             ])
         )
 
@@ -271,9 +271,9 @@ struct OfflineDownloadsCoordinatorTests {
                 "album-explicit": [makeTrack("explicit-1", partKey: "/library/parts/explicit-1/file.mp3")]
             ],
             downloader: StubDownloader(payloadByTrack: [
-                "ne-1": OfflineDownloadedPayload(data: Data([0x01, 0x02, 0x03]), expectedBytes: 3),
-                "ne-2": OfflineDownloadedPayload(data: Data([0x04, 0x05, 0x06]), expectedBytes: 3),
-                "explicit-1": OfflineDownloadedPayload(data: Data([0x07, 0x08, 0x09, 0x0A]), expectedBytes: 4)
+                "ne-1": OfflineDownloadedPayload(data: Data([0x01, 0x02, 0x03]), expectedBytes: 3, suggestedFileExtension: "mp3"),
+                "ne-2": OfflineDownloadedPayload(data: Data([0x04, 0x05, 0x06]), expectedBytes: 3, suggestedFileExtension: "mp3"),
+                "explicit-1": OfflineDownloadedPayload(data: Data([0x07, 0x08, 0x09, 0x0A]), expectedBytes: 4, suggestedFileExtension: "mp3")
             ]),
             maxStorageBytes: 7
         )
@@ -374,7 +374,7 @@ struct OfflineDownloadsCoordinatorTests {
                 "new-album": [makeTrack("new-track", partKey: "/parts/new")]
             ]),
             downloader: StubDownloader(payloadByTrack: [
-                "new-track": OfflineDownloadedPayload(data: Data([0x01]), expectedBytes: 1)
+                "new-track": OfflineDownloadedPayload(data: Data([0x01]), expectedBytes: 1, suggestedFileExtension: "mp3")
             ]),
             wifiMonitor: monitor,
             nowProvider: { Date(timeIntervalSince1970: 1000) },
