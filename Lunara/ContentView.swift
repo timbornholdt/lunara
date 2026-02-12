@@ -201,7 +201,11 @@ private struct MainTabView: View {
             }
         }
         .sheet(isPresented: $showSettings) {
-            SettingsView(viewModel: settingsViewModel)
+            SettingsView(
+                viewModel: settingsViewModel,
+                playbackViewModel: playbackViewModel,
+                signOut: signOut
+            )
         }
         .onChange(of: playbackViewModel.nowPlaying?.trackRatingKey) { _, newValue in
             let isPlayingNow = newValue != nil

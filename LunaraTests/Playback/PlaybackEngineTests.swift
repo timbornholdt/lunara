@@ -65,7 +65,35 @@ struct PlaybackEngineTests {
         #expect(player.setQueueURLs.count == 2)
     }
 
-    @Test func fallbackReplacesCurrentItemOnFailure() async throws {
+    @Test func startIndexSkipsUnavailableTracksAndStartsAtNextPlayable() async throws {
+        let player = TestPlaybackPlayer()
+        let resolver = StubPlaybackSourceResolver(urls: [
+            "1": URL(string: "https://example.com/1.mp3")!,
+            "3": URL(string: "https://example.com/3.mp3")!
+        ])
+        let fallbackBuilder = StubFallbackURLBuilder(url: URL(string: "https://example.com/fallback.m3u8")!)
+        let audioSession = StubAudioSessionManager()
+        let engine = PlaybackEngine(
+            player: player,
+            sourceResolver: resolver,
+            fallbackURLBuilder: fallbackBuilder,
+            audioSession: audioSession
+        )
+        let tracks = [
+            PlexTrack(ratingKey: "1", title: "One", index: 1, parentIndex: nil, parentRatingKey: "10", duration: 1000, media: nil),
+            PlexTrack(ratingKey: "2", title: "Two", index: 2, parentIndex: nil, parentRatingKey: "10", duration: 2000, media: nil),
+            PlexTrack(ratingKey: "3", title: "Three", index: 3, parentIndex: nil, parentRatingKey: "10", duration: 3000, media: nil)
+        ]
+        var latestState: NowPlayingState?
+        engine.onStateChange = { latestState = $0 }
+
+        engine.play(tracks: tracks, startIndex: 1)
+
+        #expect(player.setQueueURLs == [URL(string: "https://example.com/3.mp3")!])
+        #expect(latestState?.trackRatingKey == "3")
+    }
+
+    @Test func failureRebuildsQueueWithFallbackURL() async throws {
         let player = TestPlaybackPlayer()
         let resolver = StubPlaybackSourceResolver(urls: [
             "1": URL(string: "https://example.com/1.mp3")!
@@ -85,7 +113,33 @@ struct PlaybackEngineTests {
         engine.play(tracks: tracks, startIndex: 0)
         player.emitFailure(index: 0)
 
-        #expect(player.replacedCurrentItemURL == URL(string: "https://example.com/fallback.m3u8")!)
+        #expect(player.setQueueURLs == [URL(string: "https://example.com/fallback.m3u8")!])
+        #expect(player.playCallCount == 2)
+    }
+
+    @Test func localSourceFailureFallsBackToRemoteStream() async throws {
+        let player = TestPlaybackPlayer()
+        let resolver = StubPlaybackSourceResolver(
+            urls: ["1": URL(fileURLWithPath: "/tmp/offline-track.audio")],
+            localTrackKeys: ["1"]
+        )
+        let fallbackBuilder = StubFallbackURLBuilder(url: URL(string: "https://example.com/fallback.m3u8")!)
+        let audioSession = StubAudioSessionManager()
+        let engine = PlaybackEngine(
+            player: player,
+            sourceResolver: resolver,
+            fallbackURLBuilder: fallbackBuilder,
+            audioSession: audioSession
+        )
+        let tracks = [
+            PlexTrack(ratingKey: "1", title: "One", index: 1, parentIndex: nil, parentRatingKey: "10", duration: 1000, media: nil)
+        ]
+
+        engine.play(tracks: tracks, startIndex: 0)
+        player.emitFailure(index: 0)
+
+        #expect(player.setQueueURLs == [URL(string: "https://example.com/fallback.m3u8")!])
+        #expect(player.playCallCount == 2)
     }
 
     @Test func secondFailureEmitsError() async throws {
@@ -376,9 +430,18 @@ private final class TestPlaybackPlayer: PlaybackPlayer {
 
 private struct StubPlaybackSourceResolver: PlaybackSourceResolving {
     let urls: [String: URL]
+    let localTrackKeys: Set<String>
+
+    init(urls: [String: URL], localTrackKeys: Set<String> = []) {
+        self.urls = urls
+        self.localTrackKeys = localTrackKeys
+    }
 
     func resolveSource(for track: PlexTrack) -> PlaybackSource? {
         guard let url = urls[track.ratingKey] else { return nil }
+        if localTrackKeys.contains(track.ratingKey) {
+            return .local(fileURL: url)
+        }
         return .remote(url: url)
     }
 }

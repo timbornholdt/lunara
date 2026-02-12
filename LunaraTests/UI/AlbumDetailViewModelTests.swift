@@ -232,6 +232,55 @@ struct AlbumDetailViewModelTests {
         #expect(playback.lastStartIndex == 1)
         #expect(playback.lastContext?.album.ratingKey == "10")
     }
+
+    @Test func refreshDownloadProgressPublishesAlbumProgress() async {
+        let album = PlexAlbum(
+            ratingKey: "10",
+            title: "Album",
+            thumb: nil,
+            art: nil,
+            year: 2022,
+            artist: nil,
+            titleSort: nil,
+            originalTitle: nil,
+            editionTitle: nil,
+            guid: "plex://album/test",
+            librarySectionID: 1,
+            parentRatingKey: nil,
+            studio: nil,
+            summary: nil,
+            genres: nil,
+            styles: nil,
+            moods: nil,
+            rating: nil,
+            userRating: nil,
+            key: nil
+        )
+        let tokenStore = InMemoryTokenStore(token: "token")
+        let serverStore = InMemoryServerStore(url: URL(string: "https://example.com:32400")!)
+        let statusProvider = StubOfflineDownloadStatusProvider(
+            progress: OfflineAlbumDownloadProgress(
+                albumIdentity: OfflineAlbumIdentity.make(for: album),
+                totalTrackCount: 10,
+                completedTrackCount: 3,
+                pendingTrackCount: 5,
+                inProgressTrackCount: 2,
+                partialInProgressTrackUnits: 0.5
+            )
+        )
+        let viewModel = AlbumDetailViewModel(
+            album: album,
+            tokenStore: tokenStore,
+            serverStore: serverStore,
+            downloadStatusProvider: statusProvider
+        )
+
+        await viewModel.refreshDownloadProgress()
+
+        #expect(viewModel.albumDownloadProgress?.albumIdentity == OfflineAlbumIdentity.make(for: album))
+        let fraction = viewModel.albumDownloadProgress?.fractionComplete ?? -1
+        #expect(abs(fraction - 0.35) < 0.0001)
+    }
 }
 
 private final class StubPlaybackController: PlaybackControlling {
@@ -260,5 +309,17 @@ private final class StubPlaybackController: PlaybackControlling {
     }
 
     func seek(to seconds: TimeInterval) {
+    }
+}
+
+private final class StubOfflineDownloadStatusProvider: OfflineDownloadStatusProviding {
+    private let progress: OfflineAlbumDownloadProgress?
+
+    init(progress: OfflineAlbumDownloadProgress?) {
+        self.progress = progress
+    }
+
+    func albumDownloadProgress(albumIdentity: String) async -> OfflineAlbumDownloadProgress? {
+        progress
     }
 }

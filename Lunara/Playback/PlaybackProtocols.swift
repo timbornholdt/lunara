@@ -41,6 +41,13 @@ protocol AudioSessionManaging {
 
 protocol PlaybackFallbackURLBuilding {
     func makeTranscodeURL(trackRatingKey: String) -> URL?
+    func makeFallbackURL(for track: PlexTrack) -> URL?
+}
+
+extension PlaybackFallbackURLBuilding {
+    func makeFallbackURL(for track: PlexTrack) -> URL? {
+        makeTranscodeURL(trackRatingKey: track.ratingKey)
+    }
 }
 
 struct NowPlayingState: Equatable {

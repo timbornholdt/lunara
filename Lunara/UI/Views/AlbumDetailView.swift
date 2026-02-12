@@ -9,6 +9,7 @@ struct AlbumDetailView: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var scrollOffset: CGFloat = 0
     @State private var albumTheme: AlbumTheme?
+    @State private var isQueueingDownload = false
     @Environment(\.nowPlayingInsetHeight) private var nowPlayingInsetHeight
 
     enum Layout {
@@ -110,6 +111,9 @@ struct AlbumDetailView: View {
 
                         stylesSection(palette: themePalette)
                             .padding(.horizontal, Layout.globalPadding)
+
+                        downloadButton(palette: themePalette)
+                            .padding(.horizontal, Layout.globalPadding)
                     }
                     .padding(.bottom, Layout.globalPadding)
                 }
@@ -137,6 +141,7 @@ struct AlbumDetailView: View {
         }
         .task {
             await viewModel.loadTracks()
+            await viewModel.refreshDownloadProgress()
         }
         .overlay(alignment: .top) {
             if let message = playbackViewModel.errorMessage {
@@ -149,6 +154,43 @@ struct AlbumDetailView: View {
         .task(id: album.ratingKey) {
             albumTheme = await albumThemeProvider()
         }
+    }
+
+    @ViewBuilder
+    private func downloadButton(palette: ThemePalette) -> some View {
+        let progress = viewModel.albumDownloadProgress
+        let isDownloaded = progress?.isComplete == true
+        let isDownloading = isQueueingDownload || (progress?.hasActiveWork == true)
+        let buttonTitle = isDownloaded ? "Downloaded" : (isDownloading ? "Downloading..." : "Download Album")
+        let symbol = isDownloaded ? "checkmark.circle.fill" : "arrow.down.circle"
+        let progressValue = progress?.fractionComplete ?? 0
+
+        Button {
+            guard isDownloaded == false, isDownloading == false else { return }
+            isQueueingDownload = true
+            Task {
+                defer { isQueueingDownload = false }
+                let keys = albumRatingKeys.isEmpty ? [album.ratingKey] : albumRatingKeys
+                _ = try? await playbackViewModel.queueAlbumDownload(album: album, albumRatingKeys: keys)
+                await viewModel.refreshDownloadProgress()
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    Image(systemName: symbol)
+                    Text(buttonTitle)
+                }
+                .frame(maxWidth: .infinity)
+                if isDownloading {
+                    ProgressView(value: progressValue, total: 1.0)
+                        .progressViewStyle(.linear)
+                        .tint(palette.textPrimary)
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(PlayButtonStyle(palette: palette))
+        .disabled(isDownloaded || isDownloading)
     }
 
     @ViewBuilder

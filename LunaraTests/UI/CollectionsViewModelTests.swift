@@ -135,6 +135,98 @@ struct CollectionsViewModelTests {
         #expect(viewModel.isRefreshing == false)
         #expect(snapshotStore.savedSnapshot?.collections.first?.ratingKey == "live")
     }
+
+    @Test func refreshReconcilesDownloadedCollections() async {
+        let tokenStore = InMemoryTokenStore(token: "token")
+        let serverStore = InMemoryServerStore(url: URL(string: "https://example.com:32400")!)
+        let sections = [PlexLibrarySection(key: "2", title: "Music", type: "artist")]
+        let collection = PlexCollection(ratingKey: "c1", title: "Collection One", thumb: nil, art: nil, updatedAt: nil, key: nil)
+        let albumA1 = PlexAlbum(
+            ratingKey: "a1",
+            title: "Alpha",
+            thumb: nil,
+            art: nil,
+            year: 2001,
+            artist: "Band",
+            titleSort: nil,
+            originalTitle: nil,
+            editionTitle: nil,
+            guid: nil,
+            librarySectionID: nil,
+            parentRatingKey: nil,
+            studio: nil,
+            summary: nil,
+            genres: nil,
+            styles: nil,
+            moods: nil,
+            rating: nil,
+            userRating: nil,
+            key: nil
+        )
+        let albumA2 = PlexAlbum(
+            ratingKey: "a2",
+            title: "Alpha",
+            thumb: nil,
+            art: nil,
+            year: 2001,
+            artist: "Band",
+            titleSort: nil,
+            originalTitle: nil,
+            editionTitle: nil,
+            guid: nil,
+            librarySectionID: nil,
+            parentRatingKey: nil,
+            studio: nil,
+            summary: nil,
+            genres: nil,
+            styles: nil,
+            moods: nil,
+            rating: nil,
+            userRating: nil,
+            key: nil
+        )
+        let service = RecordingLibraryService(
+            sections: sections,
+            collections: [collection],
+            albumsByCollectionKey: ["c1": [albumA1, albumA2]]
+        )
+        let queue = RecordingCollectionsOfflineQueue(downloadedCollectionKeys: ["c1"])
+        let viewModel = CollectionsViewModel(
+            tokenStore: tokenStore,
+            serverStore: serverStore,
+            libraryServiceFactory: { _, _ in service },
+            offlineDownloadQueue: queue
+        )
+
+        await viewModel.loadCollections()
+
+        #expect(queue.reconciliations.count == 1)
+        #expect(queue.reconciliations.first?.collectionKey == "c1")
+        #expect(queue.reconciliations.first?.groups.count == 1)
+        #expect(queue.reconciliations.first?.groups.first?.albumRatingKeys.sorted() == ["a1", "a2"])
+        #expect(queue.removedCollectionKeys.isEmpty)
+    }
+
+    @Test func refreshRemovesDownloadsForDeletedCollections() async {
+        let tokenStore = InMemoryTokenStore(token: "token")
+        let serverStore = InMemoryServerStore(url: URL(string: "https://example.com:32400")!)
+        let service = RecordingLibraryService(
+            sections: [PlexLibrarySection(key: "2", title: "Music", type: "artist")],
+            collections: []
+        )
+        let queue = RecordingCollectionsOfflineQueue(downloadedCollectionKeys: ["gone-collection"])
+        let viewModel = CollectionsViewModel(
+            tokenStore: tokenStore,
+            serverStore: serverStore,
+            libraryServiceFactory: { _, _ in service },
+            offlineDownloadQueue: queue
+        )
+
+        await viewModel.loadCollections()
+
+        #expect(queue.removedCollectionKeys == ["gone-collection"])
+        #expect(queue.reconciliations.isEmpty)
+    }
 }
 
 @MainActor
@@ -308,6 +400,57 @@ private final class StubSnapshotStore: LibrarySnapshotStoring {
 
 private final class NoopArtworkPrefetcher: ArtworkPrefetching {
     func prefetch(_ requests: [ArtworkRequest]) {}
+}
+
+private final class RecordingCollectionsOfflineQueue: OfflineDownloadQueuing {
+    struct Reconciliation: Equatable {
+        let collectionKey: String
+        let title: String
+        let groups: [OfflineCollectionAlbumGroup]
+    }
+
+    private let keys: [String]
+    private(set) var reconciliations: [Reconciliation] = []
+    private(set) var removedCollectionKeys: [String] = []
+
+    init(downloadedCollectionKeys: [String]) {
+        self.keys = downloadedCollectionKeys
+    }
+
+    func enqueueAlbumDownload(
+        albumIdentity: String,
+        displayTitle: String,
+        artistName: String?,
+        artworkPath: String?,
+        albumRatingKeys: [String],
+        source: OfflineDownloadSource
+    ) async throws {
+    }
+
+    func upsertCollectionRecord(
+        collectionKey: String,
+        title: String,
+        albumIdentities: [String]
+    ) async throws {
+    }
+
+    func downloadedCollectionKeys() async -> [String] {
+        keys
+    }
+
+    func reconcileCollectionDownload(
+        collectionKey: String,
+        title: String,
+        albumGroups: [OfflineCollectionAlbumGroup]
+    ) async throws {
+        reconciliations.append(
+            Reconciliation(collectionKey: collectionKey, title: title, groups: albumGroups)
+        )
+    }
+
+    func removeCollectionDownload(collectionKey: String) async throws {
+        removedCollectionKeys.append(collectionKey)
+    }
 }
 
 private actor AsyncGate {

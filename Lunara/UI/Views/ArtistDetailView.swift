@@ -201,6 +201,16 @@ struct ArtistDetailView: View {
                         ArtistAlbumRowView(album: album, palette: palette, basePalette: basePalette)
                     }
                     .buttonStyle(.plain)
+                    .contextMenu {
+                        Button {
+                            playbackViewModel.downloadAlbum(
+                                album: album,
+                                albumRatingKeys: [album.ratingKey]
+                            )
+                        } label: {
+                            Label("Download Album", systemImage: "arrow.down.circle")
+                        }
+                    }
                 }
             }
         }

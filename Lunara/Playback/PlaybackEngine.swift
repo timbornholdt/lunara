@@ -39,21 +39,17 @@ final class PlaybackEngine: PlaybackEngineing {
         } else {
             start = startIndex
         }
+
         let items = tracks.compactMap { track -> PlaybackQueueItem? in
             guard let source = sourceResolver.resolveSource(for: track) else { return nil }
-            let fallback: URL?
-            switch source {
-            case .remote:
-                fallback = fallbackURLBuilder.makeTranscodeURL(trackRatingKey: track.ratingKey)
-            case .local:
-                fallback = nil
-            }
+            let fallback = fallbackURLBuilder.makeFallbackURL(for: track)
             return PlaybackQueueItem(track: track, primaryURL: source.url, fallbackURL: fallback)
         }
         guard !items.isEmpty else {
             onError?(PlaybackError(message: "Playback unavailable for this track."))
             return
         }
+        let resolvedStart = resolveStartIndex(requestedStart: start, originalTracks: tracks, playableItems: items)
         do {
             try audioSession.configureForPlayback()
         } catch {
@@ -62,10 +58,10 @@ final class PlaybackEngine: PlaybackEngineing {
         }
 
         queueItems = items
-        queueBaseIndex = start
-        currentIndex = start
+        queueBaseIndex = resolvedStart
+        currentIndex = resolvedStart
         currentElapsed = 0
-        player.setQueue(urls: items[start...].map { $0.primaryURL })
+        player.setQueue(urls: items[resolvedStart...].map { $0.primaryURL })
         player.play()
         isPlaying = true
         publishState()
@@ -137,12 +133,30 @@ final class PlaybackEngine: PlaybackEngineing {
             onError?(PlaybackError(message: "Playback failed."))
             return
         }
-        guard let fallbackURL = queueItems[mappedIndex].fallbackURL else {
+        guard queueItems[mappedIndex].fallbackURL != nil else {
             onError?(PlaybackError(message: "Playback failed."))
             return
         }
-        queueItems[mappedIndex].didUseFallback = true
-        player.replaceCurrentItem(url: fallbackURL)
+
+        // Rebuild the remainder of the queue with remote fallback URLs to avoid AVQueue stalling
+        // when a local asset cannot be opened.
+        var fallbackURLs: [URL] = []
+        fallbackURLs.reserveCapacity(queueItems.count - mappedIndex)
+        for queueIndex in mappedIndex..<queueItems.count {
+            let fallbackURL = queueItems[queueIndex].fallbackURL ?? queueItems[queueIndex].primaryURL
+            if queueItems[queueIndex].fallbackURL != nil {
+                queueItems[queueIndex].didUseFallback = true
+            }
+            fallbackURLs.append(fallbackURL)
+        }
+
+        queueBaseIndex = mappedIndex
+        currentIndex = mappedIndex
+        currentElapsed = 0
+        player.setQueue(urls: fallbackURLs)
+        player.play()
+        isPlaying = true
+        publishState()
     }
 
     private func handleTimeUpdate(_ time: TimeInterval) {
@@ -182,6 +196,25 @@ final class PlaybackEngine: PlaybackEngineing {
         player.play()
         isPlaying = true
         publishState()
+    }
+
+    private func resolveStartIndex(
+        requestedStart: Int,
+        originalTracks: [PlexTrack],
+        playableItems: [PlaybackQueueItem]
+    ) -> Int {
+        guard requestedStart < originalTracks.count else {
+            return 0
+        }
+
+        for index in requestedStart..<originalTracks.count {
+            let key = originalTracks[index].ratingKey
+            if let playableIndex = playableItems.firstIndex(where: { $0.track.ratingKey == key }) {
+                return playableIndex
+            }
+        }
+
+        return 0
     }
 }
 
