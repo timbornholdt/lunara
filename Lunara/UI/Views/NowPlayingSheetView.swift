@@ -347,47 +347,46 @@ private struct UpNextRow: View {
     let onTap: () -> Void
 
     var body: some View {
-        Button(action: onTap) {
-            HStack(alignment: .top, spacing: 12) {
-                Text(trackNumber)
-                    .font(LunaraTheme.Typography.displayRegular(size: 13).monospacedDigit())
-                    .foregroundStyle(palette.textSecondary)
-                    .frame(width: 24, alignment: .leading)
+        HStack(alignment: .top, spacing: 12) {
+            Text(trackNumber)
+                .font(LunaraTheme.Typography.displayRegular(size: 13).monospacedDigit())
+                .foregroundStyle(palette.textSecondary)
+                .frame(width: 24, alignment: .leading)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(track.title)
-                        .font(LunaraTheme.Typography.displayRegular(size: 16))
-                        .foregroundStyle(palette.textPrimary)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(track.title)
+                    .font(LunaraTheme.Typography.displayRegular(size: 16))
+                    .foregroundStyle(palette.textPrimary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                    if let artist = TrackArtistDisplayResolver.displayArtist(for: track, albumArtist: albumArtist) {
-                        Text(artist)
-                            .font(LunaraTheme.Typography.displayRegular(size: 13))
-                            .foregroundStyle(palette.textSecondary)
-                            .lineLimit(1)
-                    }
-                }
-
-                Spacer(minLength: 8)
-
-                if let duration = track.duration {
-                    Text(formatDuration(duration))
-                        .font(LunaraTheme.Typography.displayRegular(size: 13).monospacedDigit())
+                if let artist = TrackArtistDisplayResolver.displayArtist(for: track, albumArtist: albumArtist) {
+                    Text(artist)
+                        .font(LunaraTheme.Typography.displayRegular(size: 13))
                         .foregroundStyle(palette.textSecondary)
+                        .lineLimit(1)
                 }
             }
-            .padding(.vertical, 10)
-            .padding(.horizontal, 12)
-            .background(palette.raised.opacity(0.92))
-            .overlay(
-                RoundedRectangle(cornerRadius: LunaraTheme.Layout.cardCornerRadius)
-                    .stroke(palette.borderSubtle, lineWidth: 1)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: LunaraTheme.Layout.cardCornerRadius))
+
+            Spacer(minLength: 8)
+
+            if let duration = track.duration {
+                Text(formatDuration(duration))
+                    .font(LunaraTheme.Typography.displayRegular(size: 13).monospacedDigit())
+                    .foregroundStyle(palette.textSecondary)
+            }
         }
-        .buttonStyle(.plain)
+        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
+        .background(palette.raised.opacity(0.92))
+        .overlay(
+            RoundedRectangle(cornerRadius: LunaraTheme.Layout.cardCornerRadius)
+                .stroke(palette.borderSubtle, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: LunaraTheme.Layout.cardCornerRadius))
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onTap)
     }
 
     private var trackNumber: String {
