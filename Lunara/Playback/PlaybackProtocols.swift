@@ -57,6 +57,25 @@ struct NowPlayingState: Equatable {
     let isPlaying: Bool
     let elapsedTime: TimeInterval
     let duration: TimeInterval?
+    let queueIndex: Int?
+
+    init(
+        trackRatingKey: String,
+        trackTitle: String,
+        artistName: String?,
+        isPlaying: Bool,
+        elapsedTime: TimeInterval,
+        duration: TimeInterval?,
+        queueIndex: Int? = nil
+    ) {
+        self.trackRatingKey = trackRatingKey
+        self.trackTitle = trackTitle
+        self.artistName = artistName
+        self.isPlaying = isPlaying
+        self.elapsedTime = elapsedTime
+        self.duration = duration
+        self.queueIndex = queueIndex
+    }
 }
 
 struct PlaybackError: Equatable {

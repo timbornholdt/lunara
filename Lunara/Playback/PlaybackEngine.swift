@@ -182,7 +182,8 @@ final class PlaybackEngine: PlaybackEngineing {
             artistName: item.track.originalTitle ?? item.track.grandparentTitle,
             isPlaying: isPlaying,
             elapsedTime: currentElapsed,
-            duration: durationSeconds
+            duration: durationSeconds,
+            queueIndex: currentIndex
         )
         onStateChange?(state)
     }

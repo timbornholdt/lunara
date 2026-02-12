@@ -21,6 +21,7 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
     private let nowPlayingInfoCenter: NowPlayingInfoCenterUpdating
     private let remoteCommandCenter: RemoteCommandCenterHandling
     private let lockScreenArtworkProvider: LockScreenArtworkProviding
+    private let queueManager: QueueManager
     private let offlinePlaybackIndex: LocalPlaybackIndexing?
     private let opportunisticCacher: OfflineOpportunisticCaching?
     private let offlineDownloadQueue: OfflineDownloadQueuing?
@@ -29,6 +30,7 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
     private var currentLockScreenArtwork: UIImage?
     private var remoteCommandsConfigured = false
     private var lastOfflineTrackEventKey: String?
+    private var hasPrimedEngineFromQueue = false
 
     typealias PlaybackEngineFactory = (URL, String) -> PlaybackEngineing
 
@@ -49,6 +51,7 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
         nowPlayingInfoCenter: NowPlayingInfoCenterUpdating = NowPlayingInfoCenterUpdater(),
         remoteCommandCenter: RemoteCommandCenterHandling = RemoteCommandCenterHandler(),
         lockScreenArtworkProvider: LockScreenArtworkProviding = LockScreenArtworkProvider(),
+        queueManager: QueueManager? = nil,
         offlinePlaybackIndex: LocalPlaybackIndexing? = OfflineServices.shared.playbackIndex,
         opportunisticCacher: OfflineOpportunisticCaching? = OfflineServices.shared.coordinator,
         offlineDownloadQueue: OfflineDownloadQueuing? = OfflineServices.shared.coordinator
@@ -61,10 +64,12 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
         self.nowPlayingInfoCenter = nowPlayingInfoCenter
         self.remoteCommandCenter = remoteCommandCenter
         self.lockScreenArtworkProvider = lockScreenArtworkProvider
+        self.queueManager = queueManager ?? QueueManager()
         self.bypassAuthChecks = false
         self.offlinePlaybackIndex = offlinePlaybackIndex
         self.opportunisticCacher = opportunisticCacher
         self.offlineDownloadQueue = offlineDownloadQueue
+        restoreQueueSnapshotIfAvailable()
     }
 
     init(
@@ -73,6 +78,7 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
         nowPlayingInfoCenter: NowPlayingInfoCenterUpdating = NowPlayingInfoCenterUpdater(),
         remoteCommandCenter: RemoteCommandCenterHandling = RemoteCommandCenterHandler(),
         lockScreenArtworkProvider: LockScreenArtworkProviding = LockScreenArtworkProvider(),
+        queueManager: QueueManager? = nil,
         offlinePlaybackIndex: LocalPlaybackIndexing? = nil,
         opportunisticCacher: OfflineOpportunisticCaching? = nil,
         tokenStore: PlexAuthTokenStoring = PlexAuthTokenStore(keychain: KeychainStore()),
@@ -98,10 +104,12 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
         self.nowPlayingInfoCenter = nowPlayingInfoCenter
         self.remoteCommandCenter = remoteCommandCenter
         self.lockScreenArtworkProvider = lockScreenArtworkProvider
+        self.queueManager = queueManager ?? QueueManager()
         self.offlinePlaybackIndex = offlinePlaybackIndex
         self.opportunisticCacher = opportunisticCacher
         self.offlineDownloadQueue = offlineDownloadQueue
         bindEngineCallbacks()
+        restoreQueueSnapshotIfAvailable()
     }
 
     func play(tracks: [PlexTrack], startIndex: Int, context: NowPlayingContext?) {
@@ -109,6 +117,7 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
         setNowPlayingContext(context)
         if bypassAuthChecks {
             engine?.play(tracks: tracks, startIndex: startIndex)
+            persistQueueStateFromPlaybackStart(tracks: tracks, startIndex: startIndex, context: context)
             return
         }
         guard let serverURL = serverStore.serverURL else {
@@ -127,14 +136,35 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
             bindEngineCallbacks()
         }
         engine?.play(tracks: tracks, startIndex: startIndex)
+        persistQueueStateFromPlaybackStart(tracks: tracks, startIndex: startIndex, context: context)
+        hasPrimedEngineFromQueue = true
     }
 
     func togglePlayPause() {
+        if hasPrimedEngineFromQueue == false, let nowPlaying {
+            let snapshot = queueManager.snapshot()
+            if !snapshot.entries.isEmpty {
+                let tracks = snapshot.entries.map(\.track)
+                let context = nowPlayingContext ?? makeContext(from: snapshot)
+                play(tracks: tracks, startIndex: snapshot.currentIndex ?? 0, context: context)
+                if snapshot.elapsedTime > 0 {
+                    engine?.seek(to: snapshot.elapsedTime)
+                }
+                if nowPlaying.isPlaying == false {
+                    engine?.togglePlayPause()
+                }
+                hasPrimedEngineFromQueue = true
+                return
+            }
+        }
         engine?.togglePlayPause()
     }
 
     func stop() {
         engine?.stop()
+        Task {
+            _ = await queueManager.setState(QueueState(entries: [], currentIndex: nil, elapsedTime: 0, isPlaying: false))
+        }
         nowPlaying = nil
         nowPlayingContext = nil
         albumTheme = nil
@@ -147,6 +177,7 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
             remoteCommandsConfigured = false
         }
         lastOfflineTrackEventKey = nil
+        hasPrimedEngineFromQueue = false
     }
 
     func skipToNext() {
@@ -216,8 +247,283 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
         }
     }
 
+    func enqueueAlbum(mode: QueueInsertMode, album: PlexAlbum, albumRatingKeys: [String]) {
+        Task {
+            do {
+                let ratingKeys = albumRatingKeys.isEmpty ? [album.ratingKey] : albumRatingKeys
+                let tracks = try await fetchMergedTracksForAlbum(ratingKeys: ratingKeys)
+                let context = makeQueueContext(
+                    album: album,
+                    albumRatingKeys: ratingKeys,
+                    tracks: tracks
+                )
+                await insertIntoQueue(
+                    mode: mode,
+                    tracks: tracks,
+                    context: context,
+                    signature: "album:\(ratingKeys.joined(separator: ",")):\(mode.rawValue)"
+                )
+            } catch {
+                if let statusCode = (error as? PlexHTTPError)?.statusCode {
+                    errorMessage = "Failed to queue album (HTTP \(statusCode))."
+                } else {
+                    errorMessage = "Failed to queue album."
+                }
+            }
+        }
+    }
+
+    func enqueueTrack(
+        mode: QueueInsertMode,
+        track: PlexTrack,
+        album: PlexAlbum,
+        albumRatingKeys: [String],
+        allTracks: [PlexTrack],
+        artworkRequest: ArtworkRequest?
+    ) {
+        let context = NowPlayingContext(
+            album: album,
+            albumRatingKeys: albumRatingKeys.isEmpty ? [album.ratingKey] : albumRatingKeys,
+            tracks: allTracks,
+            artworkRequest: artworkRequest
+        )
+        Task {
+            await insertIntoQueue(
+                mode: mode,
+                tracks: [track],
+                context: context,
+                signature: "track:\(track.ratingKey):\(mode.rawValue)"
+            )
+        }
+    }
+
+    func clearUpcomingQueue() {
+        Task {
+            let previous = queueManager.snapshot()
+            let updated = await queueManager.clearUpcoming()
+            await applyQueueMutation(updated: updated, previous: previous)
+        }
+    }
+
+    func removeUpcomingQueueItem(atAbsoluteIndex index: Int) {
+        Task {
+            guard let entry = queueManager.entry(at: index) else { return }
+            let previous = queueManager.snapshot()
+            let updated = await queueManager.removeUpcoming(entryID: entry.id)
+            await applyQueueMutation(updated: updated, previous: previous)
+        }
+    }
+
     func clearError() {
         errorMessage = nil
+    }
+
+    private func restoreQueueSnapshotIfAvailable() {
+        let snapshot = queueManager.snapshot()
+        guard let currentIndex = snapshot.currentIndex,
+              currentIndex >= 0,
+              currentIndex < snapshot.entries.count else {
+            return
+        }
+        let entry = snapshot.entries[currentIndex]
+        let duration = entry.track.duration.map { Double($0) / 1000.0 }
+        nowPlaying = NowPlayingState(
+            trackRatingKey: entry.track.ratingKey,
+            trackTitle: entry.track.title,
+            artistName: entry.track.originalTitle ?? entry.track.grandparentTitle,
+            isPlaying: false,
+            elapsedTime: snapshot.elapsedTime,
+            duration: duration,
+            queueIndex: currentIndex
+        )
+        let context = makeContext(from: snapshot)
+        setNowPlayingContext(context)
+    }
+
+    private func persistQueueStateFromPlaybackStart(
+        tracks: [PlexTrack],
+        startIndex: Int,
+        context: NowPlayingContext?
+    ) {
+        let entries = tracks.map { track in
+            QueueEntry(
+                track: track,
+                album: context?.album,
+                albumRatingKeys: context?.albumRatingKeys ?? [],
+                artworkRequest: context?.artworkRequest,
+                isPlayable: true,
+                skipReason: nil
+            )
+        }
+        let clampedIndex = tracks.isEmpty ? nil : min(max(startIndex, 0), max(tracks.count - 1, 0))
+        let state = QueueState(
+            entries: entries,
+            currentIndex: clampedIndex,
+            elapsedTime: 0,
+            isPlaying: true
+        )
+        Task {
+            _ = await queueManager.setState(state)
+        }
+    }
+
+    private func fetchMergedTracksForAlbum(ratingKeys: [String]) async throws -> [PlexTrack] {
+        guard let serverURL = serverStore.serverURL else {
+            throw OfflineRuntimeError.missingServerURL
+        }
+        let storedToken = try tokenStore.load()
+        guard let token = storedToken else {
+            throw OfflineRuntimeError.missingAuthToken
+        }
+        let service = libraryServiceFactory(serverURL, token)
+        var combined: [PlexTrack] = []
+        try await withThrowingTaskGroup(of: [PlexTrack].self) { group in
+            for ratingKey in ratingKeys {
+                group.addTask {
+                    try await service.fetchTracks(albumRatingKey: ratingKey)
+                }
+            }
+            for try await tracks in group {
+                combined.append(contentsOf: tracks)
+            }
+        }
+        return combined.sorted { lhs, rhs in
+            let lhsDisc = lhs.parentIndex ?? 0
+            let rhsDisc = rhs.parentIndex ?? 0
+            if lhsDisc != rhsDisc {
+                return lhsDisc < rhsDisc
+            }
+            let lhsIndex = lhs.index ?? Int.max
+            let rhsIndex = rhs.index ?? Int.max
+            if lhsIndex != rhsIndex {
+                return lhsIndex < rhsIndex
+            }
+            return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+        }
+    }
+
+    private func makeQueueContext(
+        album: PlexAlbum,
+        albumRatingKeys: [String],
+        tracks: [PlexTrack]
+    ) -> NowPlayingContext? {
+        guard let serverURL = serverStore.serverURL else { return nil }
+        let storedToken = try? tokenStore.load()
+        guard let token = storedToken ?? nil else { return nil }
+        let builder = ArtworkRequestBuilder(baseURL: serverURL, token: token)
+        let artworkRequest = builder.albumRequest(for: album, size: .detail)
+        return NowPlayingContext(
+            album: album,
+            albumRatingKeys: albumRatingKeys,
+            tracks: tracks,
+            artworkRequest: artworkRequest
+        )
+    }
+
+    private func makeContext(from queue: QueueState) -> NowPlayingContext? {
+        guard let currentIndex = queue.currentIndex,
+              currentIndex >= 0,
+              currentIndex < queue.entries.count else {
+            return nil
+        }
+        let current = queue.entries[currentIndex]
+        let tracks = queue.entries.map(\.track)
+        guard let album = current.album else {
+            return nil
+        }
+        let artworkRequest: ArtworkRequest?
+        if let serverURL = serverStore.serverURL,
+           let token = (try? tokenStore.load()) ?? nil {
+            artworkRequest = ArtworkRequestBuilder(baseURL: serverURL, token: token)
+                .albumRequest(for: album, size: .detail)
+        } else {
+            artworkRequest = nil
+        }
+        return NowPlayingContext(
+            album: album,
+            albumRatingKeys: current.albumRatingKeys.isEmpty ? [album.ratingKey] : current.albumRatingKeys,
+            tracks: tracks,
+            artworkRequest: artworkRequest
+        )
+    }
+
+    private func insertIntoQueue(
+        mode: QueueInsertMode,
+        tracks: [PlexTrack],
+        context: NowPlayingContext?,
+        signature: String
+    ) async {
+        let entries = tracks.map { track in
+            QueueEntry(
+                track: track,
+                album: context?.album,
+                albumRatingKeys: context?.albumRatingKeys ?? [],
+                artworkRequest: context?.artworkRequest,
+                isPlayable: isTrackPlayable(track),
+                skipReason: isTrackPlayable(track) ? nil : .missingPlaybackSource
+            )
+        }
+        let previous = queueManager.snapshot()
+        let result = await queueManager.insert(
+            QueueInsertRequest(
+                mode: mode,
+                entries: entries,
+                signature: signature,
+                requestedAt: Date()
+            )
+        )
+        if result.duplicateBlocked {
+            errorMessage = "Queue cue: we heard you already."
+            return
+        }
+        if result.insertedCount == 0 {
+            errorMessage = queueErrorMessageForSkipped(result.skipped)
+            return
+        }
+        if !result.skipped.isEmpty {
+            errorMessage = queuePartialMessage(inserted: result.insertedCount, skipped: result.skipped)
+        }
+        await applyQueueMutation(updated: result.state, previous: previous)
+    }
+
+    private func applyQueueMutation(updated: QueueState, previous: QueueState) async {
+        guard let currentIndex = updated.currentIndex, !updated.entries.isEmpty else {
+            return
+        }
+        let context = makeContext(from: updated)
+        let tracks = updated.entries.map(\.track)
+        let shouldRestoreElapsed = previous.currentIndex == currentIndex
+        let elapsed = shouldRestoreElapsed ? previous.elapsedTime : 0
+        play(tracks: tracks, startIndex: currentIndex, context: context)
+        if elapsed > 0 {
+            engine?.seek(to: elapsed)
+        }
+        if previous.isPlaying == false || updated.isPlaying == false {
+            engine?.togglePlayPause()
+        }
+    }
+
+    private func isTrackPlayable(_ track: PlexTrack) -> Bool {
+        guard let media = track.media else { return false }
+        return media.contains { !$0.parts.isEmpty }
+    }
+
+    private func queuePartialMessage(inserted: Int, skipped: [QueueInsertSkipReason]) -> String {
+        let groups = Dictionary(grouping: skipped, by: { $0 }).mapValues(\.count)
+        let details = groups
+            .sorted { $0.key.rawValue < $1.key.rawValue }
+            .map { "\($0.value) \($0.key.rawValue)" }
+            .joined(separator: ", ")
+        return "Queued \(inserted) track\(inserted == 1 ? "" : "s"), skipped \(skipped.count) (\(details))."
+    }
+
+    private func queueErrorMessageForSkipped(_ skipped: [QueueInsertSkipReason]) -> String {
+        guard !skipped.isEmpty else { return "Failed to queue tracks." }
+        let details = Dictionary(grouping: skipped, by: { $0 }).mapValues(\.count)
+            .sorted { $0.key.rawValue < $1.key.rawValue }
+            .map { "\($0.value) \($0.key.rawValue)" }
+            .joined(separator: ", ")
+        return "No playable tracks were queued (\(details))."
     }
 
     private func bindEngineCallbacks() {
@@ -243,13 +549,26 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
             }
             return
         }
+        Task {
+            _ = await queueManager.updatePlayback(
+                currentIndex: state.queueIndex,
+                elapsedTime: state.elapsedTime,
+                isPlaying: state.isPlaying
+            )
+        }
         configureRemoteCommandsIfNeeded()
         handleOfflineStateHooks(for: state)
         guard let context = nowPlayingContext else {
             publishLockScreenMetadata(for: state)
             return
         }
-        guard let track = context.tracks.first(where: { $0.ratingKey == state.trackRatingKey }) else { return }
+        let track: PlexTrack?
+        if let queueIndex = state.queueIndex, queueIndex >= 0, queueIndex < context.tracks.count {
+            track = context.tracks[queueIndex]
+        } else {
+            track = context.tracks.first(where: { $0.ratingKey == state.trackRatingKey })
+        }
+        guard let track else { return }
         guard let albumKey = track.parentRatingKey else { return }
         guard let albumsByRatingKey = context.albumsByRatingKey,
               let album = albumsByRatingKey[albumKey] else {
@@ -326,8 +645,15 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
         lastOfflineTrackEventKey = state.trackRatingKey
         offlinePlaybackIndex?.markPlayed(trackKey: state.trackRatingKey, at: Date())
 
-        guard let context = nowPlayingContext,
-              let index = context.tracks.firstIndex(where: { $0.ratingKey == state.trackRatingKey }) else {
+        guard let context = nowPlayingContext else {
+            return
+        }
+        let index: Int
+        if let queueIndex = state.queueIndex, queueIndex >= 0, queueIndex < context.tracks.count {
+            index = queueIndex
+        } else if let resolved = context.tracks.firstIndex(where: { $0.ratingKey == state.trackRatingKey }) {
+            index = resolved
+        } else {
             return
         }
         let current = context.tracks[index]

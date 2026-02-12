@@ -183,6 +183,18 @@ private struct AlbumRowView: View {
             titleVisibility: .visible
         ) {
             if let album = quickActionAlbum {
+                Button("Play Now") {
+                    playbackViewModel.enqueueAlbum(mode: .playNow, album: album, albumRatingKeys: ratingKeys(album))
+                    quickActionAlbum = nil
+                }
+                Button("Play Next") {
+                    playbackViewModel.enqueueAlbum(mode: .playNext, album: album, albumRatingKeys: ratingKeys(album))
+                    quickActionAlbum = nil
+                }
+                Button("Play Later") {
+                    playbackViewModel.enqueueAlbum(mode: .playLater, album: album, albumRatingKeys: ratingKeys(album))
+                    quickActionAlbum = nil
+                }
                 Button("Download Album") {
                     playbackViewModel.downloadAlbum(album: album, albumRatingKeys: ratingKeys(album))
                     quickActionAlbum = nil

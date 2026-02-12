@@ -92,9 +92,44 @@ struct AlbumDetailView: View {
                                     .foregroundStyle(themePalette.textPrimary)
 
                                 ForEach(viewModel.tracks, id: \.ratingKey) { track in
-                                    TrackRowCard(track: track, albumArtist: album.artist, palette: themePalette) {
+                                    TrackRowCard(
+                                        track: track,
+                                        albumArtist: album.artist,
+                                        palette: themePalette,
+                                        onTap: {
                                         viewModel.playTrack(track)
-                                    }
+                                        },
+                                        onPlayNow: {
+                                            playbackViewModel.enqueueTrack(
+                                                mode: .playNow,
+                                                track: track,
+                                                album: album,
+                                                albumRatingKeys: albumRatingKeys,
+                                                allTracks: viewModel.tracks,
+                                                artworkRequest: artworkRequest()
+                                            )
+                                        },
+                                        onPlayNext: {
+                                            playbackViewModel.enqueueTrack(
+                                                mode: .playNext,
+                                                track: track,
+                                                album: album,
+                                                albumRatingKeys: albumRatingKeys,
+                                                allTracks: viewModel.tracks,
+                                                artworkRequest: artworkRequest()
+                                            )
+                                        },
+                                        onPlayLater: {
+                                            playbackViewModel.enqueueTrack(
+                                                mode: .playLater,
+                                                track: track,
+                                                album: album,
+                                                albumRatingKeys: albumRatingKeys,
+                                                allTracks: viewModel.tracks,
+                                                artworkRequest: artworkRequest()
+                                            )
+                                        }
+                                    )
                                 }
                             }
                             .padding(.horizontal, Layout.globalPadding)
@@ -237,24 +272,50 @@ struct AlbumDetailView: View {
                 VStack(spacing: 10) {
                     StarRatingView(ratingOutOfTen: userRating, palette: palette)
 
-                    Button {
-                        viewModel.playAlbum()
-                    } label: {
-                        Label("Play", systemImage: "play.fill")
+                    HStack(spacing: 8) {
+                        Button {
+                            viewModel.playAlbum()
+                        } label: {
+                            Label("Play", systemImage: "play.fill")
+                        }
+                        .buttonStyle(PlayButtonStyle(palette: palette))
+                        .accessibilityLabel("Play album")
+
+                        Menu {
+                            Button("Play Next") {
+                                playbackViewModel.enqueueAlbum(mode: .playNext, album: album, albumRatingKeys: albumRatingKeys)
+                            }
+                            Button("Play Later") {
+                                playbackViewModel.enqueueAlbum(mode: .playLater, album: album, albumRatingKeys: albumRatingKeys)
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                        }
                     }
-                    .buttonStyle(PlayButtonStyle(palette: palette))
-                    .accessibilityLabel("Play album")
                 }
                 .frame(minWidth: 120, alignment: .center)
             } else {
                 VStack(alignment: .trailing, spacing: 8) {
-                    Button {
-                        viewModel.playAlbum()
-                    } label: {
-                        Label("Play", systemImage: "play.fill")
+                    HStack(spacing: 8) {
+                        Button {
+                            viewModel.playAlbum()
+                        } label: {
+                            Label("Play", systemImage: "play.fill")
+                        }
+                        .buttonStyle(PlayButtonStyle(palette: palette))
+                        .accessibilityLabel("Play album")
+
+                        Menu {
+                            Button("Play Next") {
+                                playbackViewModel.enqueueAlbum(mode: .playNext, album: album, albumRatingKeys: albumRatingKeys)
+                            }
+                            Button("Play Later") {
+                                playbackViewModel.enqueueAlbum(mode: .playLater, album: album, albumRatingKeys: albumRatingKeys)
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                        }
                     }
-                    .buttonStyle(PlayButtonStyle(palette: palette))
-                    .accessibilityLabel("Play album")
                 }
             }
         }
@@ -397,6 +458,9 @@ private struct TrackRowCard: View {
     let albumArtist: String?
     let palette: ThemePalette
     let onTap: () -> Void
+    let onPlayNow: () -> Void
+    let onPlayNext: () -> Void
+    let onPlayLater: () -> Void
 
     var body: some View {
         Button(action: onTap) {
@@ -437,6 +501,11 @@ private struct TrackRowCard: View {
             .clipShape(RoundedRectangle(cornerRadius: AlbumDetailView.Layout.cardCornerRadius))
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            Button("Play Now") { onPlayNow() }
+            Button("Play Next") { onPlayNext() }
+            Button("Play Later") { onPlayLater() }
+        }
     }
 
     private var trackArtistToShow: String? {

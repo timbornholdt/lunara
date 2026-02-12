@@ -203,6 +203,33 @@ struct ArtistDetailView: View {
                     .buttonStyle(.plain)
                     .contextMenu {
                         Button {
+                            playbackViewModel.enqueueAlbum(
+                                mode: .playNow,
+                                album: album,
+                                albumRatingKeys: [album.ratingKey]
+                            )
+                        } label: {
+                            Label("Play Now", systemImage: "play.fill")
+                        }
+                        Button {
+                            playbackViewModel.enqueueAlbum(
+                                mode: .playNext,
+                                album: album,
+                                albumRatingKeys: [album.ratingKey]
+                            )
+                        } label: {
+                            Label("Play Next", systemImage: "text.insert")
+                        }
+                        Button {
+                            playbackViewModel.enqueueAlbum(
+                                mode: .playLater,
+                                album: album,
+                                albumRatingKeys: [album.ratingKey]
+                            )
+                        } label: {
+                            Label("Play Later", systemImage: "text.append")
+                        }
+                        Button {
                             playbackViewModel.downloadAlbum(
                                 album: album,
                                 albumRatingKeys: [album.ratingKey]

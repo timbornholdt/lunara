@@ -179,6 +179,12 @@ private struct MainTabView: View {
                         }
                         playbackViewModel.play(tracks: context.tracks, startIndex: index, context: context)
                     },
+                    onClearQueue: {
+                        playbackViewModel.clearUpcomingQueue()
+                    },
+                    onRemoveUpNextAtIndex: { index in
+                        playbackViewModel.removeUpcomingQueueItem(atAbsoluteIndex: index)
+                    },
                     onNavigateToAlbum: {
                         guard let context = playbackViewModel.nowPlayingContext else { return }
                         let request = AlbumNavigationRequest(

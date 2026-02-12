@@ -570,6 +570,131 @@ struct PlaybackViewModelTests {
         #expect(queue.reconciliations.first?.groups.contains { $0.albumRatingKeys == ["b1"] } == true)
         #expect(queue.reconciliations.first?.groups.contains { $0.albumRatingKeys.sorted() == ["a1", "a2"] } == true)
     }
+
+    @Test func restoresPausedNowPlayingFromPersistedQueue() async {
+        let track = PlexTrack(
+            ratingKey: "t1",
+            title: "Track One",
+            index: 1,
+            parentIndex: nil,
+            parentRatingKey: "a1",
+            duration: 90_000,
+            media: [PlexTrackMedia(parts: [PlexTrackPart(key: "/library/parts/1/file.mp3")])]
+        )
+        let album = PlexAlbum(
+            ratingKey: "a1",
+            title: "Album One",
+            thumb: nil,
+            art: nil,
+            year: 2001,
+            artist: "Artist",
+            titleSort: nil,
+            originalTitle: nil,
+            editionTitle: nil,
+            guid: nil,
+            librarySectionID: nil,
+            parentRatingKey: nil,
+            studio: nil,
+            summary: nil,
+            genres: nil,
+            styles: nil,
+            moods: nil,
+            rating: nil,
+            userRating: nil,
+            key: nil
+        )
+        let state = QueueState(
+            entries: [
+                QueueEntry(
+                    track: track,
+                    album: album,
+                    albumRatingKeys: ["a1"],
+                    artworkRequest: nil,
+                    isPlayable: true,
+                    skipReason: nil
+                )
+            ],
+            currentIndex: 0,
+            elapsedTime: 23,
+            isPlaying: false
+        )
+        let queueManager = QueueManager(store: RecordingQueueStateStore(initial: state))
+        let engine = StubPlaybackEngine()
+
+        let viewModel = PlaybackViewModel(
+            engine: engine,
+            themeProvider: StubThemeProvider(),
+            queueManager: queueManager
+        )
+
+        #expect(viewModel.nowPlaying?.trackRatingKey == "t1")
+        #expect(viewModel.nowPlaying?.isPlaying == false)
+        #expect(viewModel.nowPlaying?.elapsedTime == 23)
+    }
+
+    @Test func duplicateQueueInsertShowsPunBanner() async {
+        let engine = StubPlaybackEngine()
+        let queueManager = QueueManager(store: RecordingQueueStateStore())
+        let viewModel = PlaybackViewModel(
+            engine: engine,
+            themeProvider: StubThemeProvider(),
+            queueManager: queueManager
+        )
+        let album = PlexAlbum(
+            ratingKey: "a1",
+            title: "Album One",
+            thumb: nil,
+            art: nil,
+            year: 2001,
+            artist: "Artist",
+            titleSort: nil,
+            originalTitle: nil,
+            editionTitle: nil,
+            guid: nil,
+            librarySectionID: nil,
+            parentRatingKey: nil,
+            studio: nil,
+            summary: nil,
+            genres: nil,
+            styles: nil,
+            moods: nil,
+            rating: nil,
+            userRating: nil,
+            key: nil
+        )
+        let track = PlexTrack(
+            ratingKey: "t1",
+            title: "Track One",
+            index: 1,
+            parentIndex: nil,
+            parentRatingKey: "a1",
+            duration: 90_000,
+            media: [PlexTrackMedia(parts: [PlexTrackPart(key: "/library/parts/1/file.mp3")])]
+        )
+
+        viewModel.enqueueTrack(
+            mode: .playNext,
+            track: track,
+            album: album,
+            albumRatingKeys: ["a1"],
+            allTracks: [track],
+            artworkRequest: nil
+        )
+        viewModel.enqueueTrack(
+            mode: .playNext,
+            track: track,
+            album: album,
+            albumRatingKeys: ["a1"],
+            allTracks: [track],
+            artworkRequest: nil
+        )
+        let didSetBanner = await waitUntil {
+            viewModel.errorMessage != nil
+        }
+
+        #expect(didSetBanner)
+        #expect(viewModel.errorMessage == "Queue cue: we heard you already.")
+    }
 }
 
 private final class StubPlaybackEngine: PlaybackEngineing {
@@ -759,6 +884,26 @@ private final class RecordingOfflineDownloadQueue: OfflineDownloadQueuing {
     }
 
     func removeCollectionDownload(collectionKey: String) async throws {
+    }
+}
+
+private final class RecordingQueueStateStore: QueueStateStoring {
+    private var state: QueueState?
+
+    init(initial: QueueState? = nil) {
+        state = initial
+    }
+
+    func load() throws -> QueueState? {
+        state
+    }
+
+    func save(_ state: QueueState) throws {
+        self.state = state
+    }
+
+    func clear() throws {
+        state = nil
     }
 }
 

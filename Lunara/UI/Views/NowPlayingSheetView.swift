@@ -10,6 +10,8 @@ struct NowPlayingSheetView: View {
     let onPrevious: () -> Void
     let onSeek: (TimeInterval) -> Void
     let onSelectTrack: (PlexTrack) -> Void
+    let onClearQueue: () -> Void
+    let onRemoveUpNextAtIndex: (Int) -> Void
     let onNavigateToAlbum: () -> Void
 
     @State private var scrubValue: Double = 0
@@ -147,27 +149,39 @@ struct NowPlayingSheetView: View {
 
     private var upNextSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Up Next")
-                .font(LunaraTheme.Typography.displayBold(size: 18))
-                .foregroundStyle(palette.textPrimary)
+            HStack {
+                Text("Up Next")
+                    .font(LunaraTheme.Typography.displayBold(size: 18))
+                    .foregroundStyle(palette.textPrimary)
+                Spacer()
+                Button("Clear Queue", role: .destructive, action: onClearQueue)
+                    .font(LunaraTheme.Typography.displayRegular(size: 13))
+            }
 
-            let tracks = NowPlayingUpNextBuilder.upNextTracks(
+            let items = NowPlayingUpNextBuilder.upNextItems(
                 tracks: context?.tracks ?? [],
-                currentRatingKey: state.trackRatingKey
+                currentIndex: state.queueIndex
             )
 
-            if tracks.isEmpty {
+            if items.isEmpty {
                 Text("No more tracks.")
                     .font(LunaraTheme.Typography.displayRegular(size: 14))
                     .foregroundStyle(palette.textSecondary)
             } else {
-                ForEach(tracks, id: \.ratingKey) { track in
+                ForEach(items) { item in
                     UpNextRow(
-                        track: track,
+                        track: item.track,
                         albumArtist: context?.album.artist,
                         palette: palette,
-                        onTap: { onSelectTrack(track) }
+                        onTap: { onSelectTrack(item.track) }
                     )
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button(role: .destructive) {
+                            onRemoveUpNextAtIndex(item.absoluteIndex)
+                        } label: {
+                            Label("Remove", systemImage: "trash")
+                        }
+                    }
                 }
             }
         }
