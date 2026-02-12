@@ -55,6 +55,34 @@ final class AVQueuePlayerAdapter: PlaybackPlayer {
         }
     }
 
+    func replaceUpcoming(urls: [URL]) {
+        guard !items.isEmpty,
+              currentIndex >= 0,
+              currentIndex < items.count else {
+            setQueue(urls: urls)
+            return
+        }
+
+        if (currentIndex + 1) < items.count {
+            for item in items[(currentIndex + 1)...] {
+                player.remove(item)
+            }
+        }
+
+        var updatedItems = Array(items.prefix(currentIndex + 1))
+        var lastItem = updatedItems.last
+        for url in urls {
+            let newItem = AVPlayerItem(url: url)
+            player.insert(newItem, after: lastItem)
+            updatedItems.append(newItem)
+            lastItem = newItem
+        }
+
+        items = updatedItems
+        itemIndex = Dictionary(uniqueKeysWithValues: items.enumerated().map { (ObjectIdentifier($0.element), $0.offset) })
+        failedItemIDs = failedItemIDs.intersection(Set(items.map(ObjectIdentifier.init)))
+    }
+
     func play() {
         player.play()
     }

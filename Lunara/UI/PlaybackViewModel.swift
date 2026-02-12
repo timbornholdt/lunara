@@ -492,6 +492,11 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
         }
         let context = makeContext(from: updated)
         let tracks = updated.entries.map(\.track)
+        if previous.currentIndex == currentIndex, nowPlaying != nil {
+            setNowPlayingContext(context)
+            engine?.refreshQueue(tracks: tracks, currentIndex: currentIndex)
+            return
+        }
         let shouldRestoreElapsed = previous.currentIndex == currentIndex
         let elapsed = shouldRestoreElapsed ? previous.elapsedTime : 0
         play(tracks: tracks, startIndex: currentIndex, context: context)

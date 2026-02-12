@@ -14,6 +14,7 @@ protocol PlaybackEngineing: AnyObject {
     var onStateChange: ((NowPlayingState?) -> Void)? { get set }
     var onError: ((PlaybackError) -> Void)? { get set }
     func play(tracks: [PlexTrack], startIndex: Int)
+    func refreshQueue(tracks: [PlexTrack], currentIndex: Int)
     func togglePlayPause()
     func stop()
     func skipToNext()
@@ -28,6 +29,7 @@ protocol PlaybackPlayer: AnyObject {
     var onPlaybackStateChanged: ((Bool) -> Void)? { get set }
 
     func setQueue(urls: [URL])
+    func replaceUpcoming(urls: [URL])
     func play()
     func pause()
     func stop()

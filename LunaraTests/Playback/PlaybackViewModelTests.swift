@@ -695,6 +695,94 @@ struct PlaybackViewModelTests {
         #expect(didSetBanner)
         #expect(viewModel.errorMessage == "Queue cue: we heard you already.")
     }
+
+    @Test func enqueueTrackPlayNextRefreshesQueueWithoutRestartingPlayback() async {
+        let engine = StubPlaybackEngine()
+        let queueManager = QueueManager(store: RecordingQueueStateStore())
+        let viewModel = PlaybackViewModel(
+            engine: engine,
+            themeProvider: StubThemeProvider(),
+            queueManager: queueManager
+        )
+
+        let album = PlexAlbum(
+            ratingKey: "a1",
+            title: "Album One",
+            thumb: nil,
+            art: nil,
+            year: 2001,
+            artist: "Artist",
+            titleSort: nil,
+            originalTitle: nil,
+            editionTitle: nil,
+            guid: nil,
+            librarySectionID: nil,
+            parentRatingKey: nil,
+            studio: nil,
+            summary: nil,
+            genres: nil,
+            styles: nil,
+            moods: nil,
+            rating: nil,
+            userRating: nil,
+            key: nil
+        )
+        let trackOne = PlexTrack(
+            ratingKey: "t1",
+            title: "Track One",
+            index: 1,
+            parentIndex: nil,
+            parentRatingKey: "a1",
+            duration: 90_000,
+            media: [PlexTrackMedia(parts: [PlexTrackPart(key: "/library/parts/1/file.mp3")])]
+        )
+        let trackTwo = PlexTrack(
+            ratingKey: "t2",
+            title: "Track Two",
+            index: 2,
+            parentIndex: nil,
+            parentRatingKey: "a1",
+            duration: 90_000,
+            media: [PlexTrackMedia(parts: [PlexTrackPart(key: "/library/parts/2/file.mp3")])]
+        )
+        let context = NowPlayingContext(
+            album: album,
+            albumRatingKeys: ["a1"],
+            tracks: [trackOne],
+            artworkRequest: nil
+        )
+
+        viewModel.play(tracks: [trackOne], startIndex: 0, context: context)
+        engine.emitState(
+            NowPlayingState(
+                trackRatingKey: "t1",
+                trackTitle: "Track One",
+                artistName: "Artist",
+                isPlaying: true,
+                elapsedTime: 12,
+                duration: 90,
+                queueIndex: 0
+            )
+        )
+
+        viewModel.enqueueTrack(
+            mode: .playNext,
+            track: trackTwo,
+            album: album,
+            albumRatingKeys: ["a1"],
+            allTracks: [trackOne, trackTwo],
+            artworkRequest: nil
+        )
+
+        let didRefresh = await waitUntil {
+            engine.refreshQueueCallCount == 1
+        }
+
+        #expect(didRefresh)
+        #expect(engine.playCallCount == 1)
+        #expect(engine.lastRefreshCurrentIndex == 0)
+        #expect(engine.lastRefreshTracks?.map(\.ratingKey) == ["t1", "t2"])
+    }
 }
 
 private final class StubPlaybackEngine: PlaybackEngineing {
@@ -702,6 +790,9 @@ private final class StubPlaybackEngine: PlaybackEngineing {
     var onError: ((PlaybackError) -> Void)?
 
     private(set) var playCallCount = 0
+    private(set) var refreshQueueCallCount = 0
+    private(set) var lastRefreshTracks: [PlexTrack]?
+    private(set) var lastRefreshCurrentIndex: Int?
     private(set) var toggleCallCount = 0
     private(set) var lastTracks: [PlexTrack]?
     private(set) var lastStartIndex: Int?
@@ -713,6 +804,12 @@ private final class StubPlaybackEngine: PlaybackEngineing {
         playCallCount += 1
         lastTracks = tracks
         lastStartIndex = startIndex
+    }
+
+    func refreshQueue(tracks: [PlexTrack], currentIndex: Int) {
+        refreshQueueCallCount += 1
+        lastRefreshTracks = tracks
+        lastRefreshCurrentIndex = currentIndex
     }
 
     func stop() {
