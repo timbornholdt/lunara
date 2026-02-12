@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import UIKit
 
 @MainActor
 final class PlaybackViewModel: ObservableObject, PlaybackControlling {
@@ -17,10 +18,16 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
     private var lastToken: String?
     private let bypassAuthChecks: Bool
     private let themeProvider: ArtworkThemeProviding
+    private let nowPlayingInfoCenter: NowPlayingInfoCenterUpdating
+    private let remoteCommandCenter: RemoteCommandCenterHandling
+    private let lockScreenArtworkProvider: LockScreenArtworkProviding
     private let offlinePlaybackIndex: LocalPlaybackIndexing?
     private let opportunisticCacher: OfflineOpportunisticCaching?
     private let offlineDownloadQueue: OfflineDownloadQueuing?
     private var currentThemeAlbumKey: String?
+    private var currentLockScreenAlbumKey: String?
+    private var currentLockScreenArtwork: UIImage?
+    private var remoteCommandsConfigured = false
     private var lastOfflineTrackEventKey: String?
 
     typealias PlaybackEngineFactory = (URL, String) -> PlaybackEngineing
@@ -39,6 +46,9 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
         },
         engineFactory: @escaping PlaybackEngineFactory = PlaybackViewModel.defaultEngineFactory,
         themeProvider: ArtworkThemeProviding = ArtworkThemeProvider.shared,
+        nowPlayingInfoCenter: NowPlayingInfoCenterUpdating = NowPlayingInfoCenterUpdater(),
+        remoteCommandCenter: RemoteCommandCenterHandling = RemoteCommandCenterHandler(),
+        lockScreenArtworkProvider: LockScreenArtworkProviding = LockScreenArtworkProvider(),
         offlinePlaybackIndex: LocalPlaybackIndexing? = OfflineServices.shared.playbackIndex,
         opportunisticCacher: OfflineOpportunisticCaching? = OfflineServices.shared.coordinator,
         offlineDownloadQueue: OfflineDownloadQueuing? = OfflineServices.shared.coordinator
@@ -48,6 +58,9 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
         self.libraryServiceFactory = libraryServiceFactory
         self.engineFactory = engineFactory
         self.themeProvider = themeProvider
+        self.nowPlayingInfoCenter = nowPlayingInfoCenter
+        self.remoteCommandCenter = remoteCommandCenter
+        self.lockScreenArtworkProvider = lockScreenArtworkProvider
         self.bypassAuthChecks = false
         self.offlinePlaybackIndex = offlinePlaybackIndex
         self.opportunisticCacher = opportunisticCacher
@@ -57,6 +70,9 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
     init(
         engine: PlaybackEngineing,
         themeProvider: ArtworkThemeProviding = ArtworkThemeProvider.shared,
+        nowPlayingInfoCenter: NowPlayingInfoCenterUpdating = NowPlayingInfoCenterUpdater(),
+        remoteCommandCenter: RemoteCommandCenterHandling = RemoteCommandCenterHandler(),
+        lockScreenArtworkProvider: LockScreenArtworkProviding = LockScreenArtworkProvider(),
         offlinePlaybackIndex: LocalPlaybackIndexing? = nil,
         opportunisticCacher: OfflineOpportunisticCaching? = nil,
         tokenStore: PlexAuthTokenStoring = PlexAuthTokenStore(keychain: KeychainStore()),
@@ -79,6 +95,9 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
         self.engine = engine
         self.bypassAuthChecks = true
         self.themeProvider = themeProvider
+        self.nowPlayingInfoCenter = nowPlayingInfoCenter
+        self.remoteCommandCenter = remoteCommandCenter
+        self.lockScreenArtworkProvider = lockScreenArtworkProvider
         self.offlinePlaybackIndex = offlinePlaybackIndex
         self.opportunisticCacher = opportunisticCacher
         self.offlineDownloadQueue = offlineDownloadQueue
@@ -120,6 +139,13 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
         nowPlayingContext = nil
         albumTheme = nil
         currentThemeAlbumKey = nil
+        currentLockScreenAlbumKey = nil
+        currentLockScreenArtwork = nil
+        nowPlayingInfoCenter.clear()
+        if remoteCommandsConfigured {
+            remoteCommandCenter.teardown()
+            remoteCommandsConfigured = false
+        }
         lastOfflineTrackEventKey = nil
     }
 
@@ -207,16 +233,31 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
 
     private func handleStateChange(_ state: NowPlayingState?) {
         nowPlaying = state
-        guard let state else { return }
+        guard let state else {
+            currentLockScreenAlbumKey = nil
+            currentLockScreenArtwork = nil
+            nowPlayingInfoCenter.clear()
+            if remoteCommandsConfigured {
+                remoteCommandCenter.teardown()
+                remoteCommandsConfigured = false
+            }
+            return
+        }
+        configureRemoteCommandsIfNeeded()
         handleOfflineStateHooks(for: state)
-        guard let context = nowPlayingContext else { return }
+        guard let context = nowPlayingContext else {
+            publishLockScreenMetadata(for: state)
+            return
+        }
         guard let track = context.tracks.first(where: { $0.ratingKey == state.trackRatingKey }) else { return }
         guard let albumKey = track.parentRatingKey else { return }
         guard let albumsByRatingKey = context.albumsByRatingKey,
               let album = albumsByRatingKey[albumKey] else {
+            publishLockScreenMetadata(for: state)
             return
         }
         if album.ratingKey == context.album.ratingKey {
+            publishLockScreenMetadata(for: state)
             return
         }
         let artworkRequest = context.artworkRequestsByAlbumKey?[album.ratingKey] ?? context.artworkRequest
@@ -229,6 +270,7 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
             artworkRequestsByAlbumKey: context.artworkRequestsByAlbumKey
         )
         setNowPlayingContext(updatedContext)
+        publishLockScreenMetadata(for: state)
     }
 
     private func setNowPlayingContext(_ context: NowPlayingContext?) {
@@ -236,6 +278,11 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
         guard let context else {
             albumTheme = nil
             currentThemeAlbumKey = nil
+            currentLockScreenAlbumKey = nil
+            currentLockScreenArtwork = nil
+            if let state = nowPlaying {
+                publishLockScreenMetadata(for: state)
+            }
             lastOfflineTrackEventKey = nil
             return
         }
@@ -249,6 +296,26 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
             await MainActor.run {
                 if self.currentThemeAlbumKey == albumKey {
                     self.albumTheme = theme
+                }
+            }
+        }
+
+        if currentLockScreenAlbumKey == albumKey {
+            return
+        }
+        currentLockScreenAlbumKey = albumKey
+        currentLockScreenArtwork = nil
+        if let state = nowPlaying {
+            publishLockScreenMetadata(for: state)
+        }
+        Task {
+            let artworkImage = await lockScreenArtworkProvider.resolveArtwork(for: context.artworkRequest)
+            await MainActor.run {
+                if self.currentLockScreenAlbumKey == albumKey {
+                    self.currentLockScreenArtwork = artworkImage
+                    if let state = self.nowPlaying {
+                        self.publishLockScreenMetadata(for: state)
+                    }
                 }
             }
         }
@@ -268,6 +335,50 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
         Task {
             await opportunisticCacher?.enqueueOpportunistic(current: current, upcoming: upcoming, limit: 5)
         }
+    }
+
+    private func configureRemoteCommandsIfNeeded() {
+        guard remoteCommandsConfigured == false else { return }
+        remoteCommandsConfigured = true
+        remoteCommandCenter.configure(
+            handlers: RemoteCommandHandlers(
+                onPlay: { [weak self] in
+                    Task { @MainActor in
+                        guard let self, self.nowPlaying?.isPlaying == false else { return }
+                        self.togglePlayPause()
+                    }
+                },
+                onPause: { [weak self] in
+                    Task { @MainActor in
+                        guard let self, self.nowPlaying?.isPlaying == true else { return }
+                        self.togglePlayPause()
+                    }
+                },
+                onNext: { [weak self] in
+                    Task { @MainActor in
+                        self?.skipToNext()
+                    }
+                },
+                onPrevious: { [weak self] in
+                    Task { @MainActor in
+                        self?.skipToPrevious()
+                    }
+                }
+            )
+        )
+    }
+
+    private func publishLockScreenMetadata(for state: NowPlayingState) {
+        let metadata = LockScreenNowPlayingMetadata(
+            title: state.trackTitle,
+            artist: state.artistName,
+            albumTitle: nowPlayingContext?.album.title,
+            elapsedTime: state.elapsedTime,
+            duration: state.duration,
+            isPlaying: state.isPlaying,
+            artworkImage: currentLockScreenArtwork
+        )
+        nowPlayingInfoCenter.update(with: metadata)
     }
 
     private static func defaultEngineFactory(serverURL: URL, token: String) -> PlaybackEngineing {

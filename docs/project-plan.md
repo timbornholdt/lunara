@@ -112,6 +112,8 @@
 	 - When an album is played and a stream of the song is started, each complete stream should be saved for offline playback later
 	 - The playback tool checks the local cache of songs first before reaching out to download it.
 12. [ ] Queue manager v1
+   - Status update (2026-02-12):
+     - Deferred by request while prioritizing Phase 1.13 lock screen controls. Return after 1.13 lands.
    - Acceptance criteria:
      - Play now/next/later works for album insertions.
 	   - Play Now removes all items from the queue and beings playing the album from track 1
@@ -119,9 +121,16 @@
 	   - Play later preserves the existing queue and inserts all tracks from the album to the bottom of the queue
      - Queue persists across app restarts.
 	 - Long pressing on an individual track opens a menu which allows me to add the track in the same manner as the albums described above
-13. [ ] Lock screen now playing + remote controls
+13. [x] Lock screen now playing + remote controls
+   - Requirements defined in `docs/features/lock-screen-now-playing-remote-controls.md`
+   - Status update (2026-02-12):
+     - Activated as current work item after deferring 1.12.
+     - Scope confirmed to include lock-screen artwork in this pass.
+   - Progress update (2026-02-12):
+     - Implemented Lock Screen/Control Center now playing metadata (including artwork when available) plus Play/Pause/Next/Previous remote command support with protocol-backed adapters and unit coverage.
    - Acceptance criteria:
      - Lock screen and Control Center show current track, elapsed time, and duration.
+     - Lock screen and Control Center show artwork when available.
      - Play/Pause/Next/Previous remote commands control playback.
 
 
