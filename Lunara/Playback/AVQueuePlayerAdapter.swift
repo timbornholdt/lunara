@@ -146,8 +146,6 @@ final class AVQueuePlayerAdapter: PlaybackPlayer {
     }
 
     private func log(_ message: String) {
-#if DEBUG
-        print("[PlaybackDebug][AVQueue] \(message)")
-#endif
+        NSLog("[PlaybackDebug][AVQueue] %@", message)
     }
 }

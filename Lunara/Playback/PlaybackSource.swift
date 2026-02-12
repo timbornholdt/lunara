@@ -64,8 +64,6 @@ struct PlaybackSourceResolver: PlaybackSourceResolving {
     }
 
     private func log(_ message: String) {
-#if DEBUG
-        print("[PlaybackDebug][Resolver] \(message)")
-#endif
+        NSLog("[PlaybackDebug][Resolver] %@", message)
     }
 }

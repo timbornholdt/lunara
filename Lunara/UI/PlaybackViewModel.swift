@@ -295,9 +295,7 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
     }
 
     private func log(_ message: String) {
-#if DEBUG
-        print("[PlaybackDebug][ViewModel] \(message)")
-#endif
+        NSLog("[PlaybackDebug][ViewModel] %@", message)
     }
 
     private func makeCollectionAlbumGroups(from albums: [PlexAlbum]) -> [OfflineCollectionAlbumGroup] {

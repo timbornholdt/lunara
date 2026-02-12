@@ -216,9 +216,7 @@ final class PlaybackEngine: PlaybackEngineing {
     }
 
     private func log(_ message: String) {
-#if DEBUG
-        print("[PlaybackDebug][Engine] \(message)")
-#endif
+        NSLog("[PlaybackDebug][Engine] %@", message)
     }
 }
 
