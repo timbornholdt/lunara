@@ -61,7 +61,7 @@ private struct MainTabView: View {
     @StateObject private var artistsViewModel: ArtistsViewModel
     @ObservedObject var playbackViewModel: PlaybackViewModel
     let signOut: () -> Void
-    @State private var selectedTab: Tab = .library
+    @State private var selectedTab: Tab = .collections
     @State private var showNowPlaying = false
     @State private var libraryPath = NavigationPath()
     @State private var collectionsPath = NavigationPath()
