@@ -5,7 +5,9 @@ import SwiftUI
 @MainActor
 final class CollectionAlbumsViewModel: ObservableObject {
     @Published var albums: [PlexAlbum] = []
+    @Published var marqueeAlbums: [PlexAlbum] = []
     @Published var isLoading = false
+    @Published var isPreparingPlayback = false
     @Published var errorMessage: String?
 
     let collection: PlexCollection
@@ -14,6 +16,9 @@ final class CollectionAlbumsViewModel: ObservableObject {
     private let serverStore: PlexServerAddressStoring
     private let libraryServiceFactory: PlexLibraryServiceFactory
     private let sessionInvalidationHandler: () -> Void
+    private let playbackController: PlaybackControlling
+    private let shuffleProvider: ([PlexTrack]) -> [PlexTrack]
+    private let marqueeShuffleProvider: ([PlexAlbum]) -> [PlexAlbum]
     private let sectionKey: String
     private var albumGroups: [String: [PlexAlbum]] = [:]
 
@@ -31,7 +36,10 @@ final class CollectionAlbumsViewModel: ObservableObject {
                 paginator: PlexPaginator(pageSize: 50)
             )
         },
-        sessionInvalidationHandler: @escaping () -> Void = {}
+        sessionInvalidationHandler: @escaping () -> Void = {},
+        playbackController: PlaybackControlling? = nil,
+        shuffleProvider: @escaping ([PlexTrack]) -> [PlexTrack] = { $0.shuffled() },
+        marqueeShuffleProvider: @escaping ([PlexAlbum]) -> [PlexAlbum] = { $0.shuffled() }
     ) {
         self.collection = collection
         self.sectionKey = sectionKey
@@ -39,6 +47,9 @@ final class CollectionAlbumsViewModel: ObservableObject {
         self.serverStore = serverStore
         self.libraryServiceFactory = libraryServiceFactory
         self.sessionInvalidationHandler = sessionInvalidationHandler
+        self.playbackController = playbackController ?? PlaybackNoopController()
+        self.shuffleProvider = shuffleProvider
+        self.marqueeShuffleProvider = marqueeShuffleProvider
     }
 
     func loadAlbums() async {
@@ -69,6 +80,9 @@ final class CollectionAlbumsViewModel: ObservableObject {
             )
             albumGroups = Dictionary(grouping: fetchedAlbums, by: albumDedupKey(for:))
             albums = dedupeAlbums(fetchedAlbums)
+            if marqueeAlbums.isEmpty {
+                marqueeAlbums = marqueeShuffleProvider(albums)
+            }
         } catch {
             print("CollectionAlbumsViewModel.loadAlbums error: \(error)")
             if PlexErrorHelpers.isUnauthorized(error) {
@@ -81,6 +95,62 @@ final class CollectionAlbumsViewModel: ObservableObject {
                 } else {
                     errorMessage = "Failed to load collection."
                 }
+            }
+        }
+    }
+
+    func playCollection(shuffled: Bool) async {
+        guard isPreparingPlayback == false else { return }
+        errorMessage = nil
+        guard let serverURL = serverStore.serverURL else {
+            errorMessage = "Missing server URL."
+            return
+        }
+        let storedToken = try? tokenStore.load()
+        guard let token = storedToken ?? nil else {
+            errorMessage = "Missing auth token."
+            return
+        }
+
+        isPreparingPlayback = true
+        defer { isPreparingPlayback = false }
+
+        do {
+            let service = libraryServiceFactory(serverURL, token)
+            var combinedTracks: [PlexTrack] = []
+            var seenTrackKeys = Set<String>()
+            for album in albums {
+                let keys = ratingKeys(for: album)
+                for key in keys {
+                    let fetchedTracks = try await service.fetchTracks(albumRatingKey: key)
+                    let sortedTracks = sortTracks(fetchedTracks)
+                    for track in sortedTracks where seenTrackKeys.insert(track.ratingKey).inserted {
+                        combinedTracks.append(track)
+                    }
+                }
+            }
+            guard combinedTracks.isEmpty == false else {
+                errorMessage = "No tracks found in this collection."
+                return
+            }
+
+            let tracks = shuffled ? shuffleProvider(combinedTracks) : combinedTracks
+            playbackController.play(
+                tracks: tracks,
+                startIndex: 0,
+                context: makeNowPlayingContext(
+                    tracks: tracks,
+                    serverURL: serverURL,
+                    token: token
+                )
+            )
+        } catch {
+            if PlexErrorHelpers.isUnauthorized(error) {
+                try? tokenStore.clear()
+                sessionInvalidationHandler()
+                errorMessage = "Session expired. Please sign in again."
+            } else {
+                errorMessage = "Failed to load collection tracks."
             }
         }
     }
@@ -136,5 +206,60 @@ final class CollectionAlbumsViewModel: ObservableObject {
         if album.art != nil { score += 2 }
         if album.thumb != nil { score += 1 }
         return score
+    }
+
+    private func sortTracks(_ tracks: [PlexTrack]) -> [PlexTrack] {
+        tracks.sorted { lhs, rhs in
+            let lhsDisc = lhs.parentIndex ?? 0
+            let rhsDisc = rhs.parentIndex ?? 0
+            if lhsDisc != rhsDisc {
+                return lhsDisc < rhsDisc
+            }
+            let lhsIndex = lhs.index ?? Int.max
+            let rhsIndex = rhs.index ?? Int.max
+            if lhsIndex != rhsIndex {
+                return lhsIndex < rhsIndex
+            }
+            return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+        }
+    }
+
+    private func makeNowPlayingContext(
+        tracks: [PlexTrack],
+        serverURL: URL,
+        token: String
+    ) -> NowPlayingContext? {
+        guard let primaryAlbum = albumForContext(tracks: tracks) ?? albums.first else {
+            return nil
+        }
+        let builder = ArtworkRequestBuilder(baseURL: serverURL, token: token)
+        let artworkByAlbumKey = albums.reduce(into: [String: ArtworkRequest]()) { result, album in
+            let request = builder.albumRequest(for: album, size: .detail)
+            for key in ratingKeys(for: album) {
+                if let request {
+                    result[key] = request
+                }
+            }
+        }
+        let albumMap = albums.reduce(into: [String: PlexAlbum]()) { result, album in
+            for key in ratingKeys(for: album) {
+                result[key] = album
+            }
+        }
+        let primaryArtwork = artworkByAlbumKey[primaryAlbum.ratingKey]
+            ?? builder.albumRequest(for: primaryAlbum, size: .detail)
+        return NowPlayingContext(
+            album: primaryAlbum,
+            albumRatingKeys: ratingKeys(for: primaryAlbum),
+            tracks: tracks,
+            artworkRequest: primaryArtwork,
+            albumsByRatingKey: albumMap.isEmpty ? nil : albumMap,
+            artworkRequestsByAlbumKey: artworkByAlbumKey.isEmpty ? nil : artworkByAlbumKey
+        )
+    }
+
+    private func albumForContext(tracks: [PlexTrack]) -> PlexAlbum? {
+        guard let parentKey = tracks.first?.parentRatingKey else { return nil }
+        return albums.first { ratingKeys(for: $0).contains(parentKey) }
     }
 }

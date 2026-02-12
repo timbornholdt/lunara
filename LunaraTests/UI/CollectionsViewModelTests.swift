@@ -299,6 +299,194 @@ struct CollectionAlbumsViewModelTests {
         #expect(service.lastCollectionItemsSectionId == "2")
         #expect(service.lastCollectionItemsKey == "999")
     }
+
+    @Test func playCollectionQueuesTracksInAlbumOrder() async {
+        let tokenStore = InMemoryTokenStore(token: "token")
+        let serverStore = InMemoryServerStore(url: URL(string: "https://example.com:32400")!)
+        let collection = PlexCollection(ratingKey: "999", title: "Current Vibes", thumb: nil, art: nil, updatedAt: nil, key: nil)
+        let albumA = makeAlbum(ratingKey: "a", title: "A")
+        let albumB = makeAlbum(ratingKey: "b", title: "B")
+        let tracksByAlbum = [
+            "a": [
+                PlexTrack(ratingKey: "a2", title: "A2", index: 2, parentIndex: 1, parentRatingKey: "a", duration: nil, media: nil),
+                PlexTrack(ratingKey: "a1", title: "A1", index: 1, parentIndex: 1, parentRatingKey: "a", duration: nil, media: nil)
+            ],
+            "b": [
+                PlexTrack(ratingKey: "b1", title: "B1", index: 1, parentIndex: 1, parentRatingKey: "b", duration: nil, media: nil)
+            ]
+        ]
+        let service = RecordingLibraryService(
+            sections: [PlexLibrarySection(key: "2", title: "Music", type: "artist")],
+            collections: [],
+            albumsByCollectionKey: [collection.ratingKey: [albumA, albumB]],
+            tracksByAlbumRatingKey: tracksByAlbum
+        )
+        let playback = RecordingPlaybackController()
+        let viewModel = CollectionAlbumsViewModel(
+            collection: collection,
+            sectionKey: "2",
+            tokenStore: tokenStore,
+            serverStore: serverStore,
+            libraryServiceFactory: { _, _ in service },
+            playbackController: playback
+        )
+
+        await viewModel.loadAlbums()
+        await viewModel.playCollection(shuffled: false)
+
+        #expect(service.fetchedTrackAlbumKeys == ["a", "b"])
+        #expect(playback.lastTracks?.map(\.ratingKey) == ["a1", "a2", "b1"])
+        #expect(playback.lastStartIndex == 0)
+    }
+
+    @Test func playCollectionShuffleUsesInjectedShuffleProvider() async {
+        let tokenStore = InMemoryTokenStore(token: "token")
+        let serverStore = InMemoryServerStore(url: URL(string: "https://example.com:32400")!)
+        let collection = PlexCollection(ratingKey: "999", title: "Current Vibes", thumb: nil, art: nil, updatedAt: nil, key: nil)
+        let album = makeAlbum(ratingKey: "a", title: "A")
+        let tracks = [
+            PlexTrack(ratingKey: "1", title: "One", index: 1, parentIndex: 1, parentRatingKey: "a", duration: nil, media: nil),
+            PlexTrack(ratingKey: "2", title: "Two", index: 2, parentIndex: 1, parentRatingKey: "a", duration: nil, media: nil)
+        ]
+        let service = RecordingLibraryService(
+            sections: [PlexLibrarySection(key: "2", title: "Music", type: "artist")],
+            collections: [],
+            albumsByCollectionKey: [collection.ratingKey: [album]],
+            tracksByAlbumRatingKey: ["a": tracks]
+        )
+        let playback = RecordingPlaybackController()
+        let viewModel = CollectionAlbumsViewModel(
+            collection: collection,
+            sectionKey: "2",
+            tokenStore: tokenStore,
+            serverStore: serverStore,
+            libraryServiceFactory: { _, _ in service },
+            playbackController: playback,
+            shuffleProvider: { Array($0.reversed()) }
+        )
+
+        await viewModel.loadAlbums()
+        await viewModel.playCollection(shuffled: true)
+
+        #expect(playback.lastTracks?.map(\.ratingKey) == ["2", "1"])
+    }
+
+    @Test func playCollectionWithNoTracksSetsError() async {
+        let tokenStore = InMemoryTokenStore(token: "token")
+        let serverStore = InMemoryServerStore(url: URL(string: "https://example.com:32400")!)
+        let collection = PlexCollection(ratingKey: "999", title: "Current Vibes", thumb: nil, art: nil, updatedAt: nil, key: nil)
+        let album = makeAlbum(ratingKey: "a", title: "A")
+        let service = RecordingLibraryService(
+            sections: [PlexLibrarySection(key: "2", title: "Music", type: "artist")],
+            collections: [],
+            albumsByCollectionKey: [collection.ratingKey: [album]],
+            tracksByAlbumRatingKey: ["a": []]
+        )
+        let playback = RecordingPlaybackController()
+        let viewModel = CollectionAlbumsViewModel(
+            collection: collection,
+            sectionKey: "2",
+            tokenStore: tokenStore,
+            serverStore: serverStore,
+            libraryServiceFactory: { _, _ in service },
+            playbackController: playback
+        )
+
+        await viewModel.loadAlbums()
+        await viewModel.playCollection(shuffled: false)
+
+        #expect(viewModel.errorMessage == "No tracks found in this collection.")
+        #expect(playback.playCallCount == 0)
+    }
+
+    @Test func playCollectionUnauthorizedClearsSession() async {
+        let tokenStore = InMemoryTokenStore(token: "token")
+        let serverStore = InMemoryServerStore(url: URL(string: "https://example.com:32400")!)
+        let collection = PlexCollection(ratingKey: "999", title: "Current Vibes", thumb: nil, art: nil, updatedAt: nil, key: nil)
+        let album = makeAlbum(ratingKey: "a", title: "A")
+        let service = RecordingLibraryService(
+            sections: [PlexLibrarySection(key: "2", title: "Music", type: "artist")],
+            collections: [],
+            albumsByCollectionKey: [collection.ratingKey: [album]],
+            tracksByAlbumRatingKey: ["a": []],
+            tracksErrorByAlbumRatingKey: ["a": PlexHTTPError.httpStatus(401, Data())]
+        )
+        let playback = RecordingPlaybackController()
+        var invalidationCount = 0
+        let viewModel = CollectionAlbumsViewModel(
+            collection: collection,
+            sectionKey: "2",
+            tokenStore: tokenStore,
+            serverStore: serverStore,
+            libraryServiceFactory: { _, _ in service },
+            sessionInvalidationHandler: { invalidationCount += 1 },
+            playbackController: playback
+        )
+
+        await viewModel.loadAlbums()
+        await viewModel.playCollection(shuffled: false)
+
+        #expect((try? tokenStore.load()) == nil)
+        #expect(invalidationCount == 1)
+        #expect(playback.playCallCount == 0)
+        #expect(viewModel.errorMessage == "Session expired. Please sign in again.")
+    }
+
+    @Test func loadAlbumsSeedsMarqueeOrderOnce() async {
+        let tokenStore = InMemoryTokenStore(token: "token")
+        let serverStore = InMemoryServerStore(url: URL(string: "https://example.com:32400")!)
+        let collection = PlexCollection(ratingKey: "999", title: "Current Vibes", thumb: nil, art: nil, updatedAt: nil, key: nil)
+        let albumsA = [makeAlbum(ratingKey: "a", title: "A"), makeAlbum(ratingKey: "b", title: "B")]
+        let albumsB = [makeAlbum(ratingKey: "c", title: "C"), makeAlbum(ratingKey: "d", title: "D")]
+        let service = RotatingCollectionAlbumsService(
+            sectionKey: "2",
+            collectionKey: collection.ratingKey,
+            rounds: [albumsA, albumsB]
+        )
+        let viewModel = CollectionAlbumsViewModel(
+            collection: collection,
+            sectionKey: "2",
+            tokenStore: tokenStore,
+            serverStore: serverStore,
+            libraryServiceFactory: { _, _ in service },
+            marqueeShuffleProvider: { $0.reversed() }
+        )
+
+        await viewModel.loadAlbums()
+        let firstSeed = viewModel.marqueeAlbums.map(\.ratingKey)
+
+        await viewModel.loadAlbums()
+        let secondSeed = viewModel.marqueeAlbums.map(\.ratingKey)
+
+        #expect(firstSeed == ["b", "a"])
+        #expect(secondSeed == firstSeed)
+        #expect(viewModel.albums.map(\.ratingKey) == ["c", "d"])
+    }
+
+    private func makeAlbum(ratingKey: String, title: String) -> PlexAlbum {
+        PlexAlbum(
+            ratingKey: ratingKey,
+            title: title,
+            thumb: nil,
+            art: nil,
+            year: 2022,
+            artist: "Artist",
+            titleSort: nil,
+            originalTitle: nil,
+            editionTitle: nil,
+            guid: nil,
+            librarySectionID: 1,
+            parentRatingKey: nil,
+            studio: nil,
+            summary: nil,
+            genres: nil,
+            styles: nil,
+            moods: nil,
+            rating: nil,
+            userRating: nil,
+            key: nil
+        )
+    }
 }
 
 @MainActor
@@ -306,23 +494,30 @@ final class RecordingLibraryService: PlexLibraryServicing {
     private let sections: [PlexLibrarySection]
     private let collections: [PlexCollection]
     private let albumsByCollectionKey: [String: [PlexAlbum]]
+    private let tracksByAlbumRatingKey: [String: [PlexTrack]]
+    private let tracksErrorByAlbumRatingKey: [String: Error]
     private let albums: [PlexAlbum]
     private let error: Error?
 
     private(set) var lastCollectionsSectionId: String?
     private(set) var lastCollectionItemsSectionId: String?
     private(set) var lastCollectionItemsKey: String?
+    private(set) var fetchedTrackAlbumKeys: [String] = []
 
     init(
         sections: [PlexLibrarySection],
         collections: [PlexCollection],
         albumsByCollectionKey: [String: [PlexAlbum]] = [:],
+        tracksByAlbumRatingKey: [String: [PlexTrack]] = [:],
+        tracksErrorByAlbumRatingKey: [String: Error] = [:],
         albums: [PlexAlbum] = [],
         error: Error? = nil
     ) {
         self.sections = sections
         self.collections = collections
         self.albumsByCollectionKey = albumsByCollectionKey
+        self.tracksByAlbumRatingKey = tracksByAlbumRatingKey
+        self.tracksErrorByAlbumRatingKey = tracksErrorByAlbumRatingKey
         self.albums = albums
         self.error = error
     }
@@ -339,7 +534,11 @@ final class RecordingLibraryService: PlexLibraryServicing {
 
     func fetchTracks(albumRatingKey: String) async throws -> [PlexTrack] {
         if let error { throw error }
-        return []
+        fetchedTrackAlbumKeys.append(albumRatingKey)
+        if let trackError = tracksErrorByAlbumRatingKey[albumRatingKey] {
+            throw trackError
+        }
+        return tracksByAlbumRatingKey[albumRatingKey] ?? []
     }
 
     func fetchAlbumDetail(albumRatingKey: String) async throws -> PlexAlbum? {
@@ -375,6 +574,57 @@ final class RecordingLibraryService: PlexLibraryServicing {
     func fetchArtistTracks(artistRatingKey: String) async throws -> [PlexTrack] {
         return []
     }
+}
+
+@MainActor
+private final class RotatingCollectionAlbumsService: PlexLibraryServicing {
+    private let sectionKey: String
+    private let collectionKey: String
+    private var rounds: [[PlexAlbum]]
+    private var index = 0
+
+    init(sectionKey: String, collectionKey: String, rounds: [[PlexAlbum]]) {
+        self.sectionKey = sectionKey
+        self.collectionKey = collectionKey
+        self.rounds = rounds
+    }
+
+    func fetchLibrarySections() async throws -> [PlexLibrarySection] { [] }
+    func fetchAlbums(sectionId: String) async throws -> [PlexAlbum] { [] }
+    func fetchTracks(albumRatingKey: String) async throws -> [PlexTrack] { [] }
+    func fetchAlbumDetail(albumRatingKey: String) async throws -> PlexAlbum? { nil }
+    func fetchCollections(sectionId: String) async throws -> [PlexCollection] { [] }
+    func fetchArtists(sectionId: String) async throws -> [PlexArtist] { [] }
+    func fetchArtistDetail(artistRatingKey: String) async throws -> PlexArtist? { nil }
+    func fetchArtistAlbums(artistRatingKey: String) async throws -> [PlexAlbum] { [] }
+    func fetchArtistTracks(artistRatingKey: String) async throws -> [PlexTrack] { [] }
+
+    func fetchAlbumsInCollection(sectionId: String, collectionKey: String) async throws -> [PlexAlbum] {
+        guard sectionId == sectionKey, collectionKey == self.collectionKey else { return [] }
+        guard rounds.isEmpty == false else { return [] }
+        let value = rounds[min(index, rounds.count - 1)]
+        index += 1
+        return value
+    }
+}
+
+@MainActor
+private final class RecordingPlaybackController: PlaybackControlling {
+    private(set) var lastTracks: [PlexTrack]?
+    private(set) var lastStartIndex: Int?
+    private(set) var playCallCount = 0
+
+    func play(tracks: [PlexTrack], startIndex: Int, context: NowPlayingContext?) {
+        lastTracks = tracks
+        lastStartIndex = startIndex
+        playCallCount += 1
+    }
+
+    func togglePlayPause() {}
+    func stop() {}
+    func skipToNext() {}
+    func skipToPrevious() {}
+    func seek(to seconds: TimeInterval) {}
 }
 
 private final class StubSnapshotStore: LibrarySnapshotStoring {
