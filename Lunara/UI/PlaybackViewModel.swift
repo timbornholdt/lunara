@@ -431,19 +431,32 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
         guard let album = current.album else {
             return nil
         }
-        let artworkRequest: ArtworkRequest?
+        let artworkBuilder: ArtworkRequestBuilder?
         if let serverURL = serverStore.serverURL,
            let token = (try? tokenStore.load()) ?? nil {
-            artworkRequest = ArtworkRequestBuilder(baseURL: serverURL, token: token)
-                .albumRequest(for: album, size: .detail)
+            artworkBuilder = ArtworkRequestBuilder(baseURL: serverURL, token: token)
         } else {
-            artworkRequest = nil
+            artworkBuilder = nil
         }
+        let albumsByRatingKey = queue.entries.reduce(into: [String: PlexAlbum]()) { partialResult, entry in
+            guard let album = entry.album else { return }
+            partialResult[album.ratingKey] = album
+        }
+        let artworkRequestsByAlbumKey = queue.entries.reduce(into: [String: ArtworkRequest]()) { partialResult, entry in
+            guard let album = entry.album else { return }
+            if let fallbackRequest = artworkBuilder?.albumRequest(for: album, size: .detail) {
+                partialResult[album.ratingKey] = fallbackRequest
+            }
+        }
+        let artworkRequest = artworkRequestsByAlbumKey[album.ratingKey]
+            ?? artworkBuilder?.albumRequest(for: album, size: .detail)
         return NowPlayingContext(
             album: album,
             albumRatingKeys: current.albumRatingKeys.isEmpty ? [album.ratingKey] : current.albumRatingKeys,
             tracks: tracks,
-            artworkRequest: artworkRequest
+            artworkRequest: artworkRequest,
+            albumsByRatingKey: albumsByRatingKey.isEmpty ? nil : albumsByRatingKey,
+            artworkRequestsByAlbumKey: artworkRequestsByAlbumKey.isEmpty ? nil : artworkRequestsByAlbumKey
         )
     }
 
@@ -575,8 +588,21 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
         }
         guard let track else { return }
         guard let albumKey = track.parentRatingKey else { return }
-        guard let albumsByRatingKey = context.albumsByRatingKey,
-              let album = albumsByRatingKey[albumKey] else {
+        let queueSnapshot = queueManager.snapshot()
+        let fallbackEntry: QueueEntry? = {
+            guard let queueIndex = state.queueIndex,
+                  queueIndex >= 0,
+                  queueIndex < queueSnapshot.entries.count else {
+                return nil
+            }
+            return queueSnapshot.entries[queueIndex]
+        }()
+        let albumsByRatingKey = context.albumsByRatingKey
+            ?? queueSnapshot.entries.reduce(into: [String: PlexAlbum]()) { partialResult, entry in
+                guard let album = entry.album else { return }
+                partialResult[album.ratingKey] = album
+            }
+        guard let album = albumsByRatingKey[albumKey] ?? fallbackEntry?.album else {
             publishLockScreenMetadata(for: state)
             return
         }
@@ -584,14 +610,26 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
             publishLockScreenMetadata(for: state)
             return
         }
-        let artworkRequest = context.artworkRequestsByAlbumKey?[album.ratingKey] ?? context.artworkRequest
+        let fallbackArtworkRequests = queueSnapshot.entries.reduce(into: [String: ArtworkRequest]()) { partialResult, entry in
+            guard let album = entry.album else { return }
+            if let serverURL = serverStore.serverURL,
+               let token = (try? tokenStore.load()) ?? nil,
+               let request = ArtworkRequestBuilder(baseURL: serverURL, token: token).albumRequest(for: album, size: .detail) {
+                partialResult[album.ratingKey] = request
+            }
+        }
+        let artworkRequest = context.artworkRequestsByAlbumKey?[album.ratingKey]
+            ?? fallbackArtworkRequests[album.ratingKey]
+            ?? context.artworkRequest
         let updatedContext = NowPlayingContext(
             album: album,
             albumRatingKeys: [album.ratingKey],
             tracks: context.tracks,
             artworkRequest: artworkRequest,
-            albumsByRatingKey: albumsByRatingKey,
-            artworkRequestsByAlbumKey: context.artworkRequestsByAlbumKey
+            albumsByRatingKey: albumsByRatingKey.isEmpty ? nil : albumsByRatingKey,
+            artworkRequestsByAlbumKey: (context.artworkRequestsByAlbumKey ?? fallbackArtworkRequests).isEmpty
+                ? nil
+                : (context.artworkRequestsByAlbumKey ?? fallbackArtworkRequests)
         )
         setNowPlayingContext(updatedContext)
         publishLockScreenMetadata(for: state)
