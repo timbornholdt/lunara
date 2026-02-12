@@ -42,13 +42,7 @@ final class PlaybackEngine: PlaybackEngineing {
 
         let items = tracks.compactMap { track -> PlaybackQueueItem? in
             guard let source = sourceResolver.resolveSource(for: track) else { return nil }
-            let fallback: URL?
-            switch source {
-            case .remote:
-                fallback = fallbackURLBuilder.makeTranscodeURL(trackRatingKey: track.ratingKey)
-            case .local:
-                fallback = nil
-            }
+            let fallback = fallbackURLBuilder.makeTranscodeURL(trackRatingKey: track.ratingKey)
             return PlaybackQueueItem(track: track, primaryURL: source.url, fallbackURL: fallback)
         }
         guard !items.isEmpty else {
