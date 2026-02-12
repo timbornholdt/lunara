@@ -219,30 +219,44 @@ private struct CollectionHeroMarqueeView: View {
     @State private var startDate = Date()
 
     private enum Layout {
-        static let tileSize: CGFloat = 92
         static let spacing: CGFloat = 10
         static let speed: CGFloat = 20
         static let rowOffset: CGFloat = 18
     }
 
     var body: some View {
-        let duplicated = albums + albums
-        let baseWidth = baseStripWidth(count: albums.count)
-        let motion = CollectionHeroMarqueeMotion(baseWidth: baseWidth, speed: Layout.speed)
-
+        let rows = splitRows(from: albums)
+        let rowOneBase = rows.first ?? []
+        let rowTwoBase = rows.last ?? []
+        let rowOneLoop = rowOneBase + rowOneBase
+        let rowTwoLoop = rowTwoBase + rowTwoBase
+        let tileSize = max((height - Layout.spacing) / 2, 44)
+        let rowOneWidth = baseStripWidth(count: rowOneBase.count, tileSize: tileSize)
+        let rowTwoWidth = baseStripWidth(count: rowTwoBase.count, tileSize: tileSize)
         ZStack {
             if albums.isEmpty {
                 LinenBackgroundView(palette: palette)
                     .overlay(Color.black.opacity(0.08))
             } else {
                 TimelineView(.animation) { context in
-                    let wrappedOffset = motion.offset(at: context.date, startDate: startDate)
+                    let rowOneMotion = CollectionHeroMarqueeMotion(baseWidth: rowOneWidth, speed: Layout.speed)
+                    let rowTwoMotion = CollectionHeroMarqueeMotion(baseWidth: rowTwoWidth, speed: Layout.speed)
+                    let rowOneOffset = rowOneMotion.offset(at: context.date, startDate: startDate)
+                    let rowTwoOffset = rowTwoMotion.offset(at: context.date, startDate: startDate)
 
                     VStack(spacing: Layout.spacing) {
-                        marqueeRow(albums: duplicated, offset: -baseWidth + wrappedOffset)
-                        marqueeRow(albums: Array(duplicated.reversed()), offset: -baseWidth + wrappedOffset + Layout.rowOffset)
+                        marqueeRow(
+                            albums: rowOneLoop,
+                            tileSize: tileSize,
+                            offset: -rowOneWidth + rowOneOffset
+                        )
+                        marqueeRow(
+                            albums: rowTwoLoop,
+                            tileSize: tileSize,
+                            offset: -rowTwoWidth + rowTwoOffset + Layout.rowOffset
+                        )
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .background(Color.black.opacity(0.1))
                 }
             }
@@ -253,11 +267,11 @@ private struct CollectionHeroMarqueeView: View {
         }
     }
 
-    private func marqueeRow(albums: [PlexAlbum], offset: CGFloat) -> some View {
+    private func marqueeRow(albums: [PlexAlbum], tileSize: CGFloat, offset: CGFloat) -> some View {
         HStack(spacing: Layout.spacing) {
             ForEach(Array(albums.enumerated()), id: \.offset) { _, album in
                 AlbumArtworkView(album: album, palette: palette, size: .grid)
-                    .frame(width: Layout.tileSize, height: Layout.tileSize)
+                    .frame(width: tileSize, height: tileSize)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
                     .overlay(
                         RoundedRectangle(cornerRadius: 10)
@@ -269,9 +283,26 @@ private struct CollectionHeroMarqueeView: View {
         .clipped()
     }
 
-    private func baseStripWidth(count: Int) -> CGFloat {
+    private func baseStripWidth(count: Int, tileSize: CGFloat) -> CGFloat {
         guard count > 0 else { return 0 }
-        return CGFloat(count) * (Layout.tileSize + Layout.spacing)
+        return CGFloat(count) * (tileSize + Layout.spacing)
+    }
+
+    private func splitRows(from albums: [PlexAlbum]) -> [[PlexAlbum]] {
+        guard albums.count > 1 else { return [albums, albums] }
+        var first: [PlexAlbum] = []
+        var second: [PlexAlbum] = []
+        for (index, album) in albums.enumerated() {
+            if index.isMultiple(of: 2) {
+                first.append(album)
+            } else {
+                second.append(album)
+            }
+        }
+        if second.isEmpty {
+            second = first
+        }
+        return [first, second]
     }
 }
 
