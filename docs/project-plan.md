@@ -49,6 +49,8 @@
      - Plays a full album sequentially.
      - No truncation on network changes.
 5. [x] Browse by collection
+   - Progress update (2026-02-12):
+     - Added collection detail hero refresh: a large collapsing marquee header with Play and Shuffle All actions, including collection-wide queue orchestration and unit coverage for playback + marquee/collapse math.
    - Acceptance criteria:
      - App's main interface is the "all albums" interface, but a tab bar at the bottom allows me to browse by Plex album collections.
      - The main collections view shows all Plex album collections, including the artwork associated with them. Current Vibes and The Key Albums are always at the top, all others are below it alphabetically. Those two are also visually distinct.
