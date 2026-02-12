@@ -19,7 +19,6 @@ final class AVQueuePlayerAdapter: PlaybackPlayer {
     private var failObserver: NSObjectProtocol?
     private var errorLogObserver: NSObjectProtocol?
     private var failedItemIDs: Set<ObjectIdentifier> = []
-    private var emittedNoItemFailure = false
 
     init(player: AVQueuePlayer = AVQueuePlayer()) {
         self.player = player
@@ -51,7 +50,6 @@ final class AVQueuePlayerAdapter: PlaybackPlayer {
         items = urls.map { AVPlayerItem(url: $0) }
         itemIndex = Dictionary(uniqueKeysWithValues: items.enumerated().map { (ObjectIdentifier($0.element), $0.offset) })
         failedItemIDs.removeAll()
-        emittedNoItemFailure = false
         for item in items {
             player.insert(item, after: nil)
         }
@@ -86,7 +84,6 @@ final class AVQueuePlayerAdapter: PlaybackPlayer {
         let newItem = AVPlayerItem(url: url)
         items[currentIndex] = newItem
         itemIndex[ObjectIdentifier(newItem)] = currentIndex
-        emittedNoItemFailure = false
         player.replaceCurrentItem(with: newItem)
         bindCurrentItemStatusObserver()
     }
@@ -130,14 +127,6 @@ final class AVQueuePlayerAdapter: PlaybackPlayer {
         }
         statusObserver = player.observe(\AVQueuePlayer.timeControlStatus, options: [.initial, .new]) { [weak self] player, _ in
             self?.log("timeControlStatus=\(Self.timeControlStatusName(player.timeControlStatus)) reason=\(player.reasonForWaitingToPlay?.rawValue ?? "none") rate=\(player.rate)")
-            if player.timeControlStatus == .waitingToPlayAtSpecifiedRate,
-               player.reasonForWaitingToPlay == .noItemToPlay,
-               let self,
-               self.items.isEmpty == false,
-               self.emittedNoItemFailure == false {
-                self.emittedNoItemFailure = true
-                self.emitFailure(forIndex: self.currentIndex, reason: "waiting_no_item")
-            }
             self?.onPlaybackStateChanged?(player.timeControlStatus == .playing)
         }
     }

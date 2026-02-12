@@ -44,7 +44,7 @@ final class PlaybackEngine: PlaybackEngineing {
 
         let items = tracks.compactMap { track -> PlaybackQueueItem? in
             guard let source = sourceResolver.resolveSource(for: track) else { return nil }
-            let fallback = fallbackURLBuilder.makeTranscodeURL(trackRatingKey: track.ratingKey)
+            let fallback = fallbackURLBuilder.makeFallbackURL(for: track)
             log("queue item track=\(track.ratingKey) source=\(source.url.absoluteString) fallback=\(fallback?.absoluteString ?? "nil")")
             return PlaybackQueueItem(track: track, primaryURL: source.url, fallbackURL: fallback)
         }
@@ -154,6 +154,7 @@ final class PlaybackEngine: PlaybackEngineing {
         queueItems[mappedIndex].didUseFallback = true
         log("replacing current item with fallback url=\(fallbackURL.absoluteString)")
         player.replaceCurrentItem(url: fallbackURL)
+        player.play()
     }
 
     private func handleTimeUpdate(_ time: TimeInterval) {

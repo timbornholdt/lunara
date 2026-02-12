@@ -24,6 +24,13 @@ struct PlexPlaybackURLBuilder: PlaybackFallbackURLBuilding {
         return appendQueryItems(to: url, additionalItems: queryItems)
     }
 
+    func makeFallbackURL(for track: PlexTrack) -> URL? {
+        if let partKey = track.media?.first?.parts.first?.key {
+            return makeDirectPlayURL(partKey: partKey)
+        }
+        return makeTranscodeURL(trackRatingKey: track.ratingKey)
+    }
+
     private func appendQueryItems(to url: URL, additionalItems: [URLQueryItem]) -> URL {
         var components = URLComponents(url: url, resolvingAgainstBaseURL: true)
         var items = additionalItems
