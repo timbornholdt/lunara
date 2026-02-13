@@ -51,9 +51,10 @@ struct ArtistDetailView: View {
 
                     albumsSection(palette: themePalette, basePalette: basePalette)
                 }
-                .padding(.horizontal, Layout.globalPadding)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.bottom, Layout.globalPadding)
             }
+            .contentMargins(.horizontal, Layout.globalPadding, for: .scrollContent)
             .safeAreaInset(edge: .bottom) {
                 if nowPlayingInsetHeight > 0 {
                     Color.clear.frame(height: nowPlayingInsetHeight)
