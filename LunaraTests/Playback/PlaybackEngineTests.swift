@@ -377,6 +377,90 @@ struct PlaybackEngineTests {
         #expect(player.playCallCount == 2)
     }
 
+    @Test func logsPlaybackPlayOnPlay() async throws {
+        let player = TestPlaybackPlayer()
+        let resolver = StubPlaybackSourceResolver(urls: [
+            "1": URL(string: "https://example.com/1.mp3")!,
+            "2": URL(string: "https://example.com/2.mp3")!
+        ])
+        let fallbackBuilder = StubFallbackURLBuilder(url: URL(string: "https://example.com/fallback.m3u8")!)
+        let audioSession = StubAudioSessionManager()
+        let diagnostics = SpyDiagnosticsLogger()
+        let engine = PlaybackEngine(
+            player: player,
+            sourceResolver: resolver,
+            fallbackURLBuilder: fallbackBuilder,
+            audioSession: audioSession,
+            diagnostics: diagnostics
+        )
+        let tracks = [
+            PlexTrack(ratingKey: "1", title: "One", index: 1, parentIndex: nil, parentRatingKey: "10", duration: 1000, media: nil),
+            PlexTrack(ratingKey: "2", title: "Two", index: 2, parentIndex: nil, parentRatingKey: "10", duration: 2000, media: nil)
+        ]
+
+        engine.play(tracks: tracks, startIndex: 0)
+
+        #expect(diagnostics.events.contains { $0.name == "playback.play" })
+        #expect(diagnostics.events.contains { $0.name == "playback.audio_started" })
+        #expect(diagnostics.playbackSessionStarted)
+    }
+
+    @Test func logsSkipNextAndSkipPrevious() async throws {
+        let player = TestPlaybackPlayer()
+        let resolver = StubPlaybackSourceResolver(urls: [
+            "1": URL(string: "https://example.com/1.mp3")!,
+            "2": URL(string: "https://example.com/2.mp3")!,
+            "3": URL(string: "https://example.com/3.mp3")!
+        ])
+        let fallbackBuilder = StubFallbackURLBuilder(url: URL(string: "https://example.com/fallback.m3u8")!)
+        let audioSession = StubAudioSessionManager()
+        let diagnostics = SpyDiagnosticsLogger()
+        let engine = PlaybackEngine(
+            player: player,
+            sourceResolver: resolver,
+            fallbackURLBuilder: fallbackBuilder,
+            audioSession: audioSession,
+            diagnostics: diagnostics
+        )
+        let tracks = [
+            PlexTrack(ratingKey: "1", title: "One", index: 1, parentIndex: nil, parentRatingKey: "10", duration: 1000, media: nil),
+            PlexTrack(ratingKey: "2", title: "Two", index: 2, parentIndex: nil, parentRatingKey: "10", duration: 2000, media: nil),
+            PlexTrack(ratingKey: "3", title: "Three", index: 3, parentIndex: nil, parentRatingKey: "10", duration: 3000, media: nil)
+        ]
+
+        engine.play(tracks: tracks, startIndex: 1)
+        engine.skipToNext()
+        engine.skipToPrevious()
+
+        #expect(diagnostics.events.contains { $0.name == "playback.skip_next" })
+        #expect(diagnostics.events.contains { $0.name == "playback.skip_previous" })
+    }
+
+    @Test func logsEndPlaybackSessionOnStop() async throws {
+        let player = TestPlaybackPlayer()
+        let resolver = StubPlaybackSourceResolver(urls: [
+            "1": URL(string: "https://example.com/1.mp3")!
+        ])
+        let fallbackBuilder = StubFallbackURLBuilder(url: URL(string: "https://example.com/fallback.m3u8")!)
+        let audioSession = StubAudioSessionManager()
+        let diagnostics = SpyDiagnosticsLogger()
+        let engine = PlaybackEngine(
+            player: player,
+            sourceResolver: resolver,
+            fallbackURLBuilder: fallbackBuilder,
+            audioSession: audioSession,
+            diagnostics: diagnostics
+        )
+        let tracks = [
+            PlexTrack(ratingKey: "1", title: "One", index: 1, parentIndex: nil, parentRatingKey: "10", duration: 1000, media: nil)
+        ]
+
+        engine.play(tracks: tracks, startIndex: 0)
+        engine.stop()
+
+        #expect(diagnostics.playbackSessionEnded)
+    }
+
     @Test func refreshQueueReplacesUpcomingWithoutRestartingCurrentTrack() async throws {
         let player = TestPlaybackPlayer()
         let resolver = StubPlaybackSourceResolver(urls: [
@@ -495,5 +579,23 @@ private final class StubAudioSessionManager: AudioSessionManaging {
 
     func configureForPlayback() throws {
         configureCallCount += 1
+    }
+}
+
+private final class SpyDiagnosticsLogger: DiagnosticsLogging {
+    private(set) var events: [DiagnosticsEvent] = []
+    private(set) var playbackSessionStarted = false
+    private(set) var playbackSessionEnded = false
+
+    func log(_ event: DiagnosticsEvent) {
+        events.append(event)
+    }
+
+    func startPlaybackSession() {
+        playbackSessionStarted = true
+    }
+
+    func endPlaybackSession() {
+        playbackSessionEnded = true
     }
 }

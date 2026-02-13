@@ -8,6 +8,7 @@ final class PlaybackEngine: PlaybackEngineing {
     private let sourceResolver: PlaybackSourceResolving
     private let fallbackURLBuilder: PlaybackFallbackURLBuilding
     private let audioSession: AudioSessionManaging
+    private let diagnostics: DiagnosticsLogging
 
     private var queueItems: [PlaybackQueueItem] = []
     private var queueBaseIndex = 0
@@ -19,16 +20,20 @@ final class PlaybackEngine: PlaybackEngineing {
         player: PlaybackPlayer = AVQueuePlayerAdapter(),
         sourceResolver: PlaybackSourceResolving,
         fallbackURLBuilder: PlaybackFallbackURLBuilding,
-        audioSession: AudioSessionManaging = AudioSessionManager()
+        audioSession: AudioSessionManaging = AudioSessionManager(),
+        diagnostics: DiagnosticsLogging = DiagnosticsLogger.shared
     ) {
         self.player = player
         self.sourceResolver = sourceResolver
         self.fallbackURLBuilder = fallbackURLBuilder
         self.audioSession = audioSession
+        self.diagnostics = diagnostics
         bindPlayerCallbacks()
     }
 
     func play(tracks: [PlexTrack], startIndex: Int) {
+        diagnostics.startPlaybackSession()
+        diagnostics.log(.playbackPlay(trackCount: tracks.count, startIndex: startIndex))
         guard !tracks.isEmpty else {
             onError?(PlaybackError(message: "Playback unavailable for this track."))
             return
@@ -104,6 +109,7 @@ final class PlaybackEngine: PlaybackEngineing {
     }
 
     func stop() {
+        diagnostics.endPlaybackSession()
         player.stop()
         queueItems.removeAll()
         queueBaseIndex = 0
@@ -123,12 +129,14 @@ final class PlaybackEngine: PlaybackEngineing {
     }
 
     func skipToNext() {
+        diagnostics.log(.playbackSkipNext)
         let nextIndex = currentIndex + 1
         guard nextIndex < queueItems.count else { return }
         jump(to: nextIndex)
     }
 
     func skipToPrevious() {
+        diagnostics.log(.playbackSkipPrevious)
         let previousIndex = max(currentIndex - 1, 0)
         guard previousIndex < queueItems.count else { return }
         jump(to: previousIndex)
@@ -159,6 +167,7 @@ final class PlaybackEngine: PlaybackEngineing {
         guard newIndex >= 0, newIndex < queueItems.count else { return }
         currentIndex = newIndex
         currentElapsed = 0
+        diagnostics.log(.playbackAudioStarted(trackKey: queueItems[newIndex].track.ratingKey))
         publishState()
     }
 

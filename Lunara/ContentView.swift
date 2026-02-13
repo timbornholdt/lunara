@@ -44,6 +44,7 @@ struct ContentView: View {
             }
         }
         .onAppear {
+            DiagnosticsLogger.shared.log(.appLaunch)
             showInitialScreen = !authViewModel.didFinishInitialTokenCheck
         }
         .onChange(of: authViewModel.didFinishInitialTokenCheck) { _, finished in
@@ -222,6 +223,24 @@ private struct MainTabView: View {
             if !isPlayingNow {
                 nowPlayingInsetHeight = 0
             }
+        }
+        .onChange(of: selectedTab) { _, newTab in
+            let tabName: String
+            switch newTab {
+            case .collections: tabName = "collections"
+            case .library: tabName = "library"
+            case .artists: tabName = "artists"
+            }
+            DiagnosticsLogger.shared.log(.navigationTabChange(tab: tabName))
+        }
+        .onChange(of: collectionsPath) { _, _ in
+            DiagnosticsLogger.shared.log(.navigationScreenPush(screenType: "collections", key: "browse"))
+        }
+        .onChange(of: libraryPath) { _, _ in
+            DiagnosticsLogger.shared.log(.navigationScreenPush(screenType: "library", key: "browse"))
+        }
+        .onChange(of: artistsPath) { _, _ in
+            DiagnosticsLogger.shared.log(.navigationScreenPush(screenType: "artists", key: "browse"))
         }
     }
 

@@ -35,6 +35,16 @@ struct SettingsView: View {
                                 )
                             )
                         }
+                        if FileManager.default.fileExists(atPath: DiagnosticsLogger.shared.fileURL.path) {
+                            ShareLink(
+                                item: DiagnosticsLogger.shared.fileURL
+                            ) {
+                                Label("Share Diagnostics Log", systemImage: "square.and.arrow.up")
+                            }
+                        } else {
+                            Label("Share Diagnostics Log", systemImage: "square.and.arrow.up")
+                                .foregroundStyle(.secondary)
+                        }
                     }
 
                     Section("Experiments") {
