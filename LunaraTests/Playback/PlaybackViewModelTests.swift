@@ -816,6 +816,26 @@ struct PlaybackViewModelTests {
         #expect(viewModel.errorMessage == "Queue cue: we heard you already.")
     }
 
+    @Test func logsStateChangeAndUISyncOnEngineStateChange() async {
+        let engine = StubPlaybackEngine()
+        let diagnostics = SpyDiagnosticsLogger()
+        let viewModel = PlaybackViewModel(engine: engine, themeProvider: StubThemeProvider(), diagnostics: diagnostics)
+        let state = NowPlayingState(
+            trackRatingKey: "t1",
+            trackTitle: "Track",
+            artistName: "Artist",
+            isPlaying: true,
+            elapsedTime: 10,
+            duration: 120
+        )
+
+        engine.emitState(state)
+        try? await Task.sleep(nanoseconds: 10_000_000)
+
+        #expect(diagnostics.events.contains { $0.name == "playback.state_change" })
+        #expect(diagnostics.events.contains { $0.name == "playback.ui_sync" })
+    }
+
     @Test func enqueueTrackPlayNextRefreshesQueueWithoutRestartingPlayback() async {
         let engine = StubPlaybackEngine()
         let queueManager = QueueManager(store: RecordingQueueStateStore())
@@ -1137,6 +1157,24 @@ private func waitUntil(
         try? await Task.sleep(nanoseconds: pollNanoseconds)
     }
     return condition()
+}
+
+private final class SpyDiagnosticsLogger: DiagnosticsLogging {
+    private(set) var events: [DiagnosticsEvent] = []
+    private(set) var playbackSessionStarted = false
+    private(set) var playbackSessionEnded = false
+
+    func log(_ event: DiagnosticsEvent) {
+        events.append(event)
+    }
+
+    func startPlaybackSession() {
+        playbackSessionStarted = true
+    }
+
+    func endPlaybackSession() {
+        playbackSessionEnded = true
+    }
 }
 
 private func makeTestImage(color: UIColor) -> UIImage {

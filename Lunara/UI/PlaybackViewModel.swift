@@ -25,6 +25,7 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
     private let offlinePlaybackIndex: LocalPlaybackIndexing?
     private let opportunisticCacher: OfflineOpportunisticCaching?
     private let offlineDownloadQueue: OfflineDownloadQueuing?
+    private let diagnostics: DiagnosticsLogging
     private var currentThemeAlbumKey: String?
     private var currentLockScreenAlbumKey: String?
     private var currentLockScreenArtwork: UIImage?
@@ -54,7 +55,8 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
         queueManager: QueueManager? = nil,
         offlinePlaybackIndex: LocalPlaybackIndexing? = OfflineServices.shared.playbackIndex,
         opportunisticCacher: OfflineOpportunisticCaching? = OfflineServices.shared.coordinator,
-        offlineDownloadQueue: OfflineDownloadQueuing? = OfflineServices.shared.coordinator
+        offlineDownloadQueue: OfflineDownloadQueuing? = OfflineServices.shared.coordinator,
+        diagnostics: DiagnosticsLogging = DiagnosticsLogger.shared
     ) {
         self.tokenStore = tokenStore
         self.serverStore = serverStore
@@ -69,6 +71,7 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
         self.offlinePlaybackIndex = offlinePlaybackIndex
         self.opportunisticCacher = opportunisticCacher
         self.offlineDownloadQueue = offlineDownloadQueue
+        self.diagnostics = diagnostics
         restoreQueueSnapshotIfAvailable()
     }
 
@@ -92,7 +95,8 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
                 paginator: PlexPaginator(pageSize: 50)
             )
         },
-        offlineDownloadQueue: OfflineDownloadQueuing? = nil
+        offlineDownloadQueue: OfflineDownloadQueuing? = nil,
+        diagnostics: DiagnosticsLogging = DiagnosticsLogger.shared
     ) {
         self.tokenStore = tokenStore
         self.serverStore = serverStore
@@ -108,6 +112,7 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
         self.offlinePlaybackIndex = offlinePlaybackIndex
         self.opportunisticCacher = opportunisticCacher
         self.offlineDownloadQueue = offlineDownloadQueue
+        self.diagnostics = diagnostics
         bindEngineCallbacks()
         restoreQueueSnapshotIfAvailable()
     }
@@ -556,6 +561,10 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
     }
 
     private func handleStateChange(_ state: NowPlayingState?) {
+        if let state {
+            diagnostics.log(.playbackStateChange(trackKey: state.trackRatingKey, isPlaying: state.isPlaying))
+            diagnostics.log(.playbackUISync(trackKey: state.trackRatingKey))
+        }
         nowPlaying = state
         guard let state else {
             currentLockScreenAlbumKey = nil

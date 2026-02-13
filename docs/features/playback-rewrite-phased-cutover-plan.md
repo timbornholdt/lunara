@@ -44,6 +44,9 @@ Rewrite the audio playback architecture end-to-end in small, approval-gated phas
 4. Navigate Collections -> Collection -> Album -> Back.
 5. Confirm diagnostics entries exist for each action path.
 
+### Notes
+- `state_change` and `ui_sync` events are chatty (~1/sec from the engine's periodic time ticker). A 60-second session produces 200+ lines, mostly periodic noise. When computing skip-to-audio and skip-to-ui-sync latency in P1+, filter on the signal events (`playback.play`, `playback.skip_next`, `playback.audio_started`) and ignore the periodic updates.
+
 ### Approval Checkpoint
 - "Approve P0 baseline."
 
