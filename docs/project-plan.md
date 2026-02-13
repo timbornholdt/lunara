@@ -5,6 +5,12 @@
 - UI can use UIKit if it simplifies implementation; SwiftUI is optional.
 - Local storage should be lightweight (SQLite is acceptable if still standard).
 - CarPlay is deferred until core playback and offline are stable.
+- Phase 1 is complete and the next active initiative is a phased full rewrite of playback/offline/library architecture.
+- Rewrite delivery constraints:
+  - New `codex/...` branch per phase.
+  - Stop after each phase for explicit user approval.
+  - Provide manual device QA checklist per phase (iPhone 15 Pro, iOS 26.2).
+  - Agent runs unit tests; user focuses on manual validation.
 
 ## Phase 0 — Project Baseline
 1. [x] Confirm scope and non-goals
@@ -139,7 +145,46 @@
      - Play/Pause/Next/Previous remote commands control playback.
 
 
-## Phase 2 — Primary Interaction: Shuffle
+## Phase 2 — Playback Architecture Rewrite (Active)
+Reference: `docs/features/playback-rewrite-phased-cutover-plan.md`
+
+1. [ ] P0 diagnostics baseline
+   - Acceptance criteria:
+     - JSONL diagnostics file is written locally with playback/navigation lifecycle events.
+     - Baseline metrics captured: startup-to-first-audio, skip-to-audio, skip-to-ui-sync.
+2. [ ] P1 playback domain single-source-of-truth
+   - Acceptance criteria:
+     - Queue progression, current item, and playback state are owned by one concurrency-isolated domain.
+     - Audible playback and now-playing UI remain synchronized during rapid skip operations.
+3. [ ] P2 durable queue + relaunch semantics
+   - Acceptance criteria:
+     - Queue and elapsed position persist across force quit and relaunch.
+     - Relaunch restores state but waits for explicit Play.
+     - Missing local item skips to next available item.
+4. [ ] P3 offline download engine rewrite
+   - Acceptance criteria:
+     - Stream-oriented downloads replace full-memory buffering.
+     - Local-first source resolution remains low-latency under queue load.
+     - Predictive prefetch of next 3 tracks is active.
+     - Cache cap is enforced at 128 GB with dynamic eviction.
+5. [ ] P4 library repository rewrite (disk-first + manual refresh)
+   - Acceptance criteria:
+     - Collection/album/artist/detail navigation reuses disk cache on back navigation.
+     - Plex refresh occurs only via explicit pull-to-refresh.
+6. [ ] P5 background/remote hardening
+   - Acceptance criteria:
+     - Lock-screen and Control Center metadata is consistent through lifecycle transitions.
+     - Play/Pause/Next/Previous remote commands are stable.
+7. [ ] P6 performance and regression sweep
+   - Acceptance criteria:
+     - Metrics improve over P0 baseline.
+     - Manual regression sweep passes for playback, downloads, and navigation.
+8. [ ] FF1 gapless/crossfade foundation
+   - Acceptance criteria:
+     - Transition scaffolding is integrated without core playback regressions.
+     - Diagnostics markers exist for transition decision paths.
+
+## Phase 3 — Primary Interaction: Shuffle
 1. [ ] Collection shuffle (primary mode)
    - Acceptance criteria:
      - Shuffle obeys anti-annoyance rules.
@@ -151,7 +196,7 @@
    - Acceptance criteria:
      - Album-first navigation and playback flows are clear and stable.
 
-## Phase 3 — Offline Collections + Storage
+## Phase 4 — Offline Collections + Storage
 1. [ ] Downloaded collections
    - Acceptance criteria:
      - Mark collection as Downloaded triggers sync.
@@ -163,12 +208,12 @@
 3. [ ] Album change detection
    - Acceptance criteria:
      - Changes in Plex trigger re-download on Wi-Fi only.
-	 
-## Phase 4 — Deep linking
+
+## Phase 5 — Deep linking
 1. Boot from the side button on the iPhone 15 Pro
   - Pushing that button starts playing a random album as fast as possible (loads the "now playing" screen)
 
-## Phase 5 — Notes & Deletion Queue
+## Phase 6 — Notes & Deletion Queue
 1. [ ] Personal notes
    - Acceptance criteria:
      - Album-tied notes synced to personal server.
@@ -177,7 +222,7 @@
      - Mark/unmark in app.
      - Auto-clears when Plex no longer has album.
 
-## Phase 6 — Theming + Context
+## Phase 7 — Theming + Context
 1. [ ] Artwork-derived theming
    - Acceptance criteria:
      - Dominant color, gradient, texture.
@@ -189,13 +234,13 @@
    - Acceptance criteria:
      - Overrides other theming when present.
 
-## Phase 7 — CarPlay
+## Phase 8 — CarPlay
 1. [ ] CarPlay browse + playback
    - Acceptance criteria:
      - Browse collections and albums.
      - Shuffle collection.
      - Now Playing controls.
-	 
+
 ## Backlog
 - Wikipedia album context (creation/history)
   - Fetch Wikipedia content when an album is loaded.

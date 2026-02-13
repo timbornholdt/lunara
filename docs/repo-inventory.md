@@ -1,56 +1,63 @@
 # Repo Inventory
 
-## Overview
-This repo implements Plex auth and read-only library browsing for albums and tracks using a SwiftUI UI and a small Plex networking layer. It is early-stage and focused on Phase 1.1 functionality.
+## Overview (Current State)
+Lunara is a SwiftUI iOS app for a single-user Plex music library with implemented Phase 1 capabilities: auth, browse, playback, queue persistence, lock-screen controls, offline downloads, and settings flows. The app is now entering a phased full rewrite of playback/offline/library architecture for reliability and performance.
 
 ## Code Structure
-- App entry: `Lunara/LunaraApp.swift`
-- Root view routing: `Lunara/ContentView.swift`
-- UI views: `Lunara/UI/Views/`
-- UI view models: `Lunara/UI/`
-- Plex client + services: `Lunara/Plex/`
-- Tests: `LunaraTests/`
-- Docs: `README.md`, `docs/`, `docs/features/`
+- App entry and root routing:
+  - `Lunara/LunaraApp.swift`
+  - `Lunara/ContentView.swift`
+- UI views and view models:
+  - `Lunara/UI/Views/`
+  - `Lunara/UI/`
+- Playback domain (current implementation):
+  - `Lunara/Playback/`
+- Offline/download domain (current implementation):
+  - `Lunara/Offline/`
+- Plex API and networking:
+  - `Lunara/Plex/`
+- Snapshot and caches:
+  - `Lunara/LibrarySnapshot/`
+  - `Lunara/Artwork/`
+- Tests:
+  - `LunaraTests/`
 
-## UI Patterns
-- SwiftUI NavigationStack with MVVM-style view models.
-- Views are thin; view models handle async loading and error states.
-- Album grid (LazyVGrid) with artwork fetched via Plex artwork URLs.
-- Album detail view lists tracks (read-only).
+## Current Runtime Patterns
+- UI: SwiftUI + `NavigationStack` + MVVM-oriented view models.
+- Concurrency: mixed model (`@MainActor` view models, actors in offline layer, callback-driven playback internals).
+- Playback: AVQueuePlayer adapter + custom engine + separate queue manager + now-playing context model.
+- Offline: actor-backed download coordinator + JSON manifest + file store.
+- Library caching: single snapshot store with cached-first render and immediate live refresh in several browse paths.
 
-## Data/Networking Patterns
-- Protocol-first services in `Lunara/Plex/PlexProtocols.swift`.
-- Request builders create URLRequests for auth, resources, and library browsing.
-- `PlexHTTPClient` handles network calls and status validation.
-- Pagination uses `PlexPaginator` and `PlexPage`.
-- Server URL and library selection are stored in UserDefaults.
-- Auth token is stored in Keychain via `PlexAuthTokenStore`.
+## Key Architecture Findings (2026-02-13)
+1. Playback state ownership is fragmented across playback engine, queue manager, and UI context state.
+2. Relaunch priming/toggle behavior has risk of state desync and apparent no-play behavior.
+3. Collection/album/artist detail screens are implemented with load-on-entry behavior that can re-fetch on back navigation.
+4. Browse entry paths currently snapshot-load and then live-refresh automatically, which conflicts with manual-refresh-only preference.
+5. Offline source resolution performs manifest load/decoding on hot paths, likely increasing queue-start latency.
+6. Downloader currently uses full in-memory fetch (`URLSession.data`) rather than streaming writes.
+7. Collection playback track fetch path is serial and may impact startup-to-first-audio latency.
 
-## Current Feature Coverage
-- Plex PIN auth flow and token validation.
-- Server resolution via Plex resources API.
-- Library sections fetch and album listing.
-- Album detail fetch with track listing.
-- Artwork URL generation and display.
-- AVPlayer album playback with track-level start and sequential play.
-- Global now playing bar with progress and play/pause toggle.
+## Testing and Quality
+- Unit tests are extensive across playback, queue, offline coordinator, and browse view models.
+- Manual QA remains mandatory for real device behavior validation.
+- Active rewrite workflow requires explicit per-phase manual test scripts and approval checkpoints.
 
-## Tests
-- Uses Swift Testing (`import Testing`).
-- Unit tests cover auth, request builders, pagination, decoding, and view models.
-- Test doubles exist for token storage, server storage, and library service.
+## Active Architecture Direction
+Reference: `docs/features/playback-rewrite-phased-cutover-plan.md`
 
-## Docs
-- `README.md` defines scope, philosophy, and long-term features.
-- `docs/project-plan.md` defines phased plan.
-- `docs/features/plex-auth-library-browse.md` and tests doc exist.
-- Phase 0 docs: `docs/scope-and-non-goals.md`, `docs/product-north-star.md`.
+- Move to a single concurrency-owned playback domain as source of truth.
+- Replace ad hoc state coupling with immutable playback read models for UI.
+- Rebuild durable queue lifecycle semantics for force-quit resilience.
+- Rewrite download engine for stream-oriented file handling and low-latency local lookup.
+- Rebuild library repository as disk-first with explicit pull-to-refresh semantics.
+- Harden background/remote control lifecycle behavior.
+- Add diagnostics-first instrumentation and compare phase-over-phase metrics.
 
-## Gaps vs. Project Plan
-- No offline manager or download verification.
-- No queue manager or shuffle logic.
-- No metadata caching or artwork caching.
-- No notes or deletion queue integration.
-- No theming system beyond basic artwork display.
-- No CarPlay implementation.
-- No lock screen/Control Center now playing metadata or remote command handling.
+## Ongoing Instructions for Agents
+1. Treat `docs/features/playback-rewrite-phased-cutover-plan.md` as the source of truth for rewrite sequencing.
+2. Use one `codex/...` branch per phase and stop for explicit user approval between phases.
+3. Keep each phase PR-sized and scoped to one cutoff objective.
+4. Provide device manual QA checklists and expected outcomes in every phase handoff.
+5. Run unit tests before phase handoff; report results and any gaps.
+6. Prioritize reliability and state consistency over new UX behavior.
