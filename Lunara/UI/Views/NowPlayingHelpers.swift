@@ -1,11 +1,30 @@
 import Foundation
 
 enum NowPlayingUpNextBuilder {
+    struct Item: Equatable, Sendable, Identifiable {
+        let id: Int
+        let absoluteIndex: Int
+        let track: PlexTrack
+    }
+
     static func upNextTracks(tracks: [PlexTrack], currentRatingKey: String) -> [PlexTrack] {
         guard let index = tracks.firstIndex(where: { $0.ratingKey == currentRatingKey }) else {
             return []
         }
         return Array(tracks.dropFirst(index + 1))
+    }
+
+    static func upNextItems(tracks: [PlexTrack], currentIndex: Int?) -> [Item] {
+        guard let currentIndex, currentIndex >= 0, currentIndex < tracks.count else {
+            return []
+        }
+        let start = currentIndex + 1
+        guard start < tracks.count else {
+            return []
+        }
+        return Array(tracks.enumerated().dropFirst(start)).map { index, track in
+            Item(id: index, absoluteIndex: index, track: track)
+        }
     }
 }
 

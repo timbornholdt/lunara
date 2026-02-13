@@ -67,6 +67,42 @@ final class PlaybackEngine: PlaybackEngineing {
         publishState()
     }
 
+    func refreshQueue(tracks: [PlexTrack], currentIndex: Int) {
+        guard !tracks.isEmpty,
+              !queueItems.isEmpty,
+              currentIndex == self.currentIndex else {
+            play(tracks: tracks, startIndex: currentIndex)
+            return
+        }
+        guard currentIndex >= 0, currentIndex < tracks.count else {
+            play(tracks: tracks, startIndex: currentIndex)
+            return
+        }
+
+        let updatedItems = tracks.compactMap { track -> PlaybackQueueItem? in
+            guard let source = sourceResolver.resolveSource(for: track) else { return nil }
+            let fallback = fallbackURLBuilder.makeFallbackURL(for: track)
+            return PlaybackQueueItem(track: track, primaryURL: source.url, fallbackURL: fallback)
+        }
+        guard currentIndex < updatedItems.count else {
+            play(tracks: tracks, startIndex: currentIndex)
+            return
+        }
+
+        let currentTrackKey = queueItems[self.currentIndex].track.ratingKey
+        guard updatedItems[currentIndex].track.ratingKey == currentTrackKey else {
+            play(tracks: tracks, startIndex: currentIndex)
+            return
+        }
+
+        queueItems = updatedItems
+        let upcomingURLs = (currentIndex + 1) < updatedItems.count
+            ? Array(updatedItems[(currentIndex + 1)...]).map(\.primaryURL)
+            : []
+        player.replaceUpcoming(urls: upcomingURLs)
+        publishState()
+    }
+
     func stop() {
         player.stop()
         queueItems.removeAll()
@@ -182,7 +218,8 @@ final class PlaybackEngine: PlaybackEngineing {
             artistName: item.track.originalTitle ?? item.track.grandparentTitle,
             isPlaying: isPlaying,
             elapsedTime: currentElapsed,
-            duration: durationSeconds
+            duration: durationSeconds,
+            queueIndex: currentIndex
         )
         onStateChange?(state)
     }

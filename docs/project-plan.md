@@ -113,9 +113,12 @@
      - Offline playback skips non-downloaded tracks immediately.
 	 - When an album is played and a stream of the song is started, each complete stream should be saved for offline playback later
 	 - The playback tool checks the local cache of songs first before reaching out to download it.
-12. [ ] Queue manager v1
+12. [x] Queue manager v1
+   - Requirements defined in `docs/features/queue-manager-v1.md`
+   - Progress update (2026-02-12):
+     - Confirmed v1 behavior: separate QueueManager, default rollout (no feature flag), persisted queue+elapsed+play/pause (restore paused), play now/next/later insertion semantics, partial inserts with detailed skipped-reason banners, duplicate-insert burst protection, and queue clear/remove UX in Now Playing.
    - Status update (2026-02-12):
-     - Deferred by request while prioritizing Phase 1.13 lock screen controls. Return after 1.13 lands.
+     - Implemented and validated with full unit test pass.
    - Acceptance criteria:
      - Play now/next/later works for album insertions.
 	   - Play Now removes all items from the queue and beings playing the album from track 1

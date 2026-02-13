@@ -10,6 +10,8 @@ struct NowPlayingSheetView: View {
     let onPrevious: () -> Void
     let onSeek: (TimeInterval) -> Void
     let onSelectTrack: (PlexTrack) -> Void
+    let onClearQueue: () -> Void
+    let onRemoveUpNextAtIndex: (Int) -> Void
     let onNavigateToAlbum: () -> Void
 
     @State private var scrubValue: Double = 0
@@ -147,26 +149,32 @@ struct NowPlayingSheetView: View {
 
     private var upNextSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Up Next")
-                .font(LunaraTheme.Typography.displayBold(size: 18))
-                .foregroundStyle(palette.textPrimary)
+            HStack {
+                Text("Up Next")
+                    .font(LunaraTheme.Typography.displayBold(size: 18))
+                    .foregroundStyle(palette.textPrimary)
+                Spacer()
+                Button("Clear Queue", role: .destructive, action: onClearQueue)
+                    .font(LunaraTheme.Typography.displayRegular(size: 13))
+            }
 
-            let tracks = NowPlayingUpNextBuilder.upNextTracks(
+            let items = NowPlayingUpNextBuilder.upNextItems(
                 tracks: context?.tracks ?? [],
-                currentRatingKey: state.trackRatingKey
+                currentIndex: state.queueIndex
             )
 
-            if tracks.isEmpty {
+            if items.isEmpty {
                 Text("No more tracks.")
                     .font(LunaraTheme.Typography.displayRegular(size: 14))
                     .foregroundStyle(palette.textSecondary)
             } else {
-                ForEach(tracks, id: \.ratingKey) { track in
+                ForEach(items) { item in
                     UpNextRow(
-                        track: track,
+                        track: item.track,
                         albumArtist: context?.album.artist,
                         palette: palette,
-                        onTap: { onSelectTrack(track) }
+                        onTap: { onSelectTrack(item.track) },
+                        onRemove: { onRemoveUpNextAtIndex(item.absoluteIndex) }
                     )
                 }
             }
@@ -331,9 +339,27 @@ private struct UpNextRow: View {
     let albumArtist: String?
     let palette: ThemePalette
     let onTap: () -> Void
+    let onRemove: () -> Void
+
+    @State private var dragOffset: CGFloat = 0
+
+    private enum Swipe {
+        static let actionWidth: CGFloat = 88
+        static let revealThreshold: CGFloat = 56
+        static let fullDeleteThreshold: CGFloat = 140
+    }
 
     var body: some View {
-        Button(action: onTap) {
+        ZStack(alignment: .trailing) {
+            Button(role: .destructive, action: onRemove) {
+                Label("Remove", systemImage: "trash")
+                    .font(LunaraTheme.Typography.displayRegular(size: 13))
+                    .frame(width: Swipe.actionWidth, height: 44)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.red)
+            .opacity(actionOpacity)
+
             HStack(alignment: .top, spacing: 12) {
                 Text(trackNumber)
                     .font(LunaraTheme.Typography.displayRegular(size: 13).monospacedDigit())
@@ -364,16 +390,54 @@ private struct UpNextRow: View {
                         .foregroundStyle(palette.textSecondary)
                 }
             }
-            .padding(.vertical, 10)
-            .padding(.horizontal, 12)
-            .background(palette.raised.opacity(0.92))
-            .overlay(
-                RoundedRectangle(cornerRadius: LunaraTheme.Layout.cardCornerRadius)
-                    .stroke(palette.borderSubtle, lineWidth: 1)
+            .offset(x: dragOffset)
+            .gesture(
+                DragGesture(minimumDistance: 10)
+                    .onChanged { value in
+                        let translation = value.translation.width
+                        if translation < 0 {
+                            dragOffset = max(translation, -Swipe.fullDeleteThreshold)
+                        } else {
+                            dragOffset = min(translation - Swipe.actionWidth, 0)
+                        }
+                    }
+                    .onEnded { value in
+                        let translation = value.translation.width
+                        if translation < -Swipe.fullDeleteThreshold {
+                            onRemove()
+                            dragOffset = 0
+                            return
+                        }
+                        withAnimation(.spring(response: 0.22, dampingFraction: 0.9)) {
+                            dragOffset = translation < -Swipe.revealThreshold ? -Swipe.actionWidth : 0
+                        }
+                    }
             )
-            .clipShape(RoundedRectangle(cornerRadius: LunaraTheme.Layout.cardCornerRadius))
+            .simultaneousGesture(
+                TapGesture().onEnded {
+                    if dragOffset == 0 {
+                        onTap()
+                    } else {
+                        withAnimation(.spring(response: 0.22, dampingFraction: 0.9)) {
+                            dragOffset = 0
+                        }
+                    }
+                }
+            )
         }
-        .buttonStyle(.plain)
+        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
+        .background(palette.raised.opacity(0.92))
+        .overlay(
+            RoundedRectangle(cornerRadius: LunaraTheme.Layout.cardCornerRadius)
+                .stroke(palette.borderSubtle, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: LunaraTheme.Layout.cardCornerRadius))
+        .contentShape(Rectangle())
+    }
+
+    private var actionOpacity: Double {
+        min(max(Double(-dragOffset / Swipe.actionWidth), 0), 1)
     }
 
     private var trackNumber: String {

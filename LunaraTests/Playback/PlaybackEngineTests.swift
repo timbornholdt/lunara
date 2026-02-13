@@ -376,6 +376,37 @@ struct PlaybackEngineTests {
         #expect(player.pauseCallCount == 1)
         #expect(player.playCallCount == 2)
     }
+
+    @Test func refreshQueueReplacesUpcomingWithoutRestartingCurrentTrack() async throws {
+        let player = TestPlaybackPlayer()
+        let resolver = StubPlaybackSourceResolver(urls: [
+            "1": URL(string: "https://example.com/1.mp3")!,
+            "2": URL(string: "https://example.com/2.mp3")!,
+            "3": URL(string: "https://example.com/3.mp3")!
+        ])
+        let fallbackBuilder = StubFallbackURLBuilder(url: URL(string: "https://example.com/fallback.m3u8")!)
+        let audioSession = StubAudioSessionManager()
+        let engine = PlaybackEngine(
+            player: player,
+            sourceResolver: resolver,
+            fallbackURLBuilder: fallbackBuilder,
+            audioSession: audioSession
+        )
+        let initial = [
+            PlexTrack(ratingKey: "1", title: "One", index: 1, parentIndex: nil, parentRatingKey: "10", duration: 1000, media: nil),
+            PlexTrack(ratingKey: "2", title: "Two", index: 2, parentIndex: nil, parentRatingKey: "10", duration: 2000, media: nil)
+        ]
+        let updated = [
+            PlexTrack(ratingKey: "1", title: "One", index: 1, parentIndex: nil, parentRatingKey: "10", duration: 1000, media: nil),
+            PlexTrack(ratingKey: "3", title: "Three", index: 3, parentIndex: nil, parentRatingKey: "10", duration: 3000, media: nil)
+        ]
+
+        engine.play(tracks: initial, startIndex: 0)
+        engine.refreshQueue(tracks: updated, currentIndex: 0)
+
+        #expect(player.playCallCount == 1)
+        #expect(player.replaceUpcomingURLs == [URL(string: "https://example.com/3.mp3")!])
+    }
 }
 
 private final class TestPlaybackPlayer: PlaybackPlayer {
@@ -389,6 +420,7 @@ private final class TestPlaybackPlayer: PlaybackPlayer {
     private(set) var pauseCallCount = 0
     private(set) var stopCallCount = 0
     private(set) var replacedCurrentItemURL: URL?
+    private(set) var replaceUpcomingURLs: [URL] = []
     private(set) var lastSeekTime: TimeInterval?
 
     func setQueue(urls: [URL]) {
@@ -413,6 +445,10 @@ private final class TestPlaybackPlayer: PlaybackPlayer {
 
     func replaceCurrentItem(url: URL) {
         replacedCurrentItemURL = url
+    }
+
+    func replaceUpcoming(urls: [URL]) {
+        replaceUpcomingURLs = urls
     }
 
     func seek(to seconds: TimeInterval) {

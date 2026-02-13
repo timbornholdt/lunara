@@ -14,6 +14,7 @@ protocol PlaybackEngineing: AnyObject {
     var onStateChange: ((NowPlayingState?) -> Void)? { get set }
     var onError: ((PlaybackError) -> Void)? { get set }
     func play(tracks: [PlexTrack], startIndex: Int)
+    func refreshQueue(tracks: [PlexTrack], currentIndex: Int)
     func togglePlayPause()
     func stop()
     func skipToNext()
@@ -28,6 +29,7 @@ protocol PlaybackPlayer: AnyObject {
     var onPlaybackStateChanged: ((Bool) -> Void)? { get set }
 
     func setQueue(urls: [URL])
+    func replaceUpcoming(urls: [URL])
     func play()
     func pause()
     func stop()
@@ -57,6 +59,25 @@ struct NowPlayingState: Equatable {
     let isPlaying: Bool
     let elapsedTime: TimeInterval
     let duration: TimeInterval?
+    let queueIndex: Int?
+
+    init(
+        trackRatingKey: String,
+        trackTitle: String,
+        artistName: String?,
+        isPlaying: Bool,
+        elapsedTime: TimeInterval,
+        duration: TimeInterval?,
+        queueIndex: Int? = nil
+    ) {
+        self.trackRatingKey = trackRatingKey
+        self.trackTitle = trackTitle
+        self.artistName = artistName
+        self.isPlaying = isPlaying
+        self.elapsedTime = elapsedTime
+        self.duration = duration
+        self.queueIndex = queueIndex
+    }
 }
 
 struct PlaybackError: Equatable {

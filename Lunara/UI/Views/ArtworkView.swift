@@ -16,6 +16,8 @@ struct ArtworkView: View {
                 image
                     .resizable()
                     .scaledToFill()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
             } else {
                 placeholder
                 if isLoading {
@@ -27,6 +29,8 @@ struct ArtworkView: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
         .task(id: request.key.cacheKeyString) {
             image = nil
             didFail = false

@@ -81,6 +81,33 @@ struct CollectionDetailView: View {
                                         .buttonStyle(.plain)
                                         .contextMenu {
                                             Button {
+                                                playbackViewModel.enqueueAlbum(
+                                                    mode: .playNow,
+                                                    album: album,
+                                                    albumRatingKeys: viewModel.ratingKeys(for: album)
+                                                )
+                                            } label: {
+                                                Label("Play Now", systemImage: "play.fill")
+                                            }
+                                            Button {
+                                                playbackViewModel.enqueueAlbum(
+                                                    mode: .playNext,
+                                                    album: album,
+                                                    albumRatingKeys: viewModel.ratingKeys(for: album)
+                                                )
+                                            } label: {
+                                                Label("Play Next", systemImage: "text.insert")
+                                            }
+                                            Button {
+                                                playbackViewModel.enqueueAlbum(
+                                                    mode: .playLater,
+                                                    album: album,
+                                                    albumRatingKeys: viewModel.ratingKeys(for: album)
+                                                )
+                                            } label: {
+                                                Label("Play Later", systemImage: "text.append")
+                                            }
+                                            Button {
                                                 playbackViewModel.downloadAlbum(
                                                     album: album,
                                                     albumRatingKeys: viewModel.ratingKeys(for: album)
