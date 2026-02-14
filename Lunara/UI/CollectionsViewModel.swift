@@ -16,6 +16,7 @@ final class CollectionsViewModel: ObservableObject {
     private let sessionInvalidationHandler: () -> Void
     private let logger: ([String]) -> Void
     private let snapshotStore: LibrarySnapshotStoring
+    private let cacheStore: LibraryCacheStoring
     private let artworkPrefetcher: ArtworkPrefetching
     private let offlineDownloadQueue: OfflineDownloadQueuing?
 
@@ -40,6 +41,7 @@ final class CollectionsViewModel: ObservableObject {
             print("----- End Collection Titles -----")
         },
         snapshotStore: LibrarySnapshotStoring = LibrarySnapshotStore(),
+        cacheStore: LibraryCacheStoring = LibraryCacheStore(),
         artworkPrefetcher: ArtworkPrefetching = ArtworkLoader.shared,
         offlineDownloadQueue: OfflineDownloadQueuing? = OfflineServices.shared.coordinator
     ) {
@@ -49,13 +51,28 @@ final class CollectionsViewModel: ObservableObject {
         self.sessionInvalidationHandler = sessionInvalidationHandler
         self.logger = logger
         self.snapshotStore = snapshotStore
+        self.cacheStore = cacheStore
         self.artworkPrefetcher = artworkPrefetcher
         self.offlineDownloadQueue = offlineDownloadQueue
     }
 
     func loadCollections() async {
         errorMessage = nil
+        if let cached = cacheStore.load(key: .collections, as: [PlexCollection].self), !cached.isEmpty {
+            collections = sortCollections(cached)
+            hasLoadedCollections = true
+            return
+        }
         let hadSnapshot = loadSnapshotIfAvailable()
+        if hadSnapshot {
+            hasLoadedCollections = true
+            return
+        }
+        await refresh()
+    }
+
+    func refresh() async {
+        errorMessage = nil
         guard let serverURL = serverStore.serverURL else {
             errorMessage = "Missing server URL."
             return
@@ -66,10 +83,10 @@ final class CollectionsViewModel: ObservableObject {
             return
         }
 
-        if hadSnapshot {
-            isRefreshing = true
-        } else {
+        if collections.isEmpty {
             isLoading = true
+        } else {
+            isRefreshing = true
         }
         defer {
             isLoading = false
@@ -91,6 +108,7 @@ final class CollectionsViewModel: ObservableObject {
             let fetchedCollections = try await service.fetchCollections(sectionId: firstMusic.key)
             logger(fetchedCollections.map(\.title))
             collections = sortCollections(fetchedCollections)
+            cacheStore.save(key: .collections, value: fetchedCollections)
             saveSnapshot(collections: collections)
             prefetchArtwork(for: collections)
             await reconcileOfflineCollectionMemberships(
@@ -100,6 +118,7 @@ final class CollectionsViewModel: ObservableObject {
             )
             hasLoadedCollections = true
         } catch {
+            guard !Task.isCancelled else { return }
             print("CollectionsViewModel.loadCollections error: \(error)")
             if PlexErrorHelpers.isUnauthorized(error) {
                 try? tokenStore.clear()

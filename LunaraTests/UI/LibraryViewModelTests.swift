@@ -45,6 +45,8 @@ struct LibraryViewModelTests {
             serverStore: serverStore,
             selectionStore: selectionStore,
             libraryServiceFactory: { _, _ in service },
+            snapshotStore: StubSnapshotStore(snapshot: nil),
+            cacheStore: InMemoryLibraryCacheStore(),
             sessionInvalidationHandler: { invalidated = true }
         )
 
@@ -97,6 +99,8 @@ struct LibraryViewModelTests {
             serverStore: serverStore,
             selectionStore: selectionStore,
             libraryServiceFactory: { _, _ in service },
+            snapshotStore: StubSnapshotStore(snapshot: nil),
+            cacheStore: InMemoryLibraryCacheStore(),
             sessionInvalidationHandler: {}
         )
 
@@ -123,6 +127,8 @@ struct LibraryViewModelTests {
             serverStore: serverStore,
             selectionStore: selectionStore,
             libraryServiceFactory: { _, _ in service },
+            snapshotStore: StubSnapshotStore(snapshot: nil),
+            cacheStore: InMemoryLibraryCacheStore(),
             sessionInvalidationHandler: { invalidated = true }
         )
 
@@ -191,6 +197,8 @@ struct LibraryViewModelTests {
             serverStore: serverStore,
             selectionStore: selectionStore,
             libraryServiceFactory: { _, _ in service },
+            snapshotStore: StubSnapshotStore(snapshot: nil),
+            cacheStore: InMemoryLibraryCacheStore(),
             sessionInvalidationHandler: {}
         )
 
@@ -262,6 +270,8 @@ struct LibraryViewModelTests {
             serverStore: serverStore,
             selectionStore: selectionStore,
             libraryServiceFactory: { _, _ in service },
+            snapshotStore: StubSnapshotStore(snapshot: nil),
+            cacheStore: InMemoryLibraryCacheStore(),
             settingsStore: settings,
             logger: { logLines.append($0) },
             sessionInvalidationHandler: {}
@@ -275,6 +285,8 @@ struct LibraryViewModelTests {
             serverStore: serverStore,
             selectionStore: selectionStore,
             libraryServiceFactory: { _, _ in service },
+            snapshotStore: StubSnapshotStore(snapshot: nil),
+            cacheStore: InMemoryLibraryCacheStore(),
             settingsStore: settings,
             logger: { logLines.append($0) },
             sessionInvalidationHandler: {}
@@ -338,14 +350,19 @@ struct LibraryViewModelTests {
             selectionStore: selectionStore,
             libraryServiceFactory: { _, _ in service },
             snapshotStore: snapshotStore,
+            cacheStore: InMemoryLibraryCacheStore(),
             artworkPrefetcher: NoopArtworkPrefetcher(),
             sessionInvalidationHandler: {}
         )
 
-        let task = Task { await viewModel.loadSections() }
+        // Load snapshot first (returns immediately from snapshot)
+        await viewModel.loadSections()
+        #expect(viewModel.albums.first?.ratingKey == "snap")
+
+        // Then refresh triggers network fetch
+        let task = Task { await viewModel.refresh() }
         await gate.waitForStart()
 
-        #expect(viewModel.albums.first?.ratingKey == "snap")
         #expect(viewModel.isRefreshing == true)
 
         await gate.release()

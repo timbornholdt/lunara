@@ -102,7 +102,8 @@ struct ArtistDetailViewModelTests {
             tokenStore: InMemoryTokenStore(token: "token"),
             serverStore: InMemoryServerStore(url: URL(string: "https://example.com:32400")!),
             libraryServiceFactory: { _, _ in service },
-            playbackController: StubPlaybackController()
+            playbackController: StubPlaybackController(),
+            cacheStore: InMemoryLibraryCacheStore()
         )
 
         await viewModel.load()
@@ -192,7 +193,8 @@ struct ArtistDetailViewModelTests {
             tokenStore: InMemoryTokenStore(token: "token"),
             serverStore: InMemoryServerStore(url: URL(string: "https://example.com:32400")!),
             libraryServiceFactory: { _, _ in service },
-            playbackController: playback
+            playbackController: playback,
+            cacheStore: InMemoryLibraryCacheStore()
         )
 
         await viewModel.load()
@@ -239,7 +241,8 @@ struct ArtistDetailViewModelTests {
             serverStore: InMemoryServerStore(url: URL(string: "https://example.com:32400")!),
             libraryServiceFactory: { _, _ in service },
             playbackController: playback,
-            shuffleProvider: { Array($0.reversed()) }
+            shuffleProvider: { Array($0.reversed()) },
+            cacheStore: InMemoryLibraryCacheStore()
         )
 
         await viewModel.load()
@@ -333,7 +336,8 @@ struct ArtistDetailViewModelTests {
             tokenStore: InMemoryTokenStore(token: "token"),
             serverStore: InMemoryServerStore(url: URL(string: "https://example.com:32400")!),
             libraryServiceFactory: { _, _ in service },
-            playbackController: StubPlaybackController()
+            playbackController: StubPlaybackController(),
+            cacheStore: InMemoryLibraryCacheStore()
         )
 
         await viewModel.load()

@@ -16,6 +16,8 @@ final class ArtistDetailViewModel: ObservableObject {
     private let sessionInvalidationHandler: () -> Void
     private let playbackController: PlaybackControlling
     private let shuffleProvider: ([PlexTrack]) -> [PlexTrack]
+    private let cacheStore: LibraryCacheStoring
+    private var hasLoaded = false
 
     init(
         artistRatingKey: String,
@@ -32,7 +34,8 @@ final class ArtistDetailViewModel: ObservableObject {
         },
         sessionInvalidationHandler: @escaping () -> Void = {},
         playbackController: PlaybackControlling? = nil,
-        shuffleProvider: @escaping ([PlexTrack]) -> [PlexTrack] = { $0.shuffled() }
+        shuffleProvider: @escaping ([PlexTrack]) -> [PlexTrack] = { $0.shuffled() },
+        cacheStore: LibraryCacheStoring = LibraryCacheStore()
     ) {
         self.artistRatingKey = artistRatingKey
         self.tokenStore = tokenStore
@@ -41,9 +44,25 @@ final class ArtistDetailViewModel: ObservableObject {
         self.sessionInvalidationHandler = sessionInvalidationHandler
         self.playbackController = playbackController ?? PlaybackNoopController()
         self.shuffleProvider = shuffleProvider
+        self.cacheStore = cacheStore
     }
 
     func load() async {
+        guard !hasLoaded else { return }
+        errorMessage = nil
+        let detailKey = LibraryCacheKey.artistDetail(artistRatingKey)
+        let albumsKey = LibraryCacheKey.artistAlbums(artistRatingKey)
+        if let cachedArtist = cacheStore.load(key: detailKey, as: PlexArtist.self),
+           let cachedAlbums = cacheStore.load(key: albumsKey, as: [PlexAlbum].self) {
+            artist = cachedArtist
+            albums = cachedAlbums
+            hasLoaded = true
+            return
+        }
+        await refresh()
+    }
+
+    func refresh() async {
         errorMessage = nil
         guard let serverURL = serverStore.serverURL else {
             errorMessage = "Missing server URL."
@@ -90,8 +109,14 @@ final class ArtistDetailViewModel: ObservableObject {
                 service: service
             )
             albums = mergeAlbums(primary: combinedAlbums, appearsOn: appearsOn)
+            if let artist {
+                cacheStore.save(key: .artistDetail(artistRatingKey), value: artist)
+            }
+            cacheStore.save(key: .artistAlbums(artistRatingKey), value: albums)
+            hasLoaded = true
             print("ArtistDetail.load albums count=\(albums.count) ratingKey=\(artistRatingKey)")
         } catch {
+            guard !Task.isCancelled else { return }
             logError(context: "ArtistDetail.load", error: error)
             if PlexErrorHelpers.isUnauthorized(error) {
                 try? tokenStore.clear()
@@ -138,6 +163,7 @@ final class ArtistDetailViewModel: ObservableObject {
             let context = makeNowPlayingContext(tracks: tracks, serverURL: serverURL, token: token)
             playbackController.play(tracks: tracks, startIndex: 0, context: context)
         } catch {
+            guard !Task.isCancelled else { return }
             if PlexErrorHelpers.isUnauthorized(error) {
                 try? tokenStore.clear()
                 sessionInvalidationHandler()

@@ -18,6 +18,7 @@ final class LibraryViewModel: ObservableObject {
     private let libraryServiceFactory: PlexLibraryServiceFactory
     private let sessionInvalidationHandler: () -> Void
     private let snapshotStore: LibrarySnapshotStoring
+    private let cacheStore: LibraryCacheStoring
     private let artworkPrefetcher: ArtworkPrefetching
     private let settingsStore: AppSettingsStoring
     private let logger: (String) -> Void
@@ -37,6 +38,7 @@ final class LibraryViewModel: ObservableObject {
             )
         },
         snapshotStore: LibrarySnapshotStoring = LibrarySnapshotStore(),
+        cacheStore: LibraryCacheStoring = LibraryCacheStore(),
         artworkPrefetcher: ArtworkPrefetching = ArtworkLoader.shared,
         settingsStore: AppSettingsStoring = UserDefaultsAppSettingsStore(),
         logger: @escaping (String) -> Void = { print($0) },
@@ -48,6 +50,7 @@ final class LibraryViewModel: ObservableObject {
         self.libraryServiceFactory = libraryServiceFactory
         self.sessionInvalidationHandler = sessionInvalidationHandler
         self.snapshotStore = snapshotStore
+        self.cacheStore = cacheStore
         self.artworkPrefetcher = artworkPrefetcher
         self.settingsStore = settingsStore
         self.logger = logger
@@ -55,7 +58,23 @@ final class LibraryViewModel: ObservableObject {
 
     func loadSections() async {
         errorMessage = nil
+        if let cached = cacheStore.load(key: .albums, as: [PlexAlbum].self), !cached.isEmpty {
+            let deduped = dedupeAlbums(cached)
+            albumGroups = Dictionary(grouping: cached, by: albumDedupKey(for:))
+            albums = deduped
+            hasLoadedSections = true
+            return
+        }
         let hadSnapshot = loadSnapshotIfAvailable()
+        if hadSnapshot {
+            hasLoadedSections = true
+            return
+        }
+        await refresh()
+    }
+
+    func refresh() async {
+        errorMessage = nil
         guard let serverURL = serverStore.serverURL else {
             errorMessage = "Missing server URL."
             return
@@ -66,10 +85,10 @@ final class LibraryViewModel: ObservableObject {
             return
         }
 
-        if hadSnapshot {
-            isRefreshing = true
-        } else {
+        if albums.isEmpty {
             isLoading = true
+        } else {
+            isRefreshing = true
         }
         defer {
             isLoading = false
@@ -89,11 +108,13 @@ final class LibraryViewModel: ObservableObject {
             }
             if let selected = selectedSection {
                 try await loadAlbums(section: selected)
+                cacheStore.save(key: .albums, value: albums)
                 saveSnapshot(albums: albums)
                 prefetchArtwork(for: albums)
             }
             hasLoadedSections = true
         } catch {
+            guard !Task.isCancelled else { return }
             print("LibraryViewModel.loadSections error: \(error)")
             if PlexErrorHelpers.isUnauthorized(error) {
                 try? tokenStore.clear()
@@ -122,6 +143,7 @@ final class LibraryViewModel: ObservableObject {
             saveSnapshot(albums: albums)
             prefetchArtwork(for: albums)
         } catch {
+            guard !Task.isCancelled else { return }
             if PlexErrorHelpers.isUnauthorized(error) {
                 try? tokenStore.clear()
                 sessionInvalidationHandler()

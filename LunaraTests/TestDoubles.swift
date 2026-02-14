@@ -143,6 +143,27 @@ struct StubLibraryService: PlexLibraryServicing {
     }
 }
 
+final class InMemoryLibraryCacheStore: LibraryCacheStoring, @unchecked Sendable {
+    private var storage: [String: Data] = [:]
+
+    func load<T: Decodable>(key: LibraryCacheKey, as type: T.Type) -> T? {
+        guard let data = storage[key.stringValue] else { return nil }
+        return try? JSONDecoder().decode(type, from: data)
+    }
+
+    func save<T: Encodable>(key: LibraryCacheKey, value: T) {
+        storage[key.stringValue] = try? JSONEncoder().encode(value)
+    }
+
+    func remove(key: LibraryCacheKey) {
+        storage.removeValue(forKey: key.stringValue)
+    }
+
+    func clear() {
+        storage.removeAll()
+    }
+}
+
 final class InMemoryAppSettingsStore: AppSettingsStoring {
     private var values: [AppSettingBoolKey: Bool]
 

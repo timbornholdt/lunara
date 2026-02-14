@@ -17,7 +17,9 @@ final class AlbumDetailViewModel: ObservableObject {
     private let sessionInvalidationHandler: () -> Void
     private let playbackController: PlaybackControlling
     private let downloadStatusProvider: OfflineDownloadStatusProviding?
+    private let cacheStore: LibraryCacheStoring
     private var cancellables: Set<AnyCancellable> = []
+    private var hasLoaded = false
 
     init(
         album: PlexAlbum,
@@ -35,7 +37,8 @@ final class AlbumDetailViewModel: ObservableObject {
         },
         sessionInvalidationHandler: @escaping () -> Void = {},
         playbackController: PlaybackControlling? = nil,
-        downloadStatusProvider: OfflineDownloadStatusProviding? = OfflineServices.shared.coordinator
+        downloadStatusProvider: OfflineDownloadStatusProviding? = OfflineServices.shared.coordinator,
+        cacheStore: LibraryCacheStoring = LibraryCacheStore()
     ) {
         self.album = album
         self.albumRatingKeys = albumRatingKeys
@@ -45,6 +48,7 @@ final class AlbumDetailViewModel: ObservableObject {
         self.sessionInvalidationHandler = sessionInvalidationHandler
         self.playbackController = playbackController ?? PlaybackNoopController()
         self.downloadStatusProvider = downloadStatusProvider
+        self.cacheStore = cacheStore
         NotificationCenter.default.publisher(for: .offlineDownloadsDidChange)
             .debounce(for: .milliseconds(200), scheduler: DispatchQueue.main)
             .sink { [weak self] _ in
@@ -57,6 +61,18 @@ final class AlbumDetailViewModel: ObservableObject {
     }
 
     func loadTracks() async {
+        guard !hasLoaded else { return }
+        errorMessage = nil
+        let cacheKey = LibraryCacheKey.albumTracks(album.ratingKey)
+        if let cached = cacheStore.load(key: cacheKey, as: [PlexTrack].self), !cached.isEmpty {
+            tracks = cached
+            hasLoaded = true
+            return
+        }
+        await refresh()
+    }
+
+    func refresh() async {
         errorMessage = nil
         guard let serverURL = serverStore.serverURL else {
             errorMessage = "Missing server URL."
@@ -77,7 +93,10 @@ final class AlbumDetailViewModel: ObservableObject {
                 service: service,
                 ratingKeys: ratingKeys
             )
+            cacheStore.save(key: .albumTracks(album.ratingKey), value: tracks)
+            hasLoaded = true
         } catch {
+            guard !Task.isCancelled else { return }
             if PlexErrorHelpers.isUnauthorized(error) {
                 try? tokenStore.clear()
                 sessionInvalidationHandler()

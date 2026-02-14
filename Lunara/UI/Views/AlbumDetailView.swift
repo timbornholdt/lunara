@@ -174,6 +174,7 @@ struct AlbumDetailView: View {
                     .animation(.easeInOut(duration: 0.2), value: navTitleOpacity)
             }
         }
+        .refreshable { await viewModel.refresh() }
         .task {
             await viewModel.loadTracks()
             await viewModel.refreshDownloadProgress()

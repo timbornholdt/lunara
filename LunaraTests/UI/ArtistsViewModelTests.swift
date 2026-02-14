@@ -48,13 +48,18 @@ struct ArtistsViewModelTests {
             tokenStore: tokenStore,
             serverStore: serverStore,
             libraryServiceFactory: { _, _ in service },
-            snapshotStore: snapshotStore
+            snapshotStore: snapshotStore,
+            cacheStore: InMemoryLibraryCacheStore()
         )
 
-        let task = Task { await viewModel.loadArtists() }
+        // Load snapshot first (returns immediately from snapshot)
+        await viewModel.loadArtists()
+        #expect(viewModel.artists.first?.ratingKey == "snap")
+
+        // Then refresh triggers network fetch
+        let task = Task { await viewModel.refresh() }
         await gate.waitForStart()
 
-        #expect(viewModel.artists.first?.ratingKey == "snap")
         #expect(viewModel.isRefreshing == true)
 
         await gate.release()
@@ -111,7 +116,8 @@ struct ArtistsViewModelTests {
             tokenStore: tokenStore,
             serverStore: serverStore,
             libraryServiceFactory: { _, _ in service },
-            snapshotStore: StubSnapshotStore(snapshot: nil)
+            snapshotStore: StubSnapshotStore(snapshot: nil),
+            cacheStore: InMemoryLibraryCacheStore()
         )
 
         await viewModel.loadArtists()
@@ -124,7 +130,8 @@ struct ArtistsViewModelTests {
             tokenStore: InMemoryTokenStore(token: "token"),
             serverStore: InMemoryServerStore(url: URL(string: "https://example.com:32400")!),
             libraryServiceFactory: { _, _ in StubLibraryService(sections: [], albums: [], tracks: []) },
-            snapshotStore: StubSnapshotStore(snapshot: nil)
+            snapshotStore: StubSnapshotStore(snapshot: nil),
+            cacheStore: InMemoryLibraryCacheStore()
         )
         viewModel.artists = [
             PlexArtist(

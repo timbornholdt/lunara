@@ -78,6 +78,7 @@ struct CollectionsBrowseView: View {
                                 .padding(.horizontal, Layout.globalPadding)
                                 .padding(.bottom, Layout.globalPadding)
                             }
+                            .refreshable { await viewModel.refresh() }
                             .safeAreaInset(edge: .bottom) {
                                 if nowPlayingInsetHeight > 0 {
                                     Color.clear.frame(height: nowPlayingInsetHeight)

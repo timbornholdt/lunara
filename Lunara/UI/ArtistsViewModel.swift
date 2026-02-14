@@ -15,6 +15,7 @@ final class ArtistsViewModel: ObservableObject {
     private let libraryServiceFactory: PlexLibraryServiceFactory
     private let sessionInvalidationHandler: () -> Void
     private let snapshotStore: LibrarySnapshotStoring
+    private let cacheStore: LibraryCacheStoring
 
     init(
         tokenStore: PlexAuthTokenStoring = PlexAuthTokenStore(keychain: KeychainStore()),
@@ -29,18 +30,34 @@ final class ArtistsViewModel: ObservableObject {
             )
         },
         snapshotStore: LibrarySnapshotStoring = LibrarySnapshotStore(),
+        cacheStore: LibraryCacheStoring = LibraryCacheStore(),
         sessionInvalidationHandler: @escaping () -> Void = {}
     ) {
         self.tokenStore = tokenStore
         self.serverStore = serverStore
         self.libraryServiceFactory = libraryServiceFactory
         self.snapshotStore = snapshotStore
+        self.cacheStore = cacheStore
         self.sessionInvalidationHandler = sessionInvalidationHandler
     }
 
     func loadArtists() async {
         errorMessage = nil
+        if let cached = cacheStore.load(key: .artists, as: [PlexArtist].self), !cached.isEmpty {
+            artists = sortArtists(cached)
+            hasLoadedArtists = true
+            return
+        }
         let hadSnapshot = loadSnapshotIfAvailable()
+        if hadSnapshot {
+            hasLoadedArtists = true
+            return
+        }
+        await refresh()
+    }
+
+    func refresh() async {
+        errorMessage = nil
         guard let serverURL = serverStore.serverURL else {
             errorMessage = "Missing server URL."
             return
@@ -51,10 +68,10 @@ final class ArtistsViewModel: ObservableObject {
             return
         }
 
-        if hadSnapshot {
-            isRefreshing = true
-        } else {
+        if artists.isEmpty {
             isLoading = true
+        } else {
+            isRefreshing = true
         }
         defer {
             isLoading = false
@@ -73,9 +90,11 @@ final class ArtistsViewModel: ObservableObject {
 
             let fetchedArtists = try await service.fetchArtists(sectionId: firstMusic.key)
             artists = sortArtists(fetchedArtists)
+            cacheStore.save(key: .artists, value: fetchedArtists)
             saveSnapshot(artists: artists)
             hasLoadedArtists = true
         } catch {
+            guard !Task.isCancelled else { return }
             print("ArtistsViewModel.loadArtists error: \(error)")
             if PlexErrorHelpers.isUnauthorized(error) {
                 try? tokenStore.clear()

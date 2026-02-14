@@ -40,7 +40,8 @@ struct AlbumDetailViewModelTests {
             tokenStore: tokenStore,
             serverStore: serverStore,
             libraryServiceFactory: { _, _ in service },
-            sessionInvalidationHandler: { invalidated = true }
+            sessionInvalidationHandler: { invalidated = true },
+            cacheStore: InMemoryLibraryCacheStore()
         )
 
         await viewModel.loadTracks()
@@ -91,7 +92,8 @@ struct AlbumDetailViewModelTests {
             albumRatingKeys: ["10", "11"],
             tokenStore: tokenStore,
             serverStore: serverStore,
-            libraryServiceFactory: { _, _ in service }
+            libraryServiceFactory: { _, _ in service },
+            cacheStore: InMemoryLibraryCacheStore()
         )
 
         await viewModel.loadTracks()
@@ -137,7 +139,8 @@ struct AlbumDetailViewModelTests {
             tokenStore: tokenStore,
             serverStore: serverStore,
             libraryServiceFactory: { _, _ in service },
-            sessionInvalidationHandler: { invalidated = true }
+            sessionInvalidationHandler: { invalidated = true },
+            cacheStore: InMemoryLibraryCacheStore()
         )
 
         await viewModel.loadTracks()
@@ -177,7 +180,8 @@ struct AlbumDetailViewModelTests {
             album: album,
             tokenStore: tokenStore,
             serverStore: serverStore,
-            playbackController: playback
+            playbackController: playback,
+            cacheStore: InMemoryLibraryCacheStore()
         )
         viewModel.tracks = [
             PlexTrack(ratingKey: "1", title: "One", index: 1, parentIndex: nil, parentRatingKey: "10", duration: nil, media: nil),
@@ -221,7 +225,8 @@ struct AlbumDetailViewModelTests {
             album: album,
             tokenStore: tokenStore,
             serverStore: serverStore,
-            playbackController: playback
+            playbackController: playback,
+            cacheStore: InMemoryLibraryCacheStore()
         )
         let trackOne = PlexTrack(ratingKey: "1", title: "One", index: 1, parentIndex: nil, parentRatingKey: "10", duration: nil, media: nil)
         let trackTwo = PlexTrack(ratingKey: "2", title: "Two", index: 2, parentIndex: nil, parentRatingKey: "10", duration: nil, media: nil)
@@ -272,7 +277,8 @@ struct AlbumDetailViewModelTests {
             album: album,
             tokenStore: tokenStore,
             serverStore: serverStore,
-            downloadStatusProvider: statusProvider
+            downloadStatusProvider: statusProvider,
+            cacheStore: InMemoryLibraryCacheStore()
         )
 
         await viewModel.refreshDownloadProgress()

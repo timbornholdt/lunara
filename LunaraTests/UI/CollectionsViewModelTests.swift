@@ -24,7 +24,9 @@ struct CollectionsViewModelTests {
             tokenStore: tokenStore,
             serverStore: serverStore,
             libraryServiceFactory: { _, _ in service },
-            logger: { loggedTitles = $0 }
+            logger: { loggedTitles = $0 },
+            snapshotStore: StubSnapshotStore(snapshot: nil),
+            cacheStore: InMemoryLibraryCacheStore()
         )
 
         await viewModel.loadCollections()
@@ -49,7 +51,9 @@ struct CollectionsViewModelTests {
         let viewModel = CollectionsViewModel(
             tokenStore: tokenStore,
             serverStore: serverStore,
-            libraryServiceFactory: { _, _ in service }
+            libraryServiceFactory: { _, _ in service },
+            snapshotStore: StubSnapshotStore(snapshot: nil),
+            cacheStore: InMemoryLibraryCacheStore()
         )
 
         await viewModel.loadCollections()
@@ -66,7 +70,8 @@ struct CollectionsViewModelTests {
         let viewModel = CollectionsViewModel(
             tokenStore: InMemoryTokenStore(token: "token"),
             serverStore: InMemoryServerStore(url: URL(string: "https://example.com:32400")!),
-            libraryServiceFactory: { _, _ in RecordingLibraryService(sections: [], collections: []) }
+            libraryServiceFactory: { _, _ in RecordingLibraryService(sections: [], collections: []) },
+            cacheStore: InMemoryLibraryCacheStore()
         )
         let pinned = PlexCollection(ratingKey: "1", title: "Current Vibes", thumb: nil, art: nil, updatedAt: nil, key: nil)
         let normal = PlexCollection(ratingKey: "2", title: "Other", thumb: nil, art: nil, updatedAt: nil, key: nil)
@@ -83,7 +88,9 @@ struct CollectionsViewModelTests {
         let viewModel = CollectionsViewModel(
             tokenStore: tokenStore,
             serverStore: serverStore,
-            libraryServiceFactory: { _, _ in service }
+            libraryServiceFactory: { _, _ in service },
+            snapshotStore: StubSnapshotStore(snapshot: nil),
+            cacheStore: InMemoryLibraryCacheStore()
         )
 
         await viewModel.loadCollections()
@@ -119,13 +126,18 @@ struct CollectionsViewModelTests {
             serverStore: serverStore,
             libraryServiceFactory: { _, _ in service },
             snapshotStore: snapshotStore,
+            cacheStore: InMemoryLibraryCacheStore(),
             artworkPrefetcher: NoopArtworkPrefetcher()
         )
 
-        let task = Task { await viewModel.loadCollections() }
+        // Load snapshot first (returns immediately from snapshot)
+        await viewModel.loadCollections()
+        #expect(viewModel.collections.first?.ratingKey == "snap")
+
+        // Then refresh triggers network fetch
+        let task = Task { await viewModel.refresh() }
         await gate.waitForStart()
 
-        #expect(viewModel.collections.first?.ratingKey == "snap")
         #expect(viewModel.isRefreshing == true)
 
         await gate.release()
@@ -195,6 +207,8 @@ struct CollectionsViewModelTests {
             tokenStore: tokenStore,
             serverStore: serverStore,
             libraryServiceFactory: { _, _ in service },
+            snapshotStore: StubSnapshotStore(snapshot: nil),
+            cacheStore: InMemoryLibraryCacheStore(),
             offlineDownloadQueue: queue
         )
 
@@ -219,6 +233,8 @@ struct CollectionsViewModelTests {
             tokenStore: tokenStore,
             serverStore: serverStore,
             libraryServiceFactory: { _, _ in service },
+            snapshotStore: StubSnapshotStore(snapshot: nil),
+            cacheStore: InMemoryLibraryCacheStore(),
             offlineDownloadQueue: queue
         )
 
@@ -289,7 +305,8 @@ struct CollectionAlbumsViewModelTests {
             sectionKey: "2",
             tokenStore: tokenStore,
             serverStore: serverStore,
-            libraryServiceFactory: { _, _ in service }
+            libraryServiceFactory: { _, _ in service },
+            cacheStore: InMemoryLibraryCacheStore()
         )
 
         await viewModel.loadAlbums()
@@ -328,7 +345,8 @@ struct CollectionAlbumsViewModelTests {
             tokenStore: tokenStore,
             serverStore: serverStore,
             libraryServiceFactory: { _, _ in service },
-            playbackController: playback
+            playbackController: playback,
+            cacheStore: InMemoryLibraryCacheStore()
         )
 
         await viewModel.loadAlbums()
@@ -362,7 +380,8 @@ struct CollectionAlbumsViewModelTests {
             serverStore: serverStore,
             libraryServiceFactory: { _, _ in service },
             playbackController: playback,
-            shuffleProvider: { Array($0.reversed()) }
+            shuffleProvider: { Array($0.reversed()) },
+            cacheStore: InMemoryLibraryCacheStore()
         )
 
         await viewModel.loadAlbums()
@@ -389,7 +408,8 @@ struct CollectionAlbumsViewModelTests {
             tokenStore: tokenStore,
             serverStore: serverStore,
             libraryServiceFactory: { _, _ in service },
-            playbackController: playback
+            playbackController: playback,
+            cacheStore: InMemoryLibraryCacheStore()
         )
 
         await viewModel.loadAlbums()
@@ -420,7 +440,8 @@ struct CollectionAlbumsViewModelTests {
             serverStore: serverStore,
             libraryServiceFactory: { _, _ in service },
             sessionInvalidationHandler: { invalidationCount += 1 },
-            playbackController: playback
+            playbackController: playback,
+            cacheStore: InMemoryLibraryCacheStore()
         )
 
         await viewModel.loadAlbums()
@@ -449,13 +470,14 @@ struct CollectionAlbumsViewModelTests {
             tokenStore: tokenStore,
             serverStore: serverStore,
             libraryServiceFactory: { _, _ in service },
-            marqueeShuffleProvider: { $0.reversed() }
+            marqueeShuffleProvider: { $0.reversed() },
+            cacheStore: InMemoryLibraryCacheStore()
         )
 
         await viewModel.loadAlbums()
         let firstSeed = viewModel.marqueeAlbums.map(\.ratingKey)
 
-        await viewModel.loadAlbums()
+        await viewModel.refresh()
         let secondSeed = viewModel.marqueeAlbums.map(\.ratingKey)
 
         #expect(firstSeed == ["b", "a"])

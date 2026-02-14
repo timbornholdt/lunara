@@ -1,10 +1,10 @@
 import Foundation
 
-struct PlexTag: Decodable, Equatable, Sendable {
+struct PlexTag: Codable, Equatable, Sendable {
     let tag: String
 }
 
-struct PlexCollection: Decodable, Equatable, Sendable {
+struct PlexCollection: Codable, Equatable, Sendable {
     let ratingKey: String
     let title: String
     let thumb: String?
@@ -22,7 +22,7 @@ struct PlexCollection: Decodable, Equatable, Sendable {
     }
 }
 
-struct PlexArtist: Decodable, Equatable, Sendable {
+struct PlexArtist: Codable, Equatable, Sendable {
     let ratingKey: String
     let title: String
     let titleSort: String?
@@ -106,9 +106,27 @@ struct PlexArtist: Decodable, Equatable, Sendable {
         addedAt = try container.decodeIfPresent(Int.self, forKey: .addedAt)
         updatedAt = try container.decodeIfPresent(Int.self, forKey: .updatedAt)
     }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(ratingKey, forKey: .ratingKey)
+        try container.encode(title, forKey: .title)
+        try container.encodeIfPresent(titleSort, forKey: .titleSort)
+        try container.encodeIfPresent(summary, forKey: .summary)
+        try container.encodeIfPresent(thumb, forKey: .thumb)
+        try container.encodeIfPresent(art, forKey: .art)
+        try container.encodeIfPresent(country, forKey: .country)
+        try container.encodeIfPresent(genres, forKey: .genres)
+        try container.encodeIfPresent(userRating, forKey: .userRating)
+        try container.encodeIfPresent(rating, forKey: .rating)
+        try container.encodeIfPresent(albumCount, forKey: .albumCount)
+        try container.encodeIfPresent(trackCount, forKey: .trackCount)
+        try container.encodeIfPresent(addedAt, forKey: .addedAt)
+        try container.encodeIfPresent(updatedAt, forKey: .updatedAt)
+    }
 }
 
-struct PlexAlbum: Decodable, Equatable, Sendable {
+struct PlexAlbum: Codable, Equatable, Sendable {
     let ratingKey: String
     let title: String
     let thumb: String?
@@ -216,7 +234,7 @@ struct PlexAlbum: Decodable, Equatable, Sendable {
     }
 }
 
-struct PlexTrack: Decodable, Equatable, Sendable {
+struct PlexTrack: Codable, Equatable, Sendable {
     let ratingKey: String
     let title: String
     let index: Int?
@@ -262,7 +280,7 @@ struct PlexTrack: Decodable, Equatable, Sendable {
     }
 }
 
-struct PlexTrackMedia: Decodable, Equatable, Sendable {
+struct PlexTrackMedia: Codable, Equatable, Sendable {
     let parts: [PlexTrackPart]
 
     private enum CodingKeys: String, CodingKey {
@@ -270,6 +288,6 @@ struct PlexTrackMedia: Decodable, Equatable, Sendable {
     }
 }
 
-struct PlexTrackPart: Decodable, Equatable, Sendable {
+struct PlexTrackPart: Codable, Equatable, Sendable {
     let key: String
 }

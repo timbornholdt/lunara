@@ -123,6 +123,7 @@ struct CollectionDetailView: View {
                                 .padding(.bottom, LunaraTheme.Layout.globalPadding)
                             }
                         }
+                        .refreshable { await viewModel.refresh() }
                         .safeAreaInset(edge: .bottom) {
                             if nowPlayingInsetHeight > 0 {
                                 Color.clear.frame(height: nowPlayingInsetHeight)

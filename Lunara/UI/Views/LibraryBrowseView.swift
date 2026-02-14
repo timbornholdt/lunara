@@ -102,6 +102,7 @@ struct LibraryBrowseView: View {
                 .padding(.horizontal, LunaraTheme.Layout.globalPadding)
             }
         }
+        .refreshable { await viewModel.refresh() }
         .task {
             await viewModel.loadSectionsIfNeeded()
         }

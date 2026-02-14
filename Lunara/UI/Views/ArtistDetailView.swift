@@ -77,6 +77,7 @@ struct ArtistDetailView: View {
                 .padding(.horizontal, Layout.globalPadding)
             }
         }
+        .refreshable { await viewModel.refresh() }
         .task {
             await viewModel.load()
         }

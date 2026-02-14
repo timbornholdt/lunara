@@ -1,12 +1,12 @@
 import Foundation
 
-struct PlexLibrarySection: Decodable, Equatable, Sendable {
+struct PlexLibrarySection: Codable, Equatable, Sendable {
     let key: String
     let title: String
     let type: String
 }
 
-struct PlexDirectoryResponse<Item: Decodable>: Decodable {
+struct PlexDirectoryResponse<Item: Decodable & Encodable>: Codable {
     let mediaContainer: PlexDirectoryContainer<Item>
 
     enum CodingKeys: String, CodingKey {
@@ -14,7 +14,7 @@ struct PlexDirectoryResponse<Item: Decodable>: Decodable {
     }
 }
 
-struct PlexDirectoryContainer<Item: Decodable>: Decodable {
+struct PlexDirectoryContainer<Item: Decodable & Encodable>: Codable {
     let size: Int
     let items: [Item]
 

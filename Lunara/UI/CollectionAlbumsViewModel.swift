@@ -20,7 +20,9 @@ final class CollectionAlbumsViewModel: ObservableObject {
     private let shuffleProvider: ([PlexTrack]) -> [PlexTrack]
     private let marqueeShuffleProvider: ([PlexAlbum]) -> [PlexAlbum]
     private let sectionKey: String
+    private let cacheStore: LibraryCacheStoring
     private var albumGroups: [String: [PlexAlbum]] = [:]
+    private var hasLoaded = false
 
     init(
         collection: PlexCollection,
@@ -39,7 +41,8 @@ final class CollectionAlbumsViewModel: ObservableObject {
         sessionInvalidationHandler: @escaping () -> Void = {},
         playbackController: PlaybackControlling? = nil,
         shuffleProvider: @escaping ([PlexTrack]) -> [PlexTrack] = { $0.shuffled() },
-        marqueeShuffleProvider: @escaping ([PlexAlbum]) -> [PlexAlbum] = { $0.shuffled() }
+        marqueeShuffleProvider: @escaping ([PlexAlbum]) -> [PlexAlbum] = { $0.shuffled() },
+        cacheStore: LibraryCacheStoring = LibraryCacheStore()
     ) {
         self.collection = collection
         self.sectionKey = sectionKey
@@ -50,9 +53,26 @@ final class CollectionAlbumsViewModel: ObservableObject {
         self.playbackController = playbackController ?? PlaybackNoopController()
         self.shuffleProvider = shuffleProvider
         self.marqueeShuffleProvider = marqueeShuffleProvider
+        self.cacheStore = cacheStore
     }
 
     func loadAlbums() async {
+        guard !hasLoaded else { return }
+        errorMessage = nil
+        let cacheKey = LibraryCacheKey.collectionAlbums(collection.ratingKey)
+        if let cached = cacheStore.load(key: cacheKey, as: [PlexAlbum].self), !cached.isEmpty {
+            albumGroups = Dictionary(grouping: cached, by: albumDedupKey(for:))
+            albums = dedupeAlbums(cached)
+            if marqueeAlbums.isEmpty {
+                marqueeAlbums = marqueeShuffleProvider(albums)
+            }
+            hasLoaded = true
+            return
+        }
+        await refresh()
+    }
+
+    func refresh() async {
         errorMessage = nil
         guard let serverURL = serverStore.serverURL else {
             errorMessage = "Missing server URL."
@@ -80,10 +100,13 @@ final class CollectionAlbumsViewModel: ObservableObject {
             )
             albumGroups = Dictionary(grouping: fetchedAlbums, by: albumDedupKey(for:))
             albums = dedupeAlbums(fetchedAlbums)
+            cacheStore.save(key: .collectionAlbums(collection.ratingKey), value: fetchedAlbums)
             if marqueeAlbums.isEmpty {
                 marqueeAlbums = marqueeShuffleProvider(albums)
             }
+            hasLoaded = true
         } catch {
+            guard !Task.isCancelled else { return }
             print("CollectionAlbumsViewModel.loadAlbums error: \(error)")
             if PlexErrorHelpers.isUnauthorized(error) {
                 try? tokenStore.clear()
@@ -145,6 +168,7 @@ final class CollectionAlbumsViewModel: ObservableObject {
                 )
             )
         } catch {
+            guard !Task.isCancelled else { return }
             if PlexErrorHelpers.isUnauthorized(error) {
                 try? tokenStore.clear()
                 sessionInvalidationHandler()

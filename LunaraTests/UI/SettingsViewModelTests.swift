@@ -57,6 +57,7 @@ struct SettingsViewModelTests {
         let viewModel = SettingsViewModel(
             settingsStore: store,
             offlineLifecycleManager: lifecycle,
+            cacheStore: InMemoryLibraryCacheStore(),
             onSignOut: { signOutCount += 1 }
         )
 
