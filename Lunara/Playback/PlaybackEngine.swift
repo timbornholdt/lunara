@@ -7,7 +7,7 @@ final class PlaybackEngine: PlaybackEngineing {
     private let player: PlaybackPlayer
     private let sourceResolver: PlaybackSourceResolving
     private let fallbackURLBuilder: PlaybackFallbackURLBuilding
-    private let audioSession: AudioSessionManaging
+    private var audioSession: AudioSessionManaging
     private let diagnostics: DiagnosticsLogging
 
     private var queueItems: [PlaybackQueueItem] = []
@@ -15,6 +15,8 @@ final class PlaybackEngine: PlaybackEngineing {
     private var currentIndex = 0
     private var currentElapsed: TimeInterval = 0
     private var isPlaying = false
+    private var pendingSkipIndex: Int?
+    private var skipDebounceWork: DispatchWorkItem?
 
     init(
         player: PlaybackPlayer = AVQueuePlayerAdapter(),
@@ -29,6 +31,7 @@ final class PlaybackEngine: PlaybackEngineing {
         self.audioSession = audioSession
         self.diagnostics = diagnostics
         bindPlayerCallbacks()
+        bindInterruptionCallback()
     }
 
     func play(tracks: [PlexTrack], startIndex: Int) {
@@ -110,6 +113,9 @@ final class PlaybackEngine: PlaybackEngineing {
 
     func stop() {
         diagnostics.endPlaybackSession()
+        skipDebounceWork?.cancel()
+        skipDebounceWork = nil
+        pendingSkipIndex = nil
         player.stop()
         queueItems.removeAll()
         queueBaseIndex = 0
@@ -117,6 +123,7 @@ final class PlaybackEngine: PlaybackEngineing {
         currentElapsed = 0
         isPlaying = false
         onStateChange?(nil)
+        audioSession.deactivateSession()
     }
 
     func togglePlayPause() {
@@ -130,16 +137,16 @@ final class PlaybackEngine: PlaybackEngineing {
 
     func skipToNext() {
         diagnostics.log(.playbackSkipNext)
-        let nextIndex = currentIndex + 1
-        guard nextIndex < queueItems.count else { return }
-        jump(to: nextIndex)
+        let target = (pendingSkipIndex ?? currentIndex) + 1
+        guard target < queueItems.count else { return }
+        scheduleSkip(to: target)
     }
 
     func skipToPrevious() {
         diagnostics.log(.playbackSkipPrevious)
-        let previousIndex = max(currentIndex - 1, 0)
-        guard previousIndex < queueItems.count else { return }
-        jump(to: previousIndex)
+        let target = max((pendingSkipIndex ?? currentIndex) - 1, 0)
+        guard target < queueItems.count else { return }
+        scheduleSkip(to: target)
     }
 
     func seek(to seconds: TimeInterval) {
@@ -159,6 +166,26 @@ final class PlaybackEngine: PlaybackEngineing {
         }
         player.onPlaybackStateChanged = { [weak self] playing in
             self?.handlePlaybackStateChange(isPlaying: playing)
+        }
+    }
+
+    private func bindInterruptionCallback() {
+        audioSession.onInterruption = { [weak self] interruption in
+            self?.handleInterruption(interruption)
+        }
+    }
+
+    private func handleInterruption(_ interruption: AudioSessionInterruption) {
+        guard !queueItems.isEmpty else { return }
+        switch interruption {
+        case .began:
+            diagnostics.log(.audioSessionInterruption(type: "began"))
+            player.pause()
+        case .ended(let shouldResume):
+            diagnostics.log(.audioSessionInterruption(type: shouldResume ? "ended_resume" : "ended_no_resume"))
+            if shouldResume {
+                player.play()
+            }
         }
     }
 
@@ -233,8 +260,25 @@ final class PlaybackEngine: PlaybackEngineing {
         onStateChange?(state)
     }
 
+    private func scheduleSkip(to index: Int) {
+        skipDebounceWork?.cancel()
+        pendingSkipIndex = index
+        currentIndex = index
+        currentElapsed = 0
+        publishState()
+        let work = DispatchWorkItem { [weak self] in
+            self?.pendingSkipIndex = nil
+            self?.jump(to: index)
+        }
+        skipDebounceWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
+    }
+
     private func jump(to index: Int) {
         guard index >= 0, index < queueItems.count else { return }
+        skipDebounceWork?.cancel()
+        skipDebounceWork = nil
+        pendingSkipIndex = nil
         queueBaseIndex = index
         currentIndex = index
         currentElapsed = 0

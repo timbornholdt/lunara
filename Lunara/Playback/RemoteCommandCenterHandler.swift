@@ -68,7 +68,9 @@ final class RemoteCommandCenterHandler: RemoteCommandCenterHandling {
     }
 
     func configure(handlers: RemoteCommandHandlers) {
-        guard isConfigured == false else { return }
+        if isConfigured {
+            teardown()
+        }
 
         center.playCommand.isEnabled = true
         center.pauseCommand.isEnabled = true

@@ -37,8 +37,15 @@ protocol PlaybackPlayer: AnyObject {
     func seek(to seconds: TimeInterval)
 }
 
-protocol AudioSessionManaging {
+enum AudioSessionInterruption {
+    case began
+    case ended(shouldResume: Bool)
+}
+
+protocol AudioSessionManaging: AnyObject {
+    var onInterruption: ((AudioSessionInterruption) -> Void)? { get set }
     func configureForPlayback() throws
+    func deactivateSession()
 }
 
 protocol PlaybackFallbackURLBuilding {

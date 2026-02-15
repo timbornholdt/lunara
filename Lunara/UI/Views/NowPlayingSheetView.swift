@@ -16,7 +16,8 @@ struct NowPlayingSheetView: View {
 
     @State private var scrubValue: Double = 0
     @State private var isScrubbing = false
-    @State private var pendingSeekTarget: Double?
+    @State private var lastSeekDate: Date?
+    @State private var lastScrubActivityDate: Date?
 
     private enum Layout {
         static let globalPadding = LunaraTheme.Layout.globalPadding
@@ -52,17 +53,37 @@ struct NowPlayingSheetView: View {
             }
         }
         .onAppear {
+            isScrubbing = false
+            lastScrubActivityDate = nil
             scrubValue = state.elapsedTime
         }
+        .onChange(of: state.trackRatingKey) { _, _ in
+            isScrubbing = false
+            lastScrubActivityDate = nil
+            lastSeekDate = nil
+            scrubValue = state.elapsedTime
+        }
+        .onChange(of: scrubValue) { _, _ in
+            if isScrubbing {
+                lastScrubActivityDate = Date()
+            }
+        }
         .onChange(of: state.elapsedTime) { _, newValue in
-            if let pending = pendingSeekTarget {
-                if abs(newValue - pending) <= 1 {
-                    pendingSeekTarget = nil
+            if let seekDate = lastSeekDate {
+                if Date().timeIntervalSince(seekDate) < 0.5 {
+                    return
+                }
+                lastSeekDate = nil
+            }
+            if isScrubbing {
+                if let lastActivity = lastScrubActivityDate,
+                   Date().timeIntervalSince(lastActivity) > 2 {
+                    isScrubbing = false
+                    lastScrubActivityDate = nil
                 } else {
                     return
                 }
             }
-            guard !isScrubbing else { return }
             scrubValue = newValue
         }
     }
@@ -184,8 +205,10 @@ struct NowPlayingSheetView: View {
     private func handleScrubState(_ editing: Bool) {
         if editing {
             isScrubbing = true
+            lastScrubActivityDate = Date()
         } else {
             isScrubbing = false
+            lastScrubActivityDate = nil
             let target = scrubValue
             let current = state.elapsedTime
             if NowPlayingSeekDecision.shouldSeek(
@@ -193,10 +216,9 @@ struct NowPlayingSheetView: View {
                 targetTime: target,
                 tolerance: 5
             ) {
-                pendingSeekTarget = target
+                lastSeekDate = Date()
                 onSeek(target)
             } else {
-                pendingSeekTarget = nil
                 scrubValue = current
             }
         }

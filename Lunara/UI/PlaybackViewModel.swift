@@ -32,6 +32,8 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
     private var remoteCommandsConfigured = false
     private var lastOfflineTrackEventKey: String?
     private var hasPrimedEngineFromQueue = false
+    private var metadataSequence: UInt64 = 0
+    private var scenePhaseObserver: NSObjectProtocol?
 
     typealias PlaybackEngineFactory = (URL, String) -> PlaybackEngineing
 
@@ -73,6 +75,7 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
         self.offlineDownloadQueue = offlineDownloadQueue
         self.diagnostics = diagnostics
         restoreQueueSnapshotIfAvailable()
+        observeScenePhase()
     }
 
     init(
@@ -115,6 +118,13 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
         self.diagnostics = diagnostics
         bindEngineCallbacks()
         restoreQueueSnapshotIfAvailable()
+        observeScenePhase()
+    }
+
+    deinit {
+        if let scenePhaseObserver {
+            NotificationCenter.default.removeObserver(scenePhaseObserver)
+        }
     }
 
     func play(tracks: [PlexTrack], startIndex: Int, context: NowPlayingContext?) {
@@ -343,6 +353,8 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
         )
         let context = makeContext(from: snapshot)
         setNowPlayingContext(context)
+        configureRemoteCommandsIfNeeded()
+        publishLockScreenMetadata(for: nowPlaying!)
     }
 
     private func persistQueueStateFromPlaybackStart(
@@ -676,12 +688,15 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
         }
         currentLockScreenAlbumKey = albumKey
         currentLockScreenArtwork = nil
+        metadataSequence &+= 1
+        let capturedSequence = metadataSequence
         if let state = nowPlaying {
             publishLockScreenMetadata(for: state)
         }
         Task {
             let artworkImage = await lockScreenArtworkProvider.resolveArtwork(for: context.artworkRequest)
             await MainActor.run {
+                guard self.metadataSequence == capturedSequence else { return }
                 if self.currentLockScreenAlbumKey == albumKey {
                     self.currentLockScreenArtwork = artworkImage
                     if let state = self.nowPlaying {
@@ -722,28 +737,55 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
             handlers: RemoteCommandHandlers(
                 onPlay: { [weak self] in
                     Task { @MainActor in
-                        guard let self, self.nowPlaying?.isPlaying == false else { return }
-                        self.togglePlayPause()
+                        self?.diagnostics.log(.remoteCommand(command: "play"))
+                        self?.togglePlayPause()
                     }
                 },
                 onPause: { [weak self] in
                     Task { @MainActor in
-                        guard let self, self.nowPlaying?.isPlaying == true else { return }
-                        self.togglePlayPause()
+                        self?.diagnostics.log(.remoteCommand(command: "pause"))
+                        self?.togglePlayPause()
                     }
                 },
                 onNext: { [weak self] in
                     Task { @MainActor in
+                        self?.diagnostics.log(.remoteCommand(command: "next"))
                         self?.skipToNext()
                     }
                 },
                 onPrevious: { [weak self] in
                     Task { @MainActor in
+                        self?.diagnostics.log(.remoteCommand(command: "previous"))
                         self?.skipToPrevious()
                     }
                 }
             )
         )
+    }
+
+    private func observeScenePhase() {
+        scenePhaseObserver = NotificationCenter.default.addObserver(
+            forName: .lunaraScenePhaseDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self else { return }
+            let phase = notification.userInfo?["phase"] as? String ?? "unknown"
+            Task { @MainActor in
+                self.handleScenePhaseChange(phase: phase)
+            }
+        }
+    }
+
+    private func handleScenePhaseChange(phase: String) {
+        diagnostics.log(.scenePhaseChange(phase: phase))
+        switch phase {
+        case "active", "background":
+            guard let state = nowPlaying else { return }
+            publishLockScreenMetadata(for: state)
+        default:
+            break
+        }
     }
 
     private func publishLockScreenMetadata(for state: NowPlayingState) {

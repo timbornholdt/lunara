@@ -3,19 +3,11 @@ import Testing
 @testable import Lunara
 
 struct RemoteCommandCenterHandlerTests {
-    @Test func configureRegistersHandlersOnce() {
+    @Test func configureRegistersHandlers() {
         let center = StubRemoteCommandCenter()
         let handler = RemoteCommandCenterHandler(center: center)
         var playCount = 0
 
-        handler.configure(
-            handlers: RemoteCommandHandlers(
-                onPlay: { playCount += 1 },
-                onPause: {},
-                onNext: {},
-                onPrevious: {}
-            )
-        )
         handler.configure(
             handlers: RemoteCommandHandlers(
                 onPlay: { playCount += 1 },
@@ -32,6 +24,35 @@ struct RemoteCommandCenterHandlerTests {
 
         center.playCommandStub.trigger()
         #expect(playCount == 1)
+    }
+
+    @Test func configureIsIdempotentTearsDownAndReregisters() {
+        let center = StubRemoteCommandCenter()
+        let handler = RemoteCommandCenterHandler(center: center)
+        var secondPlayCount = 0
+
+        handler.configure(
+            handlers: RemoteCommandHandlers(
+                onPlay: {},
+                onPause: {},
+                onNext: {},
+                onPrevious: {}
+            )
+        )
+        handler.configure(
+            handlers: RemoteCommandHandlers(
+                onPlay: { secondPlayCount += 1 },
+                onPause: {},
+                onNext: {},
+                onPrevious: {}
+            )
+        )
+
+        #expect(center.playCommandStub.addCallCount == 2)
+        #expect(center.playCommandStub.removeCallCount == 1)
+
+        center.playCommandStub.trigger()
+        #expect(secondPlayCount == 1)
     }
 
     @Test func teardownRemovesHandlersAndDisablesCommands() {

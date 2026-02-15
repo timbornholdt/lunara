@@ -836,6 +836,239 @@ struct PlaybackViewModelTests {
         #expect(diagnostics.events.contains { $0.name == "playback.ui_sync" })
     }
 
+    @Test func remoteCommandHandlersLogDiagnostics() async {
+        let engine = StubPlaybackEngine()
+        let remoteCommands = RecordingRemoteCommandCenter()
+        let diagnostics = SpyDiagnosticsLogger()
+        let viewModel = PlaybackViewModel(
+            engine: engine,
+            themeProvider: StubThemeProvider(),
+            nowPlayingInfoCenter: RecordingNowPlayingInfoCenter(),
+            remoteCommandCenter: remoteCommands,
+            lockScreenArtworkProvider: StubLockScreenArtworkProvider(),
+            diagnostics: diagnostics
+        )
+
+        engine.emitState(
+            NowPlayingState(
+                trackRatingKey: "1",
+                trackTitle: "Track",
+                artistName: "Artist",
+                isPlaying: true,
+                elapsedTime: 0,
+                duration: 100
+            )
+        )
+        _ = await waitUntil { remoteCommands.configureCallCount == 1 }
+
+        remoteCommands.handlers?.onPlay()
+        try? await Task.sleep(nanoseconds: 10_000_000)
+
+        #expect(diagnostics.events.contains { $0.name == "remote.command" })
+    }
+
+    @Test func eagerRegistrationOnQueueRestore() async {
+        let track = PlexTrack(
+            ratingKey: "t1",
+            title: "Track One",
+            index: 1,
+            parentIndex: nil,
+            parentRatingKey: "a1",
+            duration: 90_000,
+            media: [PlexTrackMedia(parts: [PlexTrackPart(key: "/library/parts/1/file.mp3")])]
+        )
+        let album = PlexAlbum(
+            ratingKey: "a1",
+            title: "Album One",
+            thumb: nil,
+            art: nil,
+            year: 2001,
+            artist: "Artist",
+            titleSort: nil,
+            originalTitle: nil,
+            editionTitle: nil,
+            guid: nil,
+            librarySectionID: nil,
+            parentRatingKey: nil,
+            studio: nil,
+            summary: nil,
+            genres: nil,
+            styles: nil,
+            moods: nil,
+            rating: nil,
+            userRating: nil,
+            key: nil
+        )
+        let state = QueueState(
+            entries: [
+                QueueEntry(
+                    track: track,
+                    album: album,
+                    albumRatingKeys: ["a1"],
+                    artworkRequest: nil,
+                    isPlayable: true,
+                    skipReason: nil
+                )
+            ],
+            currentIndex: 0,
+            elapsedTime: 10,
+            isPlaying: false
+        )
+        let queueManager = QueueManager(store: RecordingQueueStateStore(initial: state))
+        let engine = StubPlaybackEngine()
+        let remoteCommands = RecordingRemoteCommandCenter()
+        let nowPlayingCenter = RecordingNowPlayingInfoCenter()
+
+        let _ = PlaybackViewModel(
+            engine: engine,
+            themeProvider: StubThemeProvider(),
+            nowPlayingInfoCenter: nowPlayingCenter,
+            remoteCommandCenter: remoteCommands,
+            lockScreenArtworkProvider: StubLockScreenArtworkProvider(),
+            queueManager: queueManager
+        )
+
+        #expect(remoteCommands.configureCallCount == 1)
+        #expect(nowPlayingCenter.updates.isEmpty == false)
+    }
+
+    @Test func metadataSequenceDiscardsStaleArtwork() async {
+        let engine = StubPlaybackEngine()
+        let nowPlayingCenter = RecordingNowPlayingInfoCenter()
+        let slowArtworkProvider = DelayedLockScreenArtworkProvider(
+            image: makeTestImage(color: .blue),
+            delayNanoseconds: 50_000_000
+        )
+        let viewModel = PlaybackViewModel(
+            engine: engine,
+            themeProvider: StubThemeProvider(),
+            nowPlayingInfoCenter: nowPlayingCenter,
+            remoteCommandCenter: RecordingRemoteCommandCenter(),
+            lockScreenArtworkProvider: slowArtworkProvider
+        )
+        let albumOne = PlexAlbum(
+            ratingKey: "a1",
+            title: "Album One",
+            thumb: nil,
+            art: nil,
+            year: 2001,
+            artist: "Artist",
+            titleSort: nil,
+            originalTitle: nil,
+            editionTitle: nil,
+            guid: nil,
+            librarySectionID: nil,
+            parentRatingKey: nil,
+            studio: nil,
+            summary: nil,
+            genres: nil,
+            styles: nil,
+            moods: nil,
+            rating: nil,
+            userRating: nil,
+            key: nil
+        )
+        let albumTwo = PlexAlbum(
+            ratingKey: "a2",
+            title: "Album Two",
+            thumb: nil,
+            art: nil,
+            year: 2002,
+            artist: "Artist",
+            titleSort: nil,
+            originalTitle: nil,
+            editionTitle: nil,
+            guid: nil,
+            librarySectionID: nil,
+            parentRatingKey: nil,
+            studio: nil,
+            summary: nil,
+            genres: nil,
+            styles: nil,
+            moods: nil,
+            rating: nil,
+            userRating: nil,
+            key: nil
+        )
+        let trackOne = PlexTrack(ratingKey: "t1", title: "One", index: 1, parentIndex: nil, parentRatingKey: "a1", duration: nil, media: nil)
+        let trackTwo = PlexTrack(ratingKey: "t2", title: "Two", index: 1, parentIndex: nil, parentRatingKey: "a2", duration: nil, media: nil)
+        let requestOne = ArtworkRequest(
+            key: ArtworkCacheKey(ratingKey: "a1", artworkPath: "/art/1", size: .detail),
+            url: URL(string: "https://example.com/1.png")!
+        )
+        let requestTwo = ArtworkRequest(
+            key: ArtworkCacheKey(ratingKey: "a2", artworkPath: "/art/2", size: .detail),
+            url: URL(string: "https://example.com/2.png")!
+        )
+
+        let contextOne = NowPlayingContext(album: albumOne, albumRatingKeys: ["a1"], tracks: [trackOne, trackTwo], artworkRequest: requestOne, albumsByRatingKey: ["a1": albumOne, "a2": albumTwo], artworkRequestsByAlbumKey: ["a1": requestOne, "a2": requestTwo])
+        viewModel.play(tracks: [trackOne, trackTwo], startIndex: 0, context: contextOne)
+        engine.emitState(NowPlayingState(trackRatingKey: "t1", trackTitle: "One", artistName: "Artist", isPlaying: true, elapsedTime: 0, duration: nil, queueIndex: 0))
+        try? await Task.sleep(nanoseconds: 10_000_000)
+
+        // Quickly skip to album two — stale artwork from album one should be discarded
+        engine.emitState(NowPlayingState(trackRatingKey: "t2", trackTitle: "Two", artistName: "Artist", isPlaying: true, elapsedTime: 0, duration: nil, queueIndex: 1))
+        try? await Task.sleep(nanoseconds: 100_000_000)
+
+        // The last update should have album two's title, not album one's stale artwork
+        let lastUpdate = nowPlayingCenter.updates.last
+        #expect(lastUpdate?.albumTitle == "Album Two")
+    }
+
+    @Test func scenePhaseActiveRepublishesMetadata() async {
+        let engine = StubPlaybackEngine()
+        let nowPlayingCenter = RecordingNowPlayingInfoCenter()
+        let viewModel = PlaybackViewModel(
+            engine: engine,
+            themeProvider: StubThemeProvider(),
+            nowPlayingInfoCenter: nowPlayingCenter,
+            remoteCommandCenter: RecordingRemoteCommandCenter(),
+            lockScreenArtworkProvider: StubLockScreenArtworkProvider()
+        )
+
+        engine.emitState(
+            NowPlayingState(
+                trackRatingKey: "1",
+                trackTitle: "Track",
+                artistName: "Artist",
+                isPlaying: true,
+                elapsedTime: 10,
+                duration: 120
+            )
+        )
+        _ = await waitUntil { nowPlayingCenter.updates.isEmpty == false }
+        let countBefore = nowPlayingCenter.updates.count
+
+        NotificationCenter.default.post(
+            name: .lunaraScenePhaseDidChange,
+            object: nil,
+            userInfo: ["phase": "active"]
+        )
+        try? await Task.sleep(nanoseconds: 20_000_000)
+
+        #expect(nowPlayingCenter.updates.count > countBefore)
+    }
+
+    @Test func scenePhaseChangeLogsDiagnostics() async {
+        let engine = StubPlaybackEngine()
+        let diagnostics = SpyDiagnosticsLogger()
+        let viewModel = PlaybackViewModel(
+            engine: engine,
+            themeProvider: StubThemeProvider(),
+            diagnostics: diagnostics
+        )
+
+        NotificationCenter.default.post(
+            name: .lunaraScenePhaseDidChange,
+            object: nil,
+            userInfo: ["phase": "active"]
+        )
+        try? await Task.sleep(nanoseconds: 20_000_000)
+
+        #expect(diagnostics.events.contains { $0.name == "app.scene_phase_change" })
+        _ = viewModel
+    }
+
     @Test func enqueueTrackPlayNextRefreshesQueueWithoutRestartingPlayback() async {
         let engine = StubPlaybackEngine()
         let queueManager = QueueManager(store: RecordingQueueStateStore())
@@ -1027,6 +1260,21 @@ private final class StubLockScreenArtworkProvider: LockScreenArtworkProviding {
 
     func resolveArtwork(for request: ArtworkRequest?) async -> UIImage? {
         image
+    }
+}
+
+private final class DelayedLockScreenArtworkProvider: LockScreenArtworkProviding {
+    let image: UIImage?
+    let delayNanoseconds: UInt64
+
+    init(image: UIImage?, delayNanoseconds: UInt64) {
+        self.image = image
+        self.delayNanoseconds = delayNanoseconds
+    }
+
+    func resolveArtwork(for request: ArtworkRequest?) async -> UIImage? {
+        try? await Task.sleep(nanoseconds: delayNanoseconds)
+        return image
     }
 }
 

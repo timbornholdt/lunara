@@ -10,6 +10,9 @@ enum DiagnosticsEvent {
     case playbackUISync(trackKey: String)
     case navigationTabChange(tab: String)
     case navigationScreenPush(screenType: String, key: String)
+    case audioSessionInterruption(type: String)
+    case scenePhaseChange(phase: String)
+    case remoteCommand(command: String)
 
     var name: String {
         switch self {
@@ -22,6 +25,9 @@ enum DiagnosticsEvent {
         case .playbackUISync: "playback.ui_sync"
         case .navigationTabChange: "navigation.tab_change"
         case .navigationScreenPush: "navigation.screen_push"
+        case .audioSessionInterruption: "audio_session.interruption"
+        case .scenePhaseChange: "app.scene_phase_change"
+        case .remoteCommand: "remote.command"
         }
     }
 
@@ -43,6 +49,12 @@ enum DiagnosticsEvent {
             return ["tab": tab]
         case .navigationScreenPush(let screenType, let key):
             return ["screenType": screenType, "key": key]
+        case .audioSessionInterruption(let type):
+            return ["type": type]
+        case .scenePhaseChange(let phase):
+            return ["phase": phase]
+        case .remoteCommand(let command):
+            return ["command": command]
         }
     }
 }
