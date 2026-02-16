@@ -114,6 +114,8 @@ final class AuthManagerTests: XCTestCase {
             } else {
                 XCTFail("Wrong error type")
             }
+        } catch {
+            XCTFail("Unexpected error: \(error)")
         }
     }
 
@@ -185,6 +187,8 @@ final class AuthManagerTests: XCTestCase {
             } else {
                 XCTFail("Wrong error type")
             }
+        } catch {
+            XCTFail("Unexpected error: \(error)")
         }
     }
 
