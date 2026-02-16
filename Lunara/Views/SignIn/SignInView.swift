@@ -143,16 +143,16 @@ struct SignInView: View {
 
         Task {
             do {
-                let code = try await coordinator.authManager.startAuthFlow()
+                // Request pin from Plex
+                let pinResponse = try await coordinator.plexClient.requestPin()
 
                 await MainActor.run {
-                    authState = .showingPin(code)
+                    authState = .showingPin(pinResponse.code)
                     isLoading = false
                 }
 
-                // The AuthManager is polling in the background
-                // We just wait and check periodically
-                await waitForAuthorization()
+                // Poll for authorization
+                await pollForAuthorization(pinID: pinResponse.id)
 
             } catch {
                 await MainActor.run {
@@ -163,14 +163,20 @@ struct SignInView: View {
         }
     }
 
-    private func waitForAuthorization() async {
-        // Poll for up to 5 minutes
+    private func pollForAuthorization(pinID: Int) async {
+        // Poll for up to 5 minutes (150 attempts, 2 seconds apart)
         for _ in 0..<150 {
-            try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
 
-            if await coordinator.authManager.isSignedIn {
-                // Success! The view will automatically update via @Observable
-                return
+            do {
+                if let token = try await coordinator.plexClient.checkPin(pinID: pinID) {
+                    // Got token! Save it
+                    try coordinator.authManager.setToken(token)
+                    return // Success, view will update automatically
+                }
+            } catch {
+                // Network error or other issue - continue trying
+                continue
             }
         }
 
@@ -179,6 +185,7 @@ struct SignInView: View {
             authState = .error("Authorization timed out. Please try again.")
         }
     }
+
 
     private var hasLocalConfig: Bool {
         Bundle.main.path(forResource: "LocalConfig", ofType: "plist") != nil

@@ -23,24 +23,22 @@ final class AppCoordinator {
     init() {
         // Initialize dependencies
         let keychain = KeychainHelper()
-        self.authManager = AuthManager(keychain: keychain)
-
-        // Load server URL from LocalConfig or use default
         let serverURL = Self.loadServerURL()
 
-        // Create PlexAPIClient that conforms to PlexAuthAPIProtocol
+        // To resolve circular dependency:
+        // 1. Create AuthManager without authAPI
+        // 2. Create PlexAPIClient with that AuthManager
+        // 3. AuthManager's authAPI can be set later if needed,
+        //    or we use PlexAPIClient directly for OAuth
+
+        // Create AuthManager (authAPI is optional, defaults to nil)
+        self.authManager = AuthManager(keychain: keychain)
+
+        // Create PlexAPIClient (which implements PlexAuthAPIProtocol)
         self.plexClient = PlexAPIClient(
             baseURL: serverURL,
             authManager: authManager,
             session: URLSession.shared
-        )
-
-        // Update AuthManager to use this PlexAPIClient for OAuth
-        // Note: This creates a slight circular reference, but it's safe because
-        // AuthManager holds PlexAuthAPIProtocol? (optional) and only uses it for OAuth
-        self.authManager = AuthManager(
-            keychain: keychain,
-            authAPI: plexClient
         )
     }
 
