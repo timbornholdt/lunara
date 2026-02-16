@@ -43,7 +43,7 @@ final class LunaraErrorTests: XCTestCase {
     func test_libraryError_timeout_hasUserMessage() {
         let error = LibraryError.timeout
         XCTAssertFalse(error.userMessage.isEmpty)
-        XCTAssertTrue(error.userMessage.contains("timeout"))
+        XCTAssertTrue(error.userMessage.contains("timed"))
     }
 
     func test_libraryError_operationFailed_includesReason() {
