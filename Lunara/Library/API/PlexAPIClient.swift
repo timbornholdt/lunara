@@ -42,7 +42,7 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
 
     /// Fetch all albums from the Plex library
     func fetchAlbums() async throws -> [Album] {
-        let endpoint = "/library/sections/1/all"
+        let endpoint = "/library/sections/4/all"
         let request = try await buildRequest(path: endpoint, requiresAuth: true)
 
         let (data, response) = try await session.data(for: request)
