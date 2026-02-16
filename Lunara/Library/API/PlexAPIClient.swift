@@ -129,18 +129,18 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
         let (data, response) = try await session.data(for: request)
         try validateResponse(response)
 
-        // Debug logging
-        if let jsonString = String(data: data, encoding: .utf8) {
-            print("📍 Pin Response JSON: \(jsonString)")
-        }
-
-        do {
-            let pinResponse = try jsonDecoder.decode(PlexPinResponseJSON.self, from: data)
-            return PlexPinResponse(id: pinResponse.id, code: pinResponse.code)
-        } catch {
-            print("❌ Failed to decode pin response: \(error)")
+        // Parse XML response
+        let parser = PlexPinXMLParser()
+        guard let attributes = parser.parse(data: data),
+              let idString = attributes["id"],
+              let id = Int(idString),
+              let code = attributes["code"] else {
+            print("❌ Failed to parse pin response")
             throw LibraryError.invalidResponse
         }
+
+        print("✅ Got pin: \(code) (ID: \(id))")
+        return PlexPinResponse(id: id, code: code)
     }
 
     /// Check if user has authorized the PIN
@@ -155,18 +155,22 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
         let (data, response) = try await session.data(for: request)
         try validateResponse(response)
 
-        // Debug logging
-        if let jsonString = String(data: data, encoding: .utf8) {
-            print("🔍 Check Pin Response JSON: \(jsonString)")
-        }
-
-        do {
-            let checkResponse = try jsonDecoder.decode(PlexAuthCheckResponseJSON.self, from: data)
-            return checkResponse.authToken
-        } catch {
-            print("❌ Failed to decode check pin response: \(error)")
+        // Parse XML response
+        let parser = PlexPinXMLParser()
+        guard let attributes = parser.parse(data: data),
+              let authToken = attributes["authToken"] else {
+            print("❌ Failed to parse check pin response")
             throw LibraryError.invalidResponse
         }
+
+        // Empty string means not authorized yet
+        if authToken.isEmpty {
+            print("⏳ Pin not authorized yet")
+            return nil
+        }
+
+        print("✅ Got auth token!")
+        return authToken
     }
 
     // MARK: - Private Helpers

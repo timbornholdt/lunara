@@ -206,7 +206,8 @@ final class PlexAPIClientTests: XCTestCase {
 
     func test_requestPin_returnsPin() async throws {
         mockSession.dataToReturn = """
-        {"id": 12345, "code": "WXYZ"}
+        <?xml version="1.0" encoding="UTF-8"?>
+        <pin id="12345" code="WXYZ" authToken="" />
         """.data(using: .utf8)
 
         let pin = try await client.requestPin()
@@ -217,7 +218,8 @@ final class PlexAPIClientTests: XCTestCase {
 
     func test_checkPin_returnsToken_whenAuthorized() async throws {
         mockSession.dataToReturn = """
-        {"authToken": "authorized_token_abc"}
+        <?xml version="1.0" encoding="UTF-8"?>
+        <pin id="12345" code="WXYZ" authToken="authorized_token_abc" />
         """.data(using: .utf8)
 
         let token = try await client.checkPin(pinID: 12345)
@@ -227,7 +229,8 @@ final class PlexAPIClientTests: XCTestCase {
 
     func test_checkPin_returnsNil_whenNotYetAuthorized() async throws {
         mockSession.dataToReturn = """
-        {"authToken": null}
+        <?xml version="1.0" encoding="UTF-8"?>
+        <pin id="12345" code="WXYZ" authToken="" />
         """.data(using: .utf8)
 
         let token = try await client.checkPin(pinID: 12345)
