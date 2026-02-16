@@ -6,10 +6,10 @@
 	<array>
 		<string>audio</string>
 	</array>
-	<key>UIApplicationSceneManifest</key>
+	<key>NSAppTransportSecurity</key>
 	<dict>
-		<key>UIApplicationSupportsMultipleScenes</key>
-		<false/>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
 	</dict>
 </dict>
 </plist>
