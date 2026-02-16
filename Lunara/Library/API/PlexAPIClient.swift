@@ -89,6 +89,13 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
         let (data, response) = try await session.data(for: request)
         try validateResponse(response)
 
+        // Debug: print raw XML
+        if let xmlString = String(data: data, encoding: .utf8) {
+            print("\n🔍 Albums XML (first 500 chars):")
+            print(String(xmlString.prefix(500)))
+            print("...\n")
+        }
+
         let container = try xmlDecoder.decode(PlexMediaContainer.self, from: data)
         guard let metadata = container.metadata else {
             return []
