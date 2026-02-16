@@ -14,12 +14,14 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
     private var currentElement = ""
     private var currentAttributes: [String: String] = [:]
     private var metadataItems: [[String: String]] = []
+    private var directoryItems: [[String: String]] = []
     private var isParsingMetadata = false
 
     func decode(_ data: Data) throws -> PlexMediaContainer {
         let parser = XMLParser(data: data)
         parser.delegate = self
         metadataItems.removeAll()
+        directoryItems.removeAll()
 
         guard parser.parse() else {
             throw XMLDecodingError.invalidXML
@@ -61,7 +63,23 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
             )
         }
 
-        return PlexMediaContainer(metadata: metadata.isEmpty ? nil : metadata)
+        // Convert parsed attributes to PlexDirectory objects
+        let directories = directoryItems.map { attrs -> PlexDirectory in
+            PlexDirectory(
+                key: attrs["key"] ?? "",
+                type: attrs["type"] ?? "",
+                title: attrs["title"] ?? "",
+                agent: attrs["agent"],
+                scanner: attrs["scanner"],
+                language: attrs["language"],
+                uuid: attrs["uuid"]
+            )
+        }
+
+        return PlexMediaContainer(
+            metadata: metadata.isEmpty ? nil : metadata,
+            directories: directories.isEmpty ? nil : directories
+        )
     }
 
     // MARK: - XMLParserDelegate
@@ -79,6 +97,9 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
             // Store all attributes for this Metadata element
             metadataItems.append(attributeDict)
             isParsingMetadata = true
+        } else if elementName == "Directory" {
+            // Store all attributes for this Directory element
+            directoryItems.append(attributeDict)
         }
     }
 

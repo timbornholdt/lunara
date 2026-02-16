@@ -5,10 +5,23 @@ import Foundation
 /// Plex returns XML with a MediaContainer root element
 struct PlexMediaContainer: Codable {
     let metadata: [PlexMetadata]?
+    let directories: [PlexDirectory]?
 
     enum CodingKeys: String, CodingKey {
         case metadata = "Metadata"
+        case directories = "Directory"
     }
+}
+
+/// Directory element (used for library sections)
+struct PlexDirectory: Codable {
+    let key: String
+    let type: String
+    let title: String
+    let agent: String?
+    let scanner: String?
+    let language: String?
+    let uuid: String?
 }
 
 /// Individual metadata item (Album, Track, Artist, etc.)

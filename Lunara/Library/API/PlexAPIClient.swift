@@ -61,15 +61,15 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
 
         do {
             let container = try xmlDecoder.decode(PlexMediaContainer.self, from: data)
-            guard let sections = container.metadata else {
-                print("⚠️  Decoded MediaContainer but no metadata found")
+            guard let sections = container.directories else {
+                print("⚠️  Decoded MediaContainer but no directories found")
                 print(String(repeating: "=", count: 60) + "\n")
                 return
             }
 
-            print("Found \(sections.count) library sections:\n")
+            print("✅ Found \(sections.count) library sections:\n")
             for section in sections {
-                let id = section.ratingKey
+                let id = section.key
                 let title = section.title
                 let type = section.type
                 print("  Section \(id): \(title) (type: \(type))")
