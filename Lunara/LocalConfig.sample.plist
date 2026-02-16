@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>PLEX_SERVER_URL</key>
+	<string>http://YOUR_PLEX_SERVER_IP:32400</string>
+	<key>PLEX_AUTH_TOKEN</key>
+	<string>YOUR_PLEX_AUTH_TOKEN_HERE</string>
+	<key>PLEX_MUSIC_SECTION_ID</key>
+	<string>1</string>
+	<key>AUTO_START_AUTH</key>
+	<true/>
+</dict>
+</plist>
