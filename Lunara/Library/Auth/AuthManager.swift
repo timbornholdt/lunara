@@ -15,6 +15,7 @@ final class AuthManager {
     private let authAPI: PlexAuthAPIProtocol?
     private let pollInterval: TimeInterval
     private let pollTimeout: TimeInterval
+    private let debugTokenProvider: () -> String?
 
     private static let tokenKey = "plex_auth_token"
     private var cachedToken: String?
@@ -28,16 +29,19 @@ final class AuthManager {
     ///   - authAPI: Plex auth API implementation (nil for LocalConfig-only mode)
     ///   - pollInterval: How often to check pin authorization (default: 1 second)
     ///   - pollTimeout: How long to wait for user authorization (default: 5 minutes)
+    ///   - debugTokenProvider: Optional debug token source (defaults to LocalConfig.plist)
     init(
         keychain: KeychainHelperProtocol = KeychainHelper(),
         authAPI: PlexAuthAPIProtocol? = nil,
         pollInterval: TimeInterval = 1.0,
-        pollTimeout: TimeInterval = 300.0
+        pollTimeout: TimeInterval = 300.0,
+        debugTokenProvider: @escaping () -> String? = { AuthManager.loadDebugTokenFromBundle() }
     ) {
         self.keychain = keychain
         self.authAPI = authAPI
         self.pollInterval = pollInterval
         self.pollTimeout = pollTimeout
+        self.debugTokenProvider = debugTokenProvider
 
         // Load cached token from Keychain on init
         self.cachedToken = try? keychain.retrieveString(key: Self.tokenKey)
@@ -51,7 +55,7 @@ final class AuthManager {
     /// - Throws authExpired if no token or token marked invalid
     func validToken() async throws -> String {
         // Debug mode: check LocalConfig.plist first
-        if let debugToken = loadDebugToken() {
+        if let debugToken = debugTokenProvider() {
             return debugToken
         }
 
@@ -135,7 +139,7 @@ final class AuthManager {
     }
 
     /// Loads debug token from LocalConfig.plist if available
-    private func loadDebugToken() -> String? {
+    private static func loadDebugTokenFromBundle() -> String? {
         guard let configPath = Bundle.main.path(forResource: "LocalConfig", ofType: "plist"),
               let config = NSDictionary(contentsOfFile: configPath) as? [String: Any],
               let token = config["PLEX_AUTH_TOKEN"] as? String,

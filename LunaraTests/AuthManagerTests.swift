@@ -63,7 +63,8 @@ final class AuthManagerTests: XCTestCase {
             keychain: mockKeychain,
             authAPI: mockAuthAPI,
             pollInterval: 0.1,
-            pollTimeout: 1.0
+            pollTimeout: 1.0,
+            debugTokenProvider: { nil }
         )
     }
 
@@ -176,7 +177,11 @@ final class AuthManagerTests: XCTestCase {
     }
 
     func test_startAuthFlow_withoutAuthAPI_throwsError() async {
-        let authManagerWithoutAPI = AuthManager(keychain: mockKeychain, authAPI: nil)
+        let authManagerWithoutAPI = AuthManager(
+            keychain: mockKeychain,
+            authAPI: nil,
+            debugTokenProvider: { nil }
+        )
 
         do {
             _ = try await authManagerWithoutAPI.startAuthFlow()
@@ -255,7 +260,11 @@ final class AuthManagerTests: XCTestCase {
         try mockKeychain.save(key: "plex_auth_token", string: "existing_token")
 
         // Create new AuthManager (should load from keychain)
-        let newAuthManager = AuthManager(keychain: mockKeychain, authAPI: mockAuthAPI)
+        let newAuthManager = AuthManager(
+            keychain: mockKeychain,
+            authAPI: mockAuthAPI,
+            debugTokenProvider: { nil }
+        )
 
         let token = try await newAuthManager.validToken()
         XCTAssertEqual(token, "existing_token")

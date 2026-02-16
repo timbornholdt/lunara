@@ -42,7 +42,11 @@ final class PlexAPIClientTests: XCTestCase {
         super.setUp()
         mockSession = MockURLSession()
         mockKeychain = MockKeychainHelper()
-        authManager = AuthManager(keychain: mockKeychain, authAPI: nil)
+        authManager = AuthManager(
+            keychain: mockKeychain,
+            authAPI: nil,
+            debugTokenProvider: { nil }
+        )
         client = PlexAPIClient(
             baseURL: baseURL,
             authManager: authManager,
@@ -258,8 +262,8 @@ final class PlexAPIClientTests: XCTestCase {
         """
         <?xml version="1.0" encoding="UTF-8"?>
         <MediaContainer>
-            <Metadata ratingKey="1001" type="album" title="Abbey Road" parentTitle="The Beatles" year="1969" thumb="/library/metadata/1001/thumb" duration="2843000" leafCount="17" addedAt="1609459200" />
-            <Metadata ratingKey="1002" type="album" title="Dark Side of the Moon" parentTitle="Pink Floyd" year="1973" thumb="/library/metadata/1002/thumb" duration="2580000" leafCount="10" addedAt="1609545600" />
+            <Directory key="1001" ratingKey="1001" type="album" title="Abbey Road" parentTitle="The Beatles" year="1969" thumb="/library/metadata/1001/thumb" duration="2843000" leafCount="17" addedAt="1609459200" />
+            <Directory key="1002" ratingKey="1002" type="album" title="Dark Side of the Moon" parentTitle="Pink Floyd" year="1973" thumb="/library/metadata/1002/thumb" duration="2580000" leafCount="10" addedAt="1609545600" />
         </MediaContainer>
         """.data(using: .utf8)!
     }
