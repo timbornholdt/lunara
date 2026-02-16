@@ -12,7 +12,7 @@ protocol LunaraError: Error {
 // MARK: - LibraryError
 
 /// Errors originating from the Library domain (Plex API, storage, auth, etc.)
-enum LibraryError: LunaraError {
+enum LibraryError: LunaraError, Equatable {
     /// Plex server is unreachable (network down, wrong URL, server offline)
     case plexUnreachable
 
@@ -62,7 +62,7 @@ enum LibraryError: LunaraError {
 // MARK: - MusicError
 
 /// Errors originating from the Music domain (playback, streaming, audio session, etc.)
-enum MusicError: LunaraError {
+enum MusicError: LunaraError, Equatable {
     /// Audio stream failed to load or buffer
     case streamFailed(reason: String)
 
