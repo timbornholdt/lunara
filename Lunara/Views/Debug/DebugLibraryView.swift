@@ -43,6 +43,14 @@ struct DebugLibraryView: View {
                 // Auto-fetch albums on first appearance (Phase 1 acceptance test)
                 print("📱 Debug Library View appeared")
                 print("🔑 Signed in: \(coordinator.isSignedIn)")
+
+                // First, print available sections to help debug
+                do {
+                    try await coordinator.plexClient.printLibrarySections()
+                } catch {
+                    print("⚠️  Failed to fetch sections: \(error)")
+                }
+
                 if albums.isEmpty && !isLoading {
                     print("🎵 Auto-fetching albums for Phase 1 acceptance test...")
                     fetchAlbums()

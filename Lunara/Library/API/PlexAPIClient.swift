@@ -40,9 +40,40 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
 
     // MARK: - Library Methods
 
+    /// Fetch and print all library sections (for debugging)
+    func printLibrarySections() async throws {
+        let endpoint = "/library/sections"
+        let request = try await buildRequest(path: endpoint, requiresAuth: true)
+
+        let (data, response) = try await session.data(for: request)
+        try validateResponse(response)
+
+        // Debug: print raw XML
+        if let xmlString = String(data: data, encoding: .utf8) {
+            print("\n" + String(repeating: "=", count: 60))
+            print("📚 PLEX LIBRARY SECTIONS")
+            print(String(repeating: "=", count: 60))
+        }
+
+        let container = try xmlDecoder.decode(PlexMediaContainer.self, from: data)
+        guard let sections = container.metadata else {
+            print("⚠️  No sections found")
+            return
+        }
+
+        print("\nFound \(sections.count) library sections:\n")
+        for section in sections {
+            let id = section.ratingKey
+            let title = section.title
+            let type = section.type
+            print("  Section \(id): \(title) (type: \(type))")
+        }
+        print("\n" + String(repeating: "=", count: 60) + "\n")
+    }
+
     /// Fetch all albums from the Plex library
     func fetchAlbums() async throws -> [Album] {
-        let endpoint = "/library/sections/4/all"
+        let endpoint = "/library/sections/1/all"
         let request = try await buildRequest(path: endpoint, requiresAuth: true)
 
         let (data, response) = try await session.data(for: request)
