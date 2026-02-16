@@ -9,9 +9,18 @@ import SwiftUI
 
 @main
 struct LunaraApp: App {
+
+    @State private var coordinator = AppCoordinator()
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            Group {
+                if coordinator.isSignedIn {
+                    DebugLibraryView(coordinator: coordinator)
+                } else {
+                    SignInView(coordinator: coordinator)
+                }
+            }
         }
     }
 }
