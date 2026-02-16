@@ -81,3 +81,6 @@ Lunara/LocalConfig.plist
 # =========================
 *.tmp
 *.temp
+
+# Temporary fix scripts
+fix-*.sh
