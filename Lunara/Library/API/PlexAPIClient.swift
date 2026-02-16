@@ -48,26 +48,36 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
         let (data, response) = try await session.data(for: request)
         try validateResponse(response)
 
-        // Debug: print raw XML
+        print("\n" + String(repeating: "=", count: 60))
+        print("📚 PLEX LIBRARY SECTIONS")
+        print(String(repeating: "=", count: 60))
+
+        // Debug: print raw XML to see actual structure
         if let xmlString = String(data: data, encoding: .utf8) {
-            print("\n" + String(repeating: "=", count: 60))
-            print("📚 PLEX LIBRARY SECTIONS")
-            print(String(repeating: "=", count: 60))
+            print("\n🔍 Raw XML Response:")
+            print(xmlString)
+            print("")
         }
 
-        let container = try xmlDecoder.decode(PlexMediaContainer.self, from: data)
-        guard let sections = container.metadata else {
-            print("⚠️  No sections found")
-            return
+        do {
+            let container = try xmlDecoder.decode(PlexMediaContainer.self, from: data)
+            guard let sections = container.metadata else {
+                print("⚠️  Decoded MediaContainer but no metadata found")
+                print(String(repeating: "=", count: 60) + "\n")
+                return
+            }
+
+            print("Found \(sections.count) library sections:\n")
+            for section in sections {
+                let id = section.ratingKey
+                let title = section.title
+                let type = section.type
+                print("  Section \(id): \(title) (type: \(type))")
+            }
+        } catch {
+            print("❌ Failed to decode sections: \(error)")
         }
 
-        print("\nFound \(sections.count) library sections:\n")
-        for section in sections {
-            let id = section.ratingKey
-            let title = section.title
-            let type = section.type
-            print("  Section \(id): \(title) (type: \(type))")
-        }
         print("\n" + String(repeating: "=", count: 60) + "\n")
     }
 
