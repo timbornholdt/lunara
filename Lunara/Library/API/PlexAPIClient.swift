@@ -40,47 +40,6 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
 
     // MARK: - Library Methods
 
-    /// Fetch and print all library sections (for debugging)
-    func printLibrarySections() async throws {
-        let endpoint = "/library/sections"
-        let request = try await buildRequest(path: endpoint, requiresAuth: true)
-
-        let (data, response) = try await session.data(for: request)
-        try validateResponse(response)
-
-        print("\n" + String(repeating: "=", count: 60))
-        print("📚 PLEX LIBRARY SECTIONS")
-        print(String(repeating: "=", count: 60))
-
-        // Debug: print raw XML to see actual structure
-        if let xmlString = String(data: data, encoding: .utf8) {
-            print("\n🔍 Raw XML Response:")
-            print(xmlString)
-            print("")
-        }
-
-        do {
-            let container = try xmlDecoder.decode(PlexMediaContainer.self, from: data)
-            guard let sections = container.directories else {
-                print("⚠️  Decoded MediaContainer but no directories found")
-                print(String(repeating: "=", count: 60) + "\n")
-                return
-            }
-
-            print("✅ Found \(sections.count) library sections:\n")
-            for section in sections {
-                let id = section.key
-                let title = section.title
-                let type = section.type
-                print("  Section \(id): \(title) (type: \(type))")
-            }
-        } catch {
-            print("❌ Failed to decode sections: \(error)")
-        }
-
-        print("\n" + String(repeating: "=", count: 60) + "\n")
-    }
-
     /// Fetch all albums from the Plex library
     func fetchAlbums() async throws -> [Album] {
         let endpoint = "/library/sections/4/albums"
@@ -89,31 +48,31 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
         let (data, response) = try await session.data(for: request)
         try validateResponse(response)
 
-        // Debug: print raw XML
-        if let xmlString = String(data: data, encoding: .utf8) {
-            print("\n🔍 Albums XML (first 500 chars):")
-            print(String(xmlString.prefix(500)))
-            print("...\n")
-        }
-
         let container = try xmlDecoder.decode(PlexMediaContainer.self, from: data)
-        guard let metadata = container.metadata else {
+        guard let directories = container.directories else {
             return []
         }
 
-        return metadata.compactMap { plexMetadata in
-            guard plexMetadata.type == "album" else { return nil }
+        return directories.compactMap { directory in
+            guard directory.type == "album" else { return nil }
+
+            // Convert addedAt timestamp to Date
+            let addedAtDate = directory.addedAt.map { Date(timeIntervalSince1970: TimeInterval($0)) }
+
+            // Convert duration from milliseconds to seconds
+            let durationSeconds = directory.duration.map { TimeInterval($0) / 1000.0 } ?? 0.0
+
             return Album(
-                plexID: plexMetadata.ratingKey,
-                title: plexMetadata.title,
-                artistName: plexMetadata.parentTitle ?? "Unknown Artist",
-                year: plexMetadata.year,
-                thumbURL: plexMetadata.thumb,
-                genre: plexMetadata.genre,
-                rating: plexMetadata.rating.map { Int($0) },
-                addedAt: plexMetadata.addedAt.map { Date(timeIntervalSince1970: TimeInterval($0)) },
-                trackCount: plexMetadata.trackCount ?? 0,
-                duration: TimeInterval(plexMetadata.duration ?? 0) / 1000.0 // Plex returns milliseconds
+                plexID: directory.key,
+                title: directory.title,
+                artistName: directory.parentTitle ?? "Unknown Artist",
+                year: directory.year,
+                thumbURL: directory.thumb,
+                genre: directory.genre,
+                rating: directory.rating.map { Int($0) },
+                addedAt: addedAtDate,
+                trackCount: directory.leafCount ?? 0,
+                duration: durationSeconds
             )
         }
     }
@@ -183,11 +142,9 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
               let idString = attributes["id"],
               let id = Int(idString),
               let code = attributes["code"] else {
-            print("❌ Failed to parse pin response")
             throw LibraryError.invalidResponse
         }
 
-        print("✅ Got pin: \(code) (ID: \(id))")
         return PlexPinResponse(id: id, code: code)
     }
 
@@ -207,18 +164,11 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
         let parser = PlexPinXMLParser()
         guard let attributes = parser.parse(data: data),
               let authToken = attributes["authToken"] else {
-            print("❌ Failed to parse check pin response")
             throw LibraryError.invalidResponse
         }
 
         // Empty string means not authorized yet
-        if authToken.isEmpty {
-            print("⏳ Pin not authorized yet")
-            return nil
-        }
-
-        print("✅ Got auth token!")
-        return authToken
+        return authToken.isEmpty ? nil : authToken
     }
 
     // MARK: - Private Helpers

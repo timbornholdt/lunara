@@ -65,14 +65,31 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
 
         // Convert parsed attributes to PlexDirectory objects
         let directories = directoryItems.map { attrs -> PlexDirectory in
-            PlexDirectory(
+            let year = attrs["year"].flatMap { Int($0) }
+            let rating = attrs["rating"].flatMap { Double($0) }
+            let addedAt = attrs["addedAt"].flatMap { Int($0) }
+            let leafCount = attrs["leafCount"].flatMap { Int($0) }
+            let duration = attrs["duration"].flatMap { Int($0) }
+
+            return PlexDirectory(
                 key: attrs["key"] ?? "",
                 type: attrs["type"] ?? "",
                 title: attrs["title"] ?? "",
                 agent: attrs["agent"],
                 scanner: attrs["scanner"],
                 language: attrs["language"],
-                uuid: attrs["uuid"]
+                uuid: attrs["uuid"],
+                parentTitle: attrs["parentTitle"],
+                year: year,
+                thumb: attrs["thumb"],
+                genre: attrs["genre"],
+                rating: rating,
+                addedAt: addedAt,
+                leafCount: leafCount,
+                duration: duration,
+                summary: attrs["summary"],
+                parentRatingKey: attrs["parentRatingKey"],
+                ratingKey: attrs["ratingKey"]
             )
         }
 
