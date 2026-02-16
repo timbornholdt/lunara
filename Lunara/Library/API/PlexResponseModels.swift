@@ -13,7 +13,7 @@ struct PlexMediaContainer: Codable {
     }
 }
 
-/// Directory element (used for library sections)
+/// Directory element (used for library sections, artists, and albums)
 struct PlexDirectory: Codable {
     let key: String
     let type: String
@@ -22,6 +22,19 @@ struct PlexDirectory: Codable {
     let scanner: String?
     let language: String?
     let uuid: String?
+
+    // Album-specific metadata
+    let parentTitle: String?        // Artist name
+    let year: Int?
+    let thumb: String?              // Thumbnail path
+    let genre: String?
+    let rating: Double?
+    let addedAt: Int?               // Unix timestamp
+    let leafCount: Int?             // Track count
+    let duration: Int?              // Total duration in milliseconds
+    let summary: String?
+    let parentRatingKey: String?
+    let ratingKey: String?
 }
 
 /// Individual metadata item (Album, Track, Artist, etc.)
