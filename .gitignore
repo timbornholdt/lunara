@@ -84,3 +84,6 @@ Lunara/LocalConfig.plist
 
 # Temporary fix scripts
 fix-*.sh
+
+# Local development config (contains secrets)
+Lunara/LocalConfig.plist
