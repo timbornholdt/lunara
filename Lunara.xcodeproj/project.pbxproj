@@ -33,7 +33,9 @@
 		F178AEC82F43796800D2C2C3 /* Exceptions for "Lunara" folder in "Lunara" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				Info.plist,
 				Library/AGENTS.md,
+				LocalConfig.sample.plist,
 				Music/AGENTS.md,
 				Router/AGENTS.md,
 				Shared/AGENTS.md,
@@ -415,6 +417,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Lunara/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Lunara;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -461,6 +464,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Lunara/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Lunara;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
