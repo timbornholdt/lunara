@@ -129,8 +129,18 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
         let (data, response) = try await session.data(for: request)
         try validateResponse(response)
 
-        let pinResponse = try jsonDecoder.decode(PlexPinResponseJSON.self, from: data)
-        return PlexPinResponse(id: pinResponse.id, code: pinResponse.code)
+        // Debug logging
+        if let jsonString = String(data: data, encoding: .utf8) {
+            print("📍 Pin Response JSON: \(jsonString)")
+        }
+
+        do {
+            let pinResponse = try jsonDecoder.decode(PlexPinResponseJSON.self, from: data)
+            return PlexPinResponse(id: pinResponse.id, code: pinResponse.code)
+        } catch {
+            print("❌ Failed to decode pin response: \(error)")
+            throw LibraryError.invalidResponse
+        }
     }
 
     /// Check if user has authorized the PIN
@@ -145,8 +155,18 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
         let (data, response) = try await session.data(for: request)
         try validateResponse(response)
 
-        let checkResponse = try jsonDecoder.decode(PlexAuthCheckResponseJSON.self, from: data)
-        return checkResponse.authToken
+        // Debug logging
+        if let jsonString = String(data: data, encoding: .utf8) {
+            print("🔍 Check Pin Response JSON: \(jsonString)")
+        }
+
+        do {
+            let checkResponse = try jsonDecoder.decode(PlexAuthCheckResponseJSON.self, from: data)
+            return checkResponse.authToken
+        } catch {
+            print("❌ Failed to decode check pin response: \(error)")
+            throw LibraryError.invalidResponse
+        }
     }
 
     // MARK: - Private Helpers
