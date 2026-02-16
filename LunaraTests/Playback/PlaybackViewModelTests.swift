@@ -1147,14 +1147,131 @@ struct PlaybackViewModelTests {
             artworkRequest: nil
         )
 
-        let didRefresh = await waitUntil {
-            engine.refreshQueueCallCount == 1
+        // Wait for the async insert to complete — up-next tracks update confirms it
+        let didInsert = await waitUntil {
+            !viewModel.upNextTracks.isEmpty || engine.refreshQueueCallCount > 0
         }
+        #expect(didInsert)
 
-        #expect(didRefresh)
+        // Engine refresh is deferred until user skips (lazy refresh)
+        viewModel.skipToNext()
+        #expect(engine.refreshQueueCallCount == 1)
         #expect(engine.playCallCount == 1)
         #expect(engine.lastRefreshCurrentIndex == 0)
         #expect(engine.lastRefreshTracks?.map(\.ratingKey) == ["t1", "t2"])
+    }
+
+    @Test func autoAdvanceUsesCorrectIndexWhenEngineQueueIsStale() async {
+        let engine = StubPlaybackEngine()
+        let queueManager = QueueManager(store: RecordingQueueStateStore())
+        let viewModel = PlaybackViewModel(
+            engine: engine,
+            themeProvider: StubThemeProvider(),
+            queueManager: queueManager
+        )
+
+        let album = PlexAlbum(
+            ratingKey: "a1",
+            title: "Album One",
+            thumb: nil,
+            art: nil,
+            year: 2001,
+            artist: "Artist",
+            titleSort: nil,
+            originalTitle: nil,
+            editionTitle: nil,
+            guid: nil,
+            librarySectionID: nil,
+            parentRatingKey: nil,
+            studio: nil,
+            summary: nil,
+            genres: nil,
+            styles: nil,
+            moods: nil,
+            rating: nil,
+            userRating: nil,
+            key: nil
+        )
+        let trackOne = PlexTrack(
+            ratingKey: "t1",
+            title: "Track One",
+            index: 1,
+            parentIndex: nil,
+            parentRatingKey: "a1",
+            duration: 90_000,
+            media: [PlexTrackMedia(parts: [PlexTrackPart(key: "/library/parts/1/file.mp3")])]
+        )
+        let trackTwo = PlexTrack(
+            ratingKey: "t2",
+            title: "Track Two",
+            index: 2,
+            parentIndex: nil,
+            parentRatingKey: "a1",
+            duration: 90_000,
+            media: [PlexTrackMedia(parts: [PlexTrackPart(key: "/library/parts/2/file.mp3")])]
+        )
+        let context = NowPlayingContext(
+            album: album,
+            albumRatingKeys: ["a1"],
+            tracks: [trackOne, trackTwo],
+            artworkRequest: nil
+        )
+
+        // Play two tracks
+        viewModel.play(tracks: [trackOne, trackTwo], startIndex: 0, context: context)
+        engine.emitState(
+            NowPlayingState(
+                trackRatingKey: "t1",
+                trackTitle: "Track One",
+                artistName: "Artist",
+                isPlaying: true,
+                elapsedTime: 0,
+                duration: 90,
+                queueIndex: 0
+            )
+        )
+
+        // Enqueue a third track via playLater to set engineQueueStale = true
+        let trackThree = PlexTrack(
+            ratingKey: "t3",
+            title: "Track Three",
+            index: 3,
+            parentIndex: nil,
+            parentRatingKey: "a1",
+            duration: 90_000,
+            media: [PlexTrackMedia(parts: [PlexTrackPart(key: "/library/parts/3/file.mp3")])]
+        )
+        viewModel.enqueueTrack(
+            mode: .playLater,
+            track: trackThree,
+            album: album,
+            albumRatingKeys: ["a1"],
+            allTracks: [trackOne, trackTwo, trackThree],
+            artworkRequest: nil
+        )
+
+        // Wait for the async enqueue to complete
+        let didEnqueue = await waitUntil {
+            !viewModel.upNextTracks.isEmpty
+        }
+        #expect(didEnqueue)
+
+        // Simulate engine auto-advancing to track 2 (queueIndex 1)
+        engine.emitState(
+            NowPlayingState(
+                trackRatingKey: "t2",
+                trackTitle: "Track Two",
+                artistName: "Artist",
+                isPlaying: true,
+                elapsedTime: 0,
+                duration: 90,
+                queueIndex: 1
+            )
+        )
+
+        // The stale refresh should use queueIndex 1, not the QueueManager's stale currentIndex 0
+        #expect(engine.lastRefreshCurrentIndex == 1)
+        #expect(engine.playCallCount == 1) // No restart, just a refresh
     }
 }
 

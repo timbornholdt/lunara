@@ -13,6 +13,10 @@ enum DiagnosticsEvent {
     case audioSessionInterruption(type: String)
     case scenePhaseChange(phase: String)
     case remoteCommand(command: String)
+    case shuffleStarted(albumCount: Int)
+    case shufflePhase1Complete(trackCount: Int, durationMs: Int)
+    case shufflePhase2Complete(trackCount: Int, durationMs: Int)
+    case playbackLatency(operation: String, durationMs: Int)
 
     var name: String {
         switch self {
@@ -28,6 +32,10 @@ enum DiagnosticsEvent {
         case .audioSessionInterruption: "audio_session.interruption"
         case .scenePhaseChange: "app.scene_phase_change"
         case .remoteCommand: "remote.command"
+        case .shuffleStarted: "shuffle.started"
+        case .shufflePhase1Complete: "shuffle.phase1_complete"
+        case .shufflePhase2Complete: "shuffle.phase2_complete"
+        case .playbackLatency: "playback.latency"
         }
     }
 
@@ -55,6 +63,14 @@ enum DiagnosticsEvent {
             return ["phase": phase]
         case .remoteCommand(let command):
             return ["command": command]
+        case .shuffleStarted(let albumCount):
+            return ["albumCount": "\(albumCount)"]
+        case .shufflePhase1Complete(let trackCount, let durationMs):
+            return ["trackCount": "\(trackCount)", "durationMs": "\(durationMs)"]
+        case .shufflePhase2Complete(let trackCount, let durationMs):
+            return ["trackCount": "\(trackCount)", "durationMs": "\(durationMs)"]
+        case .playbackLatency(let operation, let durationMs):
+            return ["operation": operation, "durationMs": "\(durationMs)"]
         }
     }
 }

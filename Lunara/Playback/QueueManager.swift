@@ -218,6 +218,8 @@ final class QueueManager {
     private var lastInsertDate: Date?
     private let store: QueueStateStoring
     private let nowProvider: @Sendable () -> Date
+    private let persistQueue = DispatchQueue(label: "com.lunara.queue-persist", qos: .utility)
+    private var debounceWork: DispatchWorkItem?
 
     init(
         store: QueueStateStoring = QueueStateStore(),
@@ -357,11 +359,29 @@ final class QueueManager {
         return now.timeIntervalSince(lastDate) < 1
     }
 
-    private func persist() {
-        if state.entries.isEmpty {
+    func persistImmediately() {
+        debounceWork?.cancel()
+        debounceWork = nil
+        let snapshot = state
+        if snapshot.entries.isEmpty {
             try? store.clear()
             return
         }
-        try? store.save(state)
+        try? store.save(snapshot)
+    }
+
+    private func persist() {
+        debounceWork?.cancel()
+        let snapshot = state
+        if snapshot.entries.isEmpty {
+            try? store.clear()
+            return
+        }
+        let store = self.store
+        let work = DispatchWorkItem {
+            try? store.save(snapshot)
+        }
+        debounceWork = work
+        persistQueue.asyncAfter(deadline: .now() + 0.3, execute: work)
     }
 }

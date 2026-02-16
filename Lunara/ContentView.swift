@@ -167,6 +167,7 @@ private struct MainTabView: View {
                 NowPlayingSheetView(
                     state: nowPlaying,
                     context: playbackViewModel.nowPlayingContext,
+                    upNextTracks: playbackViewModel.upNextTracks,
                     palette: themePalette,
                     theme: playbackViewModel.albumTheme,
                     onTogglePlayPause: { playbackViewModel.togglePlayPause() },
@@ -174,11 +175,7 @@ private struct MainTabView: View {
                     onPrevious: { playbackViewModel.skipToPrevious() },
                     onSeek: { playbackViewModel.seek(to: $0) },
                     onSelectTrack: { track in
-                        guard let context = playbackViewModel.nowPlayingContext,
-                              let index = context.tracks.firstIndex(where: { $0.ratingKey == track.ratingKey }) else {
-                            return
-                        }
-                        playbackViewModel.play(tracks: context.tracks, startIndex: index, context: context)
+                        playbackViewModel.selectUpNextTrack(track)
                     },
                     onClearQueue: {
                         playbackViewModel.clearUpcomingQueue()

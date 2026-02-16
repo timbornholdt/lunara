@@ -14,7 +14,7 @@ enum NowPlayingUpNextBuilder {
         return Array(tracks.dropFirst(index + 1))
     }
 
-    static func upNextItems(tracks: [PlexTrack], currentIndex: Int?) -> [Item] {
+    static func upNextItems(tracks: [PlexTrack], currentIndex: Int?, limit: Int? = nil) -> [Item] {
         guard let currentIndex, currentIndex >= 0, currentIndex < tracks.count else {
             return []
         }
@@ -22,9 +22,21 @@ enum NowPlayingUpNextBuilder {
         guard start < tracks.count else {
             return []
         }
-        return Array(tracks.enumerated().dropFirst(start)).map { index, track in
+        let allItems = Array(tracks.enumerated().dropFirst(start)).map { index, track in
             Item(id: index, absoluteIndex: index, track: track)
         }
+        if let limit, allItems.count > limit {
+            return Array(allItems.prefix(limit))
+        }
+        return allItems
+    }
+
+    static func remainingCount(tracks: [PlexTrack], currentIndex: Int?, limit: Int) -> Int {
+        guard let currentIndex, currentIndex >= 0, currentIndex < tracks.count else {
+            return 0
+        }
+        let totalUpNext = tracks.count - currentIndex - 1
+        return max(totalUpNext - limit, 0)
     }
 }
 

@@ -148,30 +148,30 @@
 ## Phase 2 — Playback Architecture Rewrite (Active)
 Reference: `docs/features/playback-rewrite-phased-cutover-plan.md`
 
-1. [ ] P0 diagnostics baseline
+1. [x] P0 diagnostics baseline
    - Acceptance criteria:
      - JSONL diagnostics file is written locally with playback/navigation lifecycle events.
      - Baseline metrics captured: startup-to-first-audio, skip-to-audio, skip-to-ui-sync.
-2. [ ] P1 playback domain single-source-of-truth
+2. [x] P1 playback domain single-source-of-truth
    - Acceptance criteria:
      - Queue progression, current item, and playback state are owned by one concurrency-isolated domain.
      - Audible playback and now-playing UI remain synchronized during rapid skip operations.
-3. [ ] P2 durable queue + relaunch semantics
+3. [x] P2 durable queue + relaunch semantics
    - Acceptance criteria:
      - Queue and elapsed position persist across force quit and relaunch.
      - Relaunch restores state but waits for explicit Play.
      - Missing local item skips to next available item.
-4. [ ] P3 offline download engine rewrite
+4. [x] P3 offline download engine rewrite
    - Acceptance criteria:
      - Stream-oriented downloads replace full-memory buffering.
      - Local-first source resolution remains low-latency under queue load.
      - Predictive prefetch of next 3 tracks is active.
      - Cache cap is enforced at 128 GB with dynamic eviction.
-5. [ ] P4 library repository rewrite (disk-first + manual refresh)
+5. [x] P4 library repository rewrite (disk-first + manual refresh)
    - Acceptance criteria:
      - Collection/album/artist/detail navigation reuses disk cache on back navigation.
      - Plex refresh occurs only via explicit pull-to-refresh.
-6. [ ] P5 background/remote hardening
+6. [x] P5 background/remote hardening
    - Acceptance criteria:
      - Lock-screen and Control Center metadata is consistent through lifecycle transitions.
      - Play/Pause/Next/Previous remote commands are stable.
@@ -183,6 +183,11 @@ Reference: `docs/features/playback-rewrite-phased-cutover-plan.md`
    - Acceptance criteria:
      - Transition scaffolding is integrated without core playback regressions.
      - Diagnostics markers exist for transition decision paths.
+9. [ ] FF2 performance with key albums shuffle
+   - Acceptance criteria:
+     - 
+	 
+## Phase 2.5 — 
 
 ## Phase 3 — Primary Interaction: Shuffle
 1. [ ] Collection shuffle (primary mode)
@@ -242,6 +247,7 @@ Reference: `docs/features/playback-rewrite-phased-cutover-plan.md`
      - Now Playing controls.
 
 ## Backlog
+
 - Wikipedia album context (creation/history)
   - Fetch Wikipedia content when an album is loaded.
   - Cache locally with a 1-month expiry.

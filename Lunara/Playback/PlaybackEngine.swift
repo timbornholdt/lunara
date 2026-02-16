@@ -17,6 +17,7 @@ final class PlaybackEngine: PlaybackEngineing {
     private var isPlaying = false
     private var pendingSkipIndex: Int?
     private var skipDebounceWork: DispatchWorkItem?
+    private var operationStartTimes: [String: Date] = [:]
 
     init(
         player: PlaybackPlayer = AVQueuePlayerAdapter(),
@@ -37,6 +38,7 @@ final class PlaybackEngine: PlaybackEngineing {
     func play(tracks: [PlexTrack], startIndex: Int) {
         diagnostics.startPlaybackSession()
         diagnostics.log(.playbackPlay(trackCount: tracks.count, startIndex: startIndex))
+        operationStartTimes["play_to_audio"] = Date()
         guard !tracks.isEmpty else {
             onError?(PlaybackError(message: "Playback unavailable for this track."))
             return
@@ -137,6 +139,7 @@ final class PlaybackEngine: PlaybackEngineing {
 
     func skipToNext() {
         diagnostics.log(.playbackSkipNext)
+        operationStartTimes["skip_to_audio"] = Date()
         let target = (pendingSkipIndex ?? currentIndex) + 1
         guard target < queueItems.count else { return }
         scheduleSkip(to: target)
@@ -144,6 +147,7 @@ final class PlaybackEngine: PlaybackEngineing {
 
     func skipToPrevious() {
         diagnostics.log(.playbackSkipPrevious)
+        operationStartTimes["skip_to_audio"] = Date()
         let target = max((pendingSkipIndex ?? currentIndex) - 1, 0)
         guard target < queueItems.count else { return }
         scheduleSkip(to: target)
@@ -195,6 +199,12 @@ final class PlaybackEngine: PlaybackEngineing {
         currentIndex = newIndex
         currentElapsed = 0
         diagnostics.log(.playbackAudioStarted(trackKey: queueItems[newIndex].track.ratingKey))
+        for operation in ["play_to_audio", "skip_to_audio"] {
+            if let startTime = operationStartTimes.removeValue(forKey: operation) {
+                let durationMs = Int(Date().timeIntervalSince(startTime) * 1000)
+                diagnostics.log(.playbackLatency(operation: operation, durationMs: durationMs))
+            }
+        }
         publishState()
     }
 

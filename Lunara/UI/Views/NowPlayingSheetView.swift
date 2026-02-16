@@ -3,6 +3,7 @@ import SwiftUI
 struct NowPlayingSheetView: View {
     let state: NowPlayingState
     let context: NowPlayingContext?
+    let upNextTracks: [PlexTrack]
     let palette: ThemePalette
     let theme: AlbumTheme?
     let onTogglePlayPause: () -> Void
@@ -179,24 +180,35 @@ struct NowPlayingSheetView: View {
                     .font(LunaraTheme.Typography.displayRegular(size: 13))
             }
 
-            let items = NowPlayingUpNextBuilder.upNextItems(
-                tracks: context?.tracks ?? [],
-                currentIndex: state.queueIndex
-            )
+            let upNextLimit = 50
+            let displayTracks = Array(upNextTracks.prefix(upNextLimit))
+            let remaining = max(upNextTracks.count - upNextLimit, 0)
 
-            if items.isEmpty {
+            if displayTracks.isEmpty {
                 Text("No more tracks.")
                     .font(LunaraTheme.Typography.displayRegular(size: 14))
                     .foregroundStyle(palette.textSecondary)
             } else {
-                ForEach(items) { item in
-                    UpNextRow(
-                        track: item.track,
-                        albumArtist: context?.album.artist,
-                        palette: palette,
-                        onTap: { onSelectTrack(item.track) },
-                        onRemove: { onRemoveUpNextAtIndex(item.absoluteIndex) }
-                    )
+                LazyVStack(spacing: 0) {
+                    ForEach(Array(displayTracks.enumerated()), id: \.element.ratingKey) { offset, track in
+                        UpNextRow(
+                            track: track,
+                            albumArtist: context?.album.artist,
+                            palette: palette,
+                            onTap: { onSelectTrack(track) },
+                            onRemove: {
+                                let absoluteIndex = (state.queueIndex ?? 0) + 1 + offset
+                                onRemoveUpNextAtIndex(absoluteIndex)
+                            }
+                        )
+                    }
+                    if remaining > 0 {
+                        Text("\(remaining) more tracks in queue")
+                            .font(LunaraTheme.Typography.displayRegular(size: 14))
+                            .foregroundStyle(palette.textSecondary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                    }
                 }
             }
         }

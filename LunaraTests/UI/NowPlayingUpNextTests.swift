@@ -32,4 +32,44 @@ struct NowPlayingUpNextTests {
 
         #expect(upNext.isEmpty)
     }
+
+    @Test func upNextItemsLimitReturnsExactlyLimitItems() {
+        let tracks = (0..<5000).map { i in
+            PlexTrack(ratingKey: "\(i)", title: "Track \(i)", index: i, parentIndex: nil, parentRatingKey: "10", duration: 1000, media: nil)
+        }
+
+        let items = NowPlayingUpNextBuilder.upNextItems(tracks: tracks, currentIndex: 0, limit: 50)
+
+        #expect(items.count == 50)
+    }
+
+    @Test func upNextItemsLimitReturnsAllWhenUnderLimit() {
+        let tracks = (0..<11).map { i in
+            PlexTrack(ratingKey: "\(i)", title: "Track \(i)", index: i, parentIndex: nil, parentRatingKey: "10", duration: 1000, media: nil)
+        }
+
+        let items = NowPlayingUpNextBuilder.upNextItems(tracks: tracks, currentIndex: 0, limit: 50)
+
+        #expect(items.count == 10)
+    }
+
+    @Test func remainingCountComputesCorrectly() {
+        let tracks = (0..<5000).map { i in
+            PlexTrack(ratingKey: "\(i)", title: "Track \(i)", index: i, parentIndex: nil, parentRatingKey: "10", duration: 1000, media: nil)
+        }
+
+        let remaining = NowPlayingUpNextBuilder.remainingCount(tracks: tracks, currentIndex: 0, limit: 50)
+
+        #expect(remaining == 4949)
+    }
+
+    @Test func remainingCountIsZeroWhenUnderLimit() {
+        let tracks = (0..<11).map { i in
+            PlexTrack(ratingKey: "\(i)", title: "Track \(i)", index: i, parentIndex: nil, parentRatingKey: "10", duration: 1000, media: nil)
+        }
+
+        let remaining = NowPlayingUpNextBuilder.remainingCount(tracks: tracks, currentIndex: 0, limit: 50)
+
+        #expect(remaining == 0)
+    }
 }

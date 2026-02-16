@@ -8,6 +8,7 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
     @Published private(set) var nowPlayingContext: NowPlayingContext?
     @Published private(set) var albumTheme: AlbumTheme?
     @Published private(set) var errorMessage: String?
+    @Published private(set) var upNextTracks: [PlexTrack] = []
 
     private let tokenStore: PlexAuthTokenStoring
     private let serverStore: PlexServerAddressStoring
@@ -34,6 +35,9 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
     private var hasPrimedEngineFromQueue = false
     private var metadataSequence: UInt64 = 0
     private var scenePhaseObserver: NSObjectProtocol?
+    private var upNextRefreshWork: DispatchWorkItem?
+    private var engineQueueStale = false
+    private static let upNextWindowSize = 100
 
     typealias PlaybackEngineFactory = (URL, String) -> PlaybackEngineing
 
@@ -153,6 +157,7 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
         engine?.play(tracks: tracks, startIndex: startIndex)
         persistQueueStateFromPlaybackStart(tracks: tracks, startIndex: startIndex, context: context)
         hasPrimedEngineFromQueue = true
+        refreshUpNextTracks()
     }
 
     func togglePlayPause() {
@@ -183,6 +188,7 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
         nowPlaying = nil
         nowPlayingContext = nil
         albumTheme = nil
+        upNextTracks = []
         currentThemeAlbumKey = nil
         currentLockScreenAlbumKey = nil
         currentLockScreenArtwork = nil
@@ -196,15 +202,28 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
     }
 
     func skipToNext() {
+        refreshEngineQueueIfStale(currentIndex: nowPlaying?.queueIndex)
         engine?.skipToNext()
     }
 
     func skipToPrevious() {
+        refreshEngineQueueIfStale(currentIndex: nowPlaying?.queueIndex)
         engine?.skipToPrevious()
     }
 
     func seek(to seconds: TimeInterval) {
         engine?.seek(to: seconds)
+    }
+
+    func enqueue(mode: QueueInsertMode, tracks: [PlexTrack], context: NowPlayingContext?) {
+        Task {
+            await insertIntoQueue(
+                mode: mode,
+                tracks: tracks,
+                context: context,
+                signature: "enqueue:\(tracks.map(\.ratingKey).joined(separator: ",")):\(mode.rawValue)"
+            )
+        }
     }
 
     func queueAlbumDownload(album: PlexAlbum, albumRatingKeys: [String]) async throws {
@@ -333,6 +352,53 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
         errorMessage = nil
     }
 
+    func selectUpNextTrack(_ track: PlexTrack) {
+        let snapshot = queueManager.snapshot()
+        guard let index = snapshot.entries.firstIndex(where: { $0.track.ratingKey == track.ratingKey }) else {
+            return
+        }
+        let tracks = snapshot.entries.map(\.track)
+        let context = makeContext(from: snapshot)
+        play(tracks: tracks, startIndex: index, context: context)
+    }
+
+    private func refreshUpNextTracks() {
+        let snapshot = queueManager.snapshot()
+        guard let currentIndex = snapshot.currentIndex,
+              currentIndex >= 0,
+              currentIndex < snapshot.entries.count else {
+            upNextTracks = []
+            return
+        }
+        let start = currentIndex + 1
+        guard start < snapshot.entries.count else {
+            upNextTracks = []
+            return
+        }
+        let end = min(start + Self.upNextWindowSize, snapshot.entries.count)
+        upNextTracks = Array(snapshot.entries[start..<end]).map(\.track)
+    }
+
+    private func scheduleUpNextRefresh() {
+        upNextRefreshWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            Task { @MainActor in
+                self?.refreshUpNextTracks()
+            }
+        }
+        upNextRefreshWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
+    }
+
+    private func refreshEngineQueueIfStale(currentIndex overrideIndex: Int? = nil) {
+        guard engineQueueStale else { return }
+        engineQueueStale = false
+        let snapshot = queueManager.snapshot()
+        guard let currentIndex = overrideIndex ?? snapshot.currentIndex else { return }
+        let tracks = snapshot.entries.map(\.track)
+        engine?.refreshQueue(tracks: tracks, currentIndex: currentIndex)
+    }
+
     private func restoreQueueSnapshotIfAvailable() {
         let snapshot = queueManager.snapshot()
         guard let currentIndex = snapshot.currentIndex,
@@ -353,6 +419,7 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
         )
         let context = makeContext(from: snapshot)
         setNowPlayingContext(context)
+        refreshUpNextTracks()
         configureRemoteCommandsIfNeeded()
         publishLockScreenMetadata(for: nowPlaying!)
     }
@@ -520,13 +587,30 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
         guard let currentIndex = updated.currentIndex, !updated.entries.isEmpty else {
             return
         }
-        let context = makeContext(from: updated)
-        let tracks = updated.entries.map(\.track)
-        if previous.currentIndex == currentIndex, nowPlaying != nil {
-            setNowPlayingContext(context)
-            engine?.refreshQueue(tracks: tracks, currentIndex: currentIndex)
+
+        // Tail-only append: currentIndex unchanged, entries only grew at the end.
+        // Skip expensive context rebuild and engine refresh — just update Up Next.
+        let isTailAppend = previous.currentIndex == currentIndex
+            && nowPlaying != nil
+            && updated.entries.count > previous.entries.count
+            && !previous.entries.isEmpty
+            && updated.entries[previous.entries.count - 1].id == previous.entries[previous.entries.count - 1].id
+        if isTailAppend {
+            scheduleUpNextRefresh()
+            engineQueueStale = true
             return
         }
+
+        if previous.currentIndex == currentIndex, nowPlaying != nil {
+            let context = makeContext(from: updated)
+            let tracks = updated.entries.map(\.track)
+            setNowPlayingContext(context)
+            engine?.refreshQueue(tracks: tracks, currentIndex: currentIndex)
+            refreshUpNextTracks()
+            return
+        }
+        let context = makeContext(from: updated)
+        let tracks = updated.entries.map(\.track)
         let shouldRestoreElapsed = previous.currentIndex == currentIndex
         let elapsed = shouldRestoreElapsed ? previous.elapsedTime : 0
         play(tracks: tracks, startIndex: currentIndex, context: context)
@@ -536,6 +620,7 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
         if previous.isPlaying == false || updated.isPlaying == false {
             engine?.togglePlayPause()
         }
+        refreshUpNextTracks()
     }
 
     private func isTrackPlayable(_ track: PlexTrack) -> Bool {
@@ -577,7 +662,12 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
             diagnostics.log(.playbackStateChange(trackKey: state.trackRatingKey, isPlaying: state.isPlaying))
             diagnostics.log(.playbackUISync(trackKey: state.trackRatingKey))
         }
+        let previousIndex = nowPlaying?.queueIndex
         nowPlaying = state
+        if let state, state.queueIndex != previousIndex {
+            refreshUpNextTracks()
+            refreshEngineQueueIfStale(currentIndex: state.queueIndex)
+        }
         guard let state else {
             currentLockScreenAlbumKey = nil
             currentLockScreenArtwork = nil
@@ -780,7 +870,11 @@ final class PlaybackViewModel: ObservableObject, PlaybackControlling {
     private func handleScenePhaseChange(phase: String) {
         diagnostics.log(.scenePhaseChange(phase: phase))
         switch phase {
-        case "active", "background":
+        case "background":
+            queueManager.persistImmediately()
+            guard let state = nowPlaying else { return }
+            publishLockScreenMetadata(for: state)
+        case "active":
             guard let state = nowPlaying else { return }
             publishLockScreenMetadata(for: state)
         default:

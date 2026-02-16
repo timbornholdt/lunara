@@ -3,6 +3,7 @@ import Foundation
 @MainActor
 protocol PlaybackControlling {
     func play(tracks: [PlexTrack], startIndex: Int, context: NowPlayingContext?)
+    func enqueue(mode: QueueInsertMode, tracks: [PlexTrack], context: NowPlayingContext?)
     func togglePlayPause()
     func stop()
     func skipToNext()

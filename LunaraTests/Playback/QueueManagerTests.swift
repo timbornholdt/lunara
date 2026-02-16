@@ -194,6 +194,38 @@ struct QueueManagerTests {
         #expect(second.insertedCount == 1)
     }
 
+    @Test func persistImmediatelyTriggersSaveSynchronously() async {
+        let store = InMemoryQueueStateStore()
+        let queueManager = QueueManager(store: store) { Date(timeIntervalSince1970: 100) }
+        let entries = [makeEntry(trackKey: "t1", title: "One")]
+        _ = await queueManager.insert(
+            QueueInsertRequest(mode: .playNow, entries: entries, signature: "a", requestedAt: Date(timeIntervalSince1970: 100))
+        )
+        store.saveCallCount = 0
+
+        queueManager.persistImmediately()
+
+        #expect(store.saveCallCount == 1)
+    }
+
+    @Test func snapshotReturnsCorrectStateBeforePersistFires() async {
+        let store = InMemoryQueueStateStore()
+        let queueManager = QueueManager(store: store) { Date(timeIntervalSince1970: 100) }
+        let state = QueueState(
+            entries: [makeEntry(trackKey: "t1", title: "One")],
+            currentIndex: 0,
+            elapsedTime: 42,
+            isPlaying: true
+        )
+
+        _ = await queueManager.setState(state)
+        let snapshot = queueManager.snapshot()
+
+        #expect(snapshot.elapsedTime == 42)
+        #expect(snapshot.currentIndex == 0)
+        #expect(snapshot.entries.count == 1)
+    }
+
     @Test func partialInsertReportsSkipReasons() async {
         let store = InMemoryQueueStateStore()
         let queueManager = QueueManager(store: store) { Date(timeIntervalSince1970: 100) }
@@ -258,6 +290,7 @@ private func makeUnplayableEntry(trackKey: String, title: String, reason: QueueI
 
 private final class InMemoryQueueStateStore: QueueStateStoring {
     private var state: QueueState?
+    var saveCallCount = 0
 
     init(initial: QueueState? = nil) {
         self.state = initial
@@ -268,6 +301,7 @@ private final class InMemoryQueueStateStore: QueueStateStoring {
     }
 
     func save(_ state: QueueState) throws {
+        saveCallCount += 1
         self.state = state
     }
 

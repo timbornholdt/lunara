@@ -301,6 +301,8 @@ private final class StubPlaybackController: PlaybackControlling {
         lastContext = context
     }
 
+    func enqueue(mode: QueueInsertMode, tracks: [PlexTrack], context: NowPlayingContext?) {}
+
     func togglePlayPause() {
         toggleCallCount += 1
     }

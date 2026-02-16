@@ -642,6 +642,7 @@ private final class RecordingPlaybackController: PlaybackControlling {
         playCallCount += 1
     }
 
+    func enqueue(mode: QueueInsertMode, tracks: [PlexTrack], context: NowPlayingContext?) {}
     func togglePlayPause() {}
     func stop() {}
     func skipToNext() {}
