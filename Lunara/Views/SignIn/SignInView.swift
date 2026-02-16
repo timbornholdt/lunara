@@ -172,6 +172,13 @@ struct SignInView: View {
                 if let token = try await coordinator.plexClient.checkPin(pinID: pinID) {
                     // Got token! Save it
                     try coordinator.authManager.setToken(token)
+                    print("\n" + String(repeating: "=", count: 60))
+                    print("🔐 SIGN-IN SUCCESSFUL")
+                    print(String(repeating: "=", count: 60))
+                    print("✅ Plex auth token saved to Keychain")
+                    print("✅ Token will persist across app restarts")
+                    print("🎵 Switching to library view...")
+                    print(String(repeating: "=", count: 60) + "\n")
                     return // Success, view will update automatically
                 }
             } catch {
@@ -183,6 +190,7 @@ struct SignInView: View {
         // Timeout
         await MainActor.run {
             authState = .error("Authorization timed out. Please try again.")
+            print("❌ Authorization timed out after 5 minutes\n")
         }
     }
 
