@@ -153,6 +153,121 @@ struct ArtworkPipelineTests {
             Issue.record("Expected LibraryError.resourceNotFound, got: \(error)")
         }
     }
+
+    @Test
+    func fetches_withDifferentVariants_keepSeparateCachedFiles() async throws {
+        let fixture = try Fixture()
+
+        _ = try await fixture.pipeline.fetchThumbnail(
+            for: "album-variant",
+            ownerKind: .album,
+            sourceURL: URL(string: "https://plex.example.com/art.jpg")
+        )
+        _ = try await fixture.pipeline.fetchFullSize(
+            for: "album-variant",
+            ownerKind: .album,
+            sourceURL: URL(string: "https://plex.example.com/art.jpg")
+        )
+
+        let thumb = try #require(
+            fixture.store.setArtworkPathCalls.first {
+                $0.key == ArtworkKey(ownerID: "album-variant", ownerType: .album, variant: .thumbnail)
+            }
+        )
+        let full = try #require(
+            fixture.store.setArtworkPathCalls.first {
+                $0.key == ArtworkKey(ownerID: "album-variant", ownerType: .album, variant: .full)
+            }
+        )
+
+        #expect(thumb.path != full.path)
+        #expect(FileManager.default.fileExists(atPath: thumb.path))
+        #expect(FileManager.default.fileExists(atPath: full.path))
+    }
+
+    @Test
+    func fetch_whenCacheExceedsLimit_evictsLeastRecentlyUsedFile() async throws {
+        let fixture = try Fixture(maxCacheSizeBytes: 12)
+
+        fixture.session.dataToReturn = Data("AAAAAA".utf8)
+        _ = try await fixture.pipeline.fetchThumbnail(
+            for: "album-a",
+            ownerKind: .album,
+            sourceURL: URL(string: "https://plex.example.com/a.jpg")
+        )
+        let pathA = try #require(
+            fixture.store.setArtworkPathCalls.last {
+                $0.key == ArtworkKey(ownerID: "album-a", ownerType: .album, variant: .thumbnail)
+            }?.path
+        )
+
+        fixture.session.dataToReturn = Data("BBBBBB".utf8)
+        _ = try await fixture.pipeline.fetchThumbnail(
+            for: "album-b",
+            ownerKind: .album,
+            sourceURL: URL(string: "https://plex.example.com/b.jpg")
+        )
+        let pathB = try #require(
+            fixture.store.setArtworkPathCalls.last {
+                $0.key == ArtworkKey(ownerID: "album-b", ownerType: .album, variant: .thumbnail)
+            }?.path
+        )
+
+        _ = try await fixture.pipeline.fetchThumbnail(
+            for: "album-a",
+            ownerKind: .album,
+            sourceURL: URL(string: "https://plex.example.com/a.jpg")
+        )
+
+        fixture.session.dataToReturn = Data("CCCCCC".utf8)
+        _ = try await fixture.pipeline.fetchThumbnail(
+            for: "album-c",
+            ownerKind: .album,
+            sourceURL: URL(string: "https://plex.example.com/c.jpg")
+        )
+        let pathC = try #require(
+            fixture.store.setArtworkPathCalls.last {
+                $0.key == ArtworkKey(ownerID: "album-c", ownerType: .album, variant: .thumbnail)
+            }?.path
+        )
+
+        #expect(FileManager.default.fileExists(atPath: pathA))
+        #expect(!FileManager.default.fileExists(atPath: pathB))
+        #expect(FileManager.default.fileExists(atPath: pathC))
+    }
+
+    @Test
+    func fetch_whenCacheExceedsLimit_keepsTotalBytesUnderConfiguredCap() async throws {
+        let fixture = try Fixture(maxCacheSizeBytes: 10)
+
+        fixture.session.dataToReturn = Data("111111".utf8)
+        _ = try await fixture.pipeline.fetchThumbnail(
+            for: "cap-1",
+            ownerKind: .album,
+            sourceURL: URL(string: "https://plex.example.com/1.jpg")
+        )
+
+        fixture.session.dataToReturn = Data("222222".utf8)
+        _ = try await fixture.pipeline.fetchThumbnail(
+            for: "cap-2",
+            ownerKind: .album,
+            sourceURL: URL(string: "https://plex.example.com/2.jpg")
+        )
+
+        let urls = try FileManager.default.contentsOfDirectory(
+            at: fixture.cacheDirectory,
+            includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey]
+        )
+        let totalBytes = try urls.reduce(0) { partial, url in
+            let values = try url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
+            guard values.isRegularFile == true else {
+                return partial
+            }
+            return partial + (values.fileSize ?? 0)
+        }
+
+        #expect(totalBytes <= 10)
+    }
 }
 
 private final class ArtworkSessionMock: URLSessionProtocol {
@@ -222,7 +337,7 @@ private struct Fixture {
     let pipeline: ArtworkPipeline
     let cacheDirectory: URL
 
-    init() throws {
+    init(maxCacheSizeBytes: Int = 250 * 1024 * 1024) throws {
         store = ArtworkStoreMock()
         session = ArtworkSessionMock()
 
@@ -235,7 +350,8 @@ private struct Fixture {
         pipeline = ArtworkPipeline(
             store: store,
             session: session,
-            cacheDirectoryURL: cacheDirectory
+            cacheDirectoryURL: cacheDirectory,
+            maxCacheSizeBytes: maxCacheSizeBytes
         )
     }
 }

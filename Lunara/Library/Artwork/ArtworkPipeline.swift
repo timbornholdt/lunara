@@ -6,17 +6,20 @@ final class ArtworkPipeline: ArtworkPipelineProtocol {
     private let session: URLSessionProtocol
     private let fileManager: FileManager
     private let cacheDirectoryURL: URL
+    private let maxCacheSizeBytes: Int
 
     init(
         store: LibraryStoreProtocol,
         session: URLSessionProtocol,
         fileManager: FileManager = .default,
-        cacheDirectoryURL: URL
+        cacheDirectoryURL: URL,
+        maxCacheSizeBytes: Int = 250 * 1024 * 1024
     ) {
         self.store = store
         self.session = session
         self.fileManager = fileManager
         self.cacheDirectoryURL = cacheDirectoryURL
+        self.maxCacheSizeBytes = max(0, maxCacheSizeBytes)
     }
 
     func fetchThumbnail(for ownerID: String, ownerKind: ArtworkOwnerKind, sourceURL: URL?) async throws -> URL? {
@@ -77,6 +80,7 @@ final class ArtworkPipeline: ArtworkPipelineProtocol {
             let destinationURL = cacheDirectoryURL.appendingPathComponent(fileName(for: key, sourceURL: sourceURL))
             try data.write(to: destinationURL, options: .atomic)
             try await store.setArtworkPath(destinationURL.path, for: key.storeKey)
+            try enforceCacheLimit()
             return destinationURL
         } catch {
             throw mapToLibraryError(error)
@@ -94,7 +98,9 @@ final class ArtworkPipeline: ArtworkPipelineProtocol {
             return nil
         }
 
-        return URL(fileURLWithPath: path)
+        let url = URL(fileURLWithPath: path)
+        try touchFile(at: url)
+        return url
     }
 
     private func ensureCacheDirectoryExists() throws {
@@ -110,6 +116,85 @@ final class ArtworkPipeline: ArtworkPipelineProtocol {
             try fileManager.removeItem(atPath: path)
         } catch {
             throw mapToLibraryError(error)
+        }
+    }
+
+    private func touchFile(at url: URL) throws {
+        do {
+            try fileManager.setAttributes(
+                [.modificationDate: Date()],
+                ofItemAtPath: url.path
+            )
+        } catch {
+            throw mapToLibraryError(error)
+        }
+    }
+
+    private func enforceCacheLimit() throws {
+        do {
+            guard maxCacheSizeBytes > 0 else {
+                try clearAllFiles(in: cacheDirectoryURL)
+                return
+            }
+
+            var entries = try cacheEntries()
+            var totalBytes = entries.reduce(0) { $0 + $1.size }
+
+            if totalBytes <= maxCacheSizeBytes {
+                return
+            }
+
+            entries.sort { $0.lastAccessDate < $1.lastAccessDate }
+
+            for entry in entries where totalBytes > maxCacheSizeBytes {
+                try fileManager.removeItem(at: entry.url)
+                totalBytes -= entry.size
+            }
+        } catch {
+            throw mapToLibraryError(error)
+        }
+    }
+
+    private func clearAllFiles(in directoryURL: URL) throws {
+        guard fileManager.fileExists(atPath: directoryURL.path) else {
+            return
+        }
+
+        let children = try fileManager.contentsOfDirectory(
+            at: directoryURL,
+            includingPropertiesForKeys: [.isRegularFileKey]
+        )
+        for child in children {
+            let values = try child.resourceValues(forKeys: [.isRegularFileKey])
+            if values.isRegularFile == true {
+                try fileManager.removeItem(at: child)
+            }
+        }
+    }
+
+    private struct CacheEntry {
+        let url: URL
+        let size: Int
+        let lastAccessDate: Date
+    }
+
+    private func cacheEntries() throws -> [CacheEntry] {
+        let files = try fileManager.contentsOfDirectory(
+            at: cacheDirectoryURL,
+            includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey, .contentModificationDateKey, .creationDateKey]
+        )
+
+        return try files.compactMap { url in
+            let values = try url.resourceValues(
+                forKeys: [.isRegularFileKey, .fileSizeKey, .contentModificationDateKey, .creationDateKey]
+            )
+            guard values.isRegularFile == true else {
+                return nil
+            }
+
+            let size = values.fileSize ?? 0
+            let lastAccessDate = values.contentModificationDate ?? values.creationDate ?? Date.distantPast
+            return CacheEntry(url: url, size: size, lastAccessDate: lastAccessDate)
         }
     }
 
