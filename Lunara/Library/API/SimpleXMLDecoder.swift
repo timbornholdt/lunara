@@ -11,11 +11,15 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
         case parsingFailed(String)
     }
 
-    private var currentElement = ""
-    private var currentAttributes: [String: String] = [:]
-    private var metadataItems: [[String: String]] = []
+    private struct ParsedMetadataItem {
+        let attributes: [String: String]
+        var partKey: String?
+    }
+
+    private var metadataItems: [ParsedMetadataItem] = []
     private var directoryItems: [[String: String]] = []
     private var currentMetadataIndex: Int?
+
     func decode(_ data: Data) throws -> PlexMediaContainer {
         let parser = XMLParser(data: data)
         parser.delegate = self
@@ -28,7 +32,8 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
         }
 
         // Convert parsed attributes to PlexMetadata objects
-        let metadata = metadataItems.map { attrs -> PlexMetadata in
+        let metadata = metadataItems.map { parsedItem -> PlexMetadata in
+            let attrs = parsedItem.attributes
             let ratingKey = attrs["ratingKey"] ?? ""
             let title = attrs["title"] ?? ""
             let type = attrs["type"] ?? ""
@@ -59,7 +64,7 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
                 albumCount: albumCount,
                 summary: attrs["summary"],
                 titleSort: attrs["titleSort"],
-                key: attrs["partKey"] ?? attrs["key"]
+                key: parsedItem.partKey ?? attrs["key"]
             )
         }
 
@@ -108,22 +113,20 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
         qualifiedName qName: String?,
         attributes attributeDict: [String: String] = [:]
     ) {
-        currentElement = elementName
-
         if elementName == "Metadata" {
             // Store all attributes for this Metadata element
-            metadataItems.append(attributeDict)
+            metadataItems.append(ParsedMetadataItem(attributes: attributeDict, partKey: nil))
             currentMetadataIndex = metadataItems.count - 1
         } else if elementName == "Track" || elementName == "Video" {
             // Plex track listing endpoints commonly use <Track> elements instead of <Metadata>
-            metadataItems.append(attributeDict)
+            metadataItems.append(ParsedMetadataItem(attributes: attributeDict, partKey: nil))
             currentMetadataIndex = metadataItems.count - 1
         } else if elementName == "Part",
                   let metadataIndex = currentMetadataIndex,
                   let partKey = attributeDict["key"],
                   !partKey.isEmpty {
             // Prefer direct file part URLs for playback over metadata URLs.
-            metadataItems[metadataIndex]["partKey"] = partKey
+            metadataItems[metadataIndex].partKey = partKey
         } else if elementName == "Directory" {
             // Store all attributes for this Directory element
             directoryItems.append(attributeDict)

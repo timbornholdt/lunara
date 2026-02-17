@@ -108,19 +108,31 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
             return []
         }
 
-        return metadata.compactMap { plexMetadata in
-            guard plexMetadata.type == "track" else { return nil }
-            return Track(
+        var tracks: [Track] = []
+        tracks.reserveCapacity(metadata.count)
+
+        for plexMetadata in metadata {
+            guard plexMetadata.type == "track" else { continue }
+            guard let key = plexMetadata.key, key.hasPrefix("/library/parts/") else {
+                logger.error(
+                    "Track missing playable part key. albumID='\(albumID, privacy: .public)' trackID='\(plexMetadata.ratingKey, privacy: .public)' key='\(plexMetadata.key ?? "nil", privacy: .public)'"
+                )
+                throw LibraryError.invalidResponse
+            }
+
+            tracks.append(Track(
                 plexID: plexMetadata.ratingKey,
                 albumID: albumID,
                 title: plexMetadata.title,
                 trackNumber: plexMetadata.index ?? 0,
                 duration: TimeInterval(plexMetadata.duration ?? 0) / 1000.0,
                 artistName: plexMetadata.grandparentTitle ?? plexMetadata.parentTitle ?? "Unknown Artist",
-                key: plexMetadata.key ?? "",
+                key: key,
                 thumbURL: plexMetadata.thumb
-            )
+            ))
         }
+
+        return tracks
     }
 
     /// Get streaming URL for a track
