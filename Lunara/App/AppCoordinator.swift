@@ -11,6 +11,10 @@ final class AppCoordinator {
 
     let authManager: AuthManager
     let plexClient: PlexAPIClient
+    let libraryRepo: LibraryRepoProtocol
+    let playbackEngine: PlaybackEngineProtocol
+    let queueManager: QueueManagerProtocol
+    let appRouter: AppRouter
 
     // MARK: - State
 
@@ -40,13 +44,32 @@ final class AppCoordinator {
             authManager: authManager,
             session: URLSession.shared
         )
+
+        self.libraryRepo = plexClient
+        let playbackEngine = AVQueuePlayerEngine(audioSession: AudioSession())
+        self.playbackEngine = playbackEngine
+        let queueManager = QueueManager(engine: playbackEngine)
+        self.queueManager = queueManager
+        self.appRouter = AppRouter(library: libraryRepo, queue: queueManager)
     }
 
     // MARK: - Actions
 
+    func fetchAlbums() async throws -> [Album] {
+        try await libraryRepo.fetchAlbums()
+    }
+
+    func playAlbum(_ album: Album) async throws {
+        try await appRouter.playAlbum(album)
+    }
+
     /// Sign out and clear stored token
     func signOut() {
-        try? authManager.clearToken()
+        do {
+            try authManager.clearToken()
+        } catch {
+            assertionFailure("Failed to clear token during sign-out: \(error)")
+        }
     }
 
     // MARK: - Private Helpers

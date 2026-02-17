@@ -59,6 +59,19 @@ struct AppRouterTests {
     }
 
     @Test
+    func playAlbum_whenAlbumHasNoTracks_doesNotResolveURLsOrMutateQueue() async throws {
+        let subject = makeSubject()
+        let album = makeAlbum(id: "album-empty")
+        subject.library.tracksByAlbumID[album.plexID] = []
+
+        try await subject.router.playAlbum(album)
+
+        #expect(subject.library.trackRequests == [album.plexID])
+        #expect(subject.library.streamURLRequests.isEmpty)
+        #expect(subject.queue.playNowCalls.isEmpty)
+    }
+
+    @Test
     func playAlbum_whenURLResolutionFails_propagatesErrorAndDoesNotQueue() async {
         let subject = makeSubject()
         let album = makeAlbum(id: "album-3")
@@ -121,13 +134,21 @@ struct AppRouterTests {
 
 @MainActor
 private final class LibraryRepoMock: LibraryRepoProtocol {
+    var albums: [Album] = []
+    var fetchAlbumsCallCount = 0
+
     var tracksByAlbumID: [String: [Track]] = [:]
     var trackRequests: [String] = []
-    var tracksError: Error?
+    var tracksError: LibraryError?
 
     var streamURLByTrackID: [String: URL] = [:]
     var streamURLRequests: [String] = []
-    var streamURLError: Error?
+    var streamURLError: LibraryError?
+
+    func fetchAlbums() async throws -> [Album] {
+        fetchAlbumsCallCount += 1
+        return albums
+    }
 
     func tracks(forAlbum albumID: String) async throws -> [Track] {
         trackRequests.append(albumID)

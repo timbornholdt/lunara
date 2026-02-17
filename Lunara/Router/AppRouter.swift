@@ -1,22 +1,6 @@
 import Foundation
 
 @MainActor
-protocol LibraryRepoProtocol: AnyObject {
-    func tracks(forAlbum albumID: String) async throws -> [Track]
-    func streamURL(for track: Track) async throws -> URL
-}
-
-extension PlexAPIClient: LibraryRepoProtocol {
-    func tracks(forAlbum albumID: String) async throws -> [Track] {
-        try await fetchTracks(forAlbum: albumID)
-    }
-
-    func streamURL(for track: Track) async throws -> URL {
-        try await streamURL(forTrack: track)
-    }
-}
-
-@MainActor
 final class AppRouter {
     private let library: LibraryRepoProtocol
     private let queue: QueueManagerProtocol
@@ -32,6 +16,7 @@ final class AppRouter {
 
     func playAlbum(_ album: Album) async throws {
         let tracks = try await library.tracks(forAlbum: album.plexID)
+        guard !tracks.isEmpty else { return }
 
         var items: [QueueItem] = []
         items.reserveCapacity(tracks.count)

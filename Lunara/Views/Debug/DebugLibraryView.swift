@@ -69,17 +69,26 @@ struct DebugLibraryView: View {
             }
 
             ForEach(albums) { album in
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(album.title)
-                        .font(.headline)
-                    Text(album.artistName)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    if let year = album.year {
-                        Text(String(year))
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(album.title)
+                            .font(.headline)
+                        Text(album.artistName)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        if let year = album.year {
+                            Text(String(year))
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
                     }
+
+                    Spacer()
+
+                    Button("Play") {
+                        playAlbum(album)
+                    }
+                    .buttonStyle(.bordered)
                 }
             }
         }
@@ -111,7 +120,7 @@ struct DebugLibraryView: View {
 
         Task {
             do {
-                let fetchedAlbums = try await coordinator.plexClient.fetchAlbums()
+                let fetchedAlbums = try await coordinator.fetchAlbums()
                 await MainActor.run {
                     self.albums = fetchedAlbums
                     self.isLoading = false
@@ -124,6 +133,22 @@ struct DebugLibraryView: View {
             } catch {
                 await MainActor.run {
                     self.isLoading = false
+                    self.errorMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    private func playAlbum(_ album: Album) {
+        Task {
+            do {
+                try await coordinator.playAlbum(album)
+            } catch let error as LunaraError {
+                await MainActor.run {
+                    self.errorMessage = error.userMessage
+                }
+            } catch {
+                await MainActor.run {
                     self.errorMessage = error.localizedDescription
                 }
             }
