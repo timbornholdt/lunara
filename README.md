@@ -26,6 +26,15 @@ If something isn't in this document, it's not in scope yet. If a task would viol
 
 ---
 
+## Project Status
+
+- **Phase 1 (Shared Types + Plex Connectivity):** Complete
+- **Phase 2 (Playback Engine + Queue Manager):** Complete
+- **Current phase:** Phase 3 (Library Domain Core)
+- **Last verified milestone:** Phase 2 acceptance verified on device and in test suite on February 17, 2026.
+
+---
+
 ## Core Philosophy
 
 ### The Library as a Digital Garden
@@ -401,6 +410,7 @@ Sequential. Each phase fully working and verified on device before the next begi
 ### Phase 1: Shared Types + Plex Connectivity
 
 **Goal:** Define the data language and prove Plex connectivity.
+**Status:** Complete.
 
 **Build:**
 - Shared types: `Album`, `Track`, `Artist`, `Collection`, `PlaybackState` (with `buffering`), `LunaraError` protocol, `LibraryError`, `MusicError`.
@@ -419,6 +429,7 @@ Sequential. Each phase fully working and verified on device before the next begi
 ### Phase 2: Playback Engine + Queue Manager
 
 **Goal:** Press play on an album, hear it front to back with seamless track transitions.
+**Status:** Complete (implemented + device-verified on February 17, 2026).
 
 These two are built together because the PlaybackEngine needs someone to drive track advancement and preloading, and testing sequential playback without a queue is artificial. However, they are still **separate modules with separate files and separate tests.** Building together means they're in the same phase, not the same file.
 
@@ -443,6 +454,10 @@ These two are built together because the PlaybackEngine needs someone to drive t
 - Lock phone — audio continues playing.
 - Force-quit, reopen — queue is intact, app waits for explicit play.
 - UI shows buffering state when a track is loading.
+
+**Completion evidence (February 17, 2026):**
+- Full project test command passes: `xcodebuild test -project /Users/timbornholdt/Repos/Lunara/Lunara.xcodeproj -scheme Lunara -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.2'`.
+- Manual device QA confirmed seamless transitions, skip behavior, playback error handling, lock-screen/background playback continuity, and queue restore behavior.
 
 **AI scope:** AudioSession (tiny, one session). PlaybackEngine protocol → get approval → implementation (one session). QueueManager protocol → get approval → implementation (one session). Wiring + test UI (one session). Four sessions total.
 
