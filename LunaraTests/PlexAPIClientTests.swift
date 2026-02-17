@@ -299,9 +299,9 @@ final class PlexAPIClientTests: XCTestCase {
         """
         <?xml version="1.0" encoding="UTF-8"?>
         <MediaContainer>
-            <Metadata ratingKey="2001" type="track" title="Come Together" index="1" grandparentTitle="The Beatles" duration="259000" key="/library/metadata/2001/file.mp3" />
-            <Metadata ratingKey="2002" type="track" title="Something" index="2" grandparentTitle="The Beatles" duration="182000" key="/library/metadata/2002/file.mp3" />
-            <Metadata ratingKey="2003" type="track" title="Here Comes The Sun" index="7" grandparentTitle="The Beatles" duration="185000" key="/library/metadata/2003/file.mp3" />
+            <Track ratingKey="2001" type="track" title="Come Together" index="1" grandparentTitle="The Beatles" duration="259000" key="/library/metadata/2001/file.mp3" />
+            <Track ratingKey="2002" type="track" title="Something" index="2" grandparentTitle="The Beatles" duration="182000" key="/library/metadata/2002/file.mp3" />
+            <Track ratingKey="2003" type="track" title="Here Comes The Sun" index="7" grandparentTitle="The Beatles" duration="185000" key="/library/metadata/2003/file.mp3" />
         </MediaContainer>
         """.data(using: .utf8)!
     }

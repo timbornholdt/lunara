@@ -15,8 +15,6 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
     private var currentAttributes: [String: String] = [:]
     private var metadataItems: [[String: String]] = []
     private var directoryItems: [[String: String]] = []
-    private var isParsingMetadata = false
-
     func decode(_ data: Data) throws -> PlexMediaContainer {
         let parser = XMLParser(data: data)
         parser.delegate = self
@@ -113,7 +111,9 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
         if elementName == "Metadata" {
             // Store all attributes for this Metadata element
             metadataItems.append(attributeDict)
-            isParsingMetadata = true
+        } else if elementName == "Track" || elementName == "Video" {
+            // Plex track listing endpoints commonly use <Track> elements instead of <Metadata>
+            metadataItems.append(attributeDict)
         } else if elementName == "Directory" {
             // Store all attributes for this Directory element
             directoryItems.append(attributeDict)
@@ -126,9 +126,7 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
         namespaceURI: String?,
         qualifiedName qName: String?
     ) {
-        if elementName == "Metadata" {
-            isParsingMetadata = false
-        }
+        // No-op; parser state is fully captured from start-element attributes.
     }
 }
 
