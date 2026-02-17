@@ -78,22 +78,22 @@ struct DebugLibraryView: View {
 
             HStack(spacing: 8) {
                 Button("Pause") {
-                    coordinator.appRouter.pausePlayback()
+                    coordinator.pausePlayback()
                 }
                 .buttonStyle(.bordered)
 
                 Button("Resume") {
-                    coordinator.appRouter.resumePlayback()
+                    coordinator.resumePlayback()
                 }
                 .buttonStyle(.bordered)
 
                 Button("Skip") {
-                    coordinator.appRouter.skipToNextTrack()
+                    coordinator.skipToNextTrack()
                 }
                 .buttonStyle(.bordered)
 
                 Button("Stop") {
-                    coordinator.appRouter.stopPlayback()
+                    coordinator.stopPlayback()
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
