@@ -6,6 +6,7 @@ protocol LibraryRemoteDataSource: AnyObject {
     func fetchAlbums() async throws -> [Album]
     func fetchTracks(forAlbum albumID: String) async throws -> [Track]
     func streamURL(forTrack track: Track) async throws -> URL
+    func authenticatedArtworkURL(for rawValue: String?) async throws -> URL?
 }
 
 extension PlexAPIClient: LibraryRemoteDataSource { }
@@ -88,7 +89,6 @@ final class LibraryRepo: LibraryRepoProtocol {
             }
 
             let dedupedLibrary = dedupeLibrary(albums: remoteAlbums, tracks: cachedTracks)
-            await preloadThumbnailArtwork(for: dedupedLibrary.albums)
 
             // Artist/collection endpoints are not exposed by PlexAPIClient yet.
             // Preserve cached values so refresh updates album/track data without erasing other cache slices.
@@ -102,6 +102,13 @@ final class LibraryRepo: LibraryRepoProtocol {
             )
 
             try await store.replaceLibrary(with: snapshot, refreshedAt: refreshedAt)
+            let dedupedAlbums = dedupedLibrary.albums
+            Task { [weak self] in
+                guard let self else {
+                    return
+                }
+                await self.preloadThumbnailArtwork(for: dedupedAlbums)
+            }
 
             return LibraryRefreshOutcome(
                 reason: reason,
@@ -254,10 +261,11 @@ final class LibraryRepo: LibraryRepoProtocol {
     private func preloadThumbnailArtwork(for albums: [Album]) async {
         for album in albums {
             do {
+                let sourceURL = try await remote.authenticatedArtworkURL(for: album.thumbURL)
                 _ = try await artworkPipeline.fetchThumbnail(
                     for: album.plexID,
                     ownerKind: .album,
-                    sourceURL: album.thumbURL.flatMap(URL.init(string:))
+                    sourceURL: sourceURL
                 )
             } catch {
                 // Artwork warmup is best-effort so metadata refresh remains available when image fetch fails.

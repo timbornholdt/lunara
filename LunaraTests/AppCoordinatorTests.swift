@@ -2,7 +2,6 @@ import Foundation
 import Observation
 import Testing
 @testable import Lunara
-
 @MainActor
 struct AppCoordinatorTests {
     @Test
@@ -16,7 +15,6 @@ struct AppCoordinatorTests {
         #expect(subject.library.refreshReasons == [.appLaunch])
         #expect(albums.map(\.plexID) == ["fresh-1", "fresh-2"])
     }
-
     @Test
     func loadLibraryOnLaunch_whenRefreshFails_returnsCachedAlbums() async throws {
         let subject = makeSubject()
@@ -26,12 +24,10 @@ struct AppCoordinatorTests {
         #expect(subject.library.refreshReasons == [.appLaunch])
         #expect(albums.map(\.plexID) == ["cached-1"])
     }
-
     @Test
     func loadLibraryOnLaunch_whenRefreshFailsAndCacheEmpty_throwsRefreshError() async {
         let subject = makeSubject()
         subject.library.refreshError = LibraryError.timeout
-
         do {
             _ = try await subject.coordinator.loadLibraryOnLaunch()
             Issue.record("Expected loadLibraryOnLaunch to throw")
@@ -41,7 +37,6 @@ struct AppCoordinatorTests {
             Issue.record("Expected LibraryError, got: \(error)")
         }
     }
-
     @Test
     func fetchAlbums_refreshesThenReturnsUpdatedAlbums() async throws {
         let subject = makeSubject()
@@ -53,7 +48,6 @@ struct AppCoordinatorTests {
         #expect(subject.library.refreshReasons == [.userInitiated])
         #expect(albums.map(\.plexID) == ["fresh-1", "fresh-2"])
     }
-
     @Test
     func fetchAlbums_whenRefreshFails_returnsCachedAlbums() async throws {
         let subject = makeSubject()
@@ -63,12 +57,10 @@ struct AppCoordinatorTests {
         #expect(subject.library.refreshReasons == [.userInitiated])
         #expect(albums.map(\.plexID) == ["cached-1"])
     }
-
     @Test
     func fetchAlbums_whenRefreshFailsAndCacheEmpty_throwsRefreshError() async {
         let subject = makeSubject()
         subject.library.refreshError = LibraryError.timeout
-
         do {
             _ = try await subject.coordinator.fetchAlbums()
             Issue.record("Expected fetchAlbums to throw")
@@ -78,35 +70,30 @@ struct AppCoordinatorTests {
             Issue.record("Expected LibraryError, got: \(error)")
         }
     }
-
     @Test
     func pausePlayback_delegatesToRouterQueuePause() {
         let subject = makeSubject()
         subject.coordinator.pausePlayback()
         #expect(subject.queue.pauseCallCount == 1)
     }
-
     @Test
     func resumePlayback_delegatesToRouterQueueResume() {
         let subject = makeSubject()
         subject.coordinator.resumePlayback()
         #expect(subject.queue.resumeCallCount == 1)
     }
-
     @Test
     func skipToNextTrack_delegatesToRouterQueueSkipToNext() {
         let subject = makeSubject()
         subject.coordinator.skipToNextTrack()
         #expect(subject.queue.skipToNextCallCount == 1)
     }
-
     @Test
     func stopPlayback_delegatesToRouterQueueClear() {
         let subject = makeSubject()
         subject.coordinator.stopPlayback()
         #expect(subject.queue.clearCallCount == 1)
     }
-
     @Test
     func fetchAlbums_withConcreteLibraryRepo_refreshesAndPreloadsArtwork() async throws {
         let keychain = MockKeychainHelper()
@@ -135,9 +122,12 @@ struct AppCoordinatorTests {
         let albums = try await coordinator.fetchAlbums()
         #expect(albums.map(\.plexID) == ["fresh-1", "fresh-2"])
         #expect(store.replaceLibraryCallCount == 1)
+        await waitForArtworkRequests(
+            on: artworkPipeline,
+            expectedOwnerIDs: ["fresh-1", "fresh-2"]
+        )
         #expect(artworkPipeline.thumbnailRequests.map(\.ownerID) == ["fresh-1", "fresh-2"])
     }
-
     private func makeSubject() -> (
         coordinator: AppCoordinator,
         queue: CoordinatorQueueManagerMock,
@@ -165,10 +155,8 @@ struct AppCoordinatorTests {
             queueManager: queue,
             appRouter: appRouter
         )
-
         return (coordinator, queue, library, artworkPipeline)
     }
-
     private func makeAlbum(id: String) -> Album {
         Album(
             plexID: id,
@@ -183,39 +171,42 @@ struct AppCoordinatorTests {
             duration: 180
         )
     }
+    private func waitForArtworkRequests(
+        on pipeline: ArtworkPipelineMock,
+        expectedOwnerIDs: [String]
+    ) async {
+        for _ in 0..<50 {
+            if pipeline.thumbnailRequests.map(\.ownerID) == expectedOwnerIDs {
+                return
+            }
+            await Task.yield()
+        }
+    }
 }
-
 @MainActor
 private final class CoordinatorLibraryRepoMock: LibraryRepoProtocol {
     var albumsByPage: [Int: [Album]] = [:]
     var refreshReasons: [LibraryRefreshReason] = []
     var refreshError: LibraryError?
     var refreshHook: (() -> Void)?
-
     func albums(page: LibraryPage) async throws -> [Album] {
         albumsByPage[page.number] ?? []
     }
-
     func album(id: String) async throws -> Album? {
         nil
     }
-
     func tracks(forAlbum albumID: String) async throws -> [Track] {
         []
     }
-
     func collections() async throws -> [Collection] {
         []
     }
-
     func artists() async throws -> [Artist] {
         []
     }
-
     func artist(id: String) async throws -> Artist? {
         nil
     }
-
     func refreshLibrary(reason: LibraryRefreshReason) async throws -> LibraryRefreshOutcome {
         refreshReasons.append(reason)
         if let refreshError {
@@ -231,16 +222,13 @@ private final class CoordinatorLibraryRepoMock: LibraryRepoProtocol {
             collectionCount: 0
         )
     }
-
     func lastRefreshDate() async throws -> Date? {
         nil
     }
-
     func streamURL(for track: Track) async throws -> URL {
         throw LibraryError.resourceNotFound(type: "track", id: track.plexID)
     }
 }
-
 @MainActor
 @Observable
 private final class CoordinatorPlaybackEngineMock: PlaybackEngineProtocol {
@@ -248,7 +236,6 @@ private final class CoordinatorPlaybackEngineMock: PlaybackEngineProtocol {
     var elapsed: TimeInterval = 0
     var duration: TimeInterval = 0
     var currentTrackID: String?
-
     func play(url: URL, trackID: String) { }
     func prepareNext(url: URL, trackID: String) { }
     func pause() { }
@@ -256,7 +243,6 @@ private final class CoordinatorPlaybackEngineMock: PlaybackEngineProtocol {
     func seek(to time: TimeInterval) { }
     func stop() { }
 }
-
 @MainActor
 @Observable
 private final class CoordinatorQueueManagerMock: QueueManagerProtocol {
@@ -264,29 +250,23 @@ private final class CoordinatorQueueManagerMock: QueueManagerProtocol {
     var currentIndex: Int?
     var currentItem: QueueItem?
     var lastError: MusicError?
-
     private(set) var pauseCallCount = 0
     private(set) var resumeCallCount = 0
     private(set) var skipToNextCallCount = 0
     private(set) var clearCallCount = 0
-
     func playNow(_ items: [QueueItem]) { }
     func playNext(_ items: [QueueItem]) { }
     func playLater(_ items: [QueueItem]) { }
     func play() { }
-
     func pause() {
         pauseCallCount += 1
     }
-
     func resume() {
         resumeCallCount += 1
     }
-
     func skipToNext() {
         skipToNextCallCount += 1
     }
-
     func clear() {
         clearCallCount += 1
     }
