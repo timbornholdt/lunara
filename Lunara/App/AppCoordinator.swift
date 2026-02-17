@@ -62,7 +62,14 @@ final class AppCoordinator {
             session: URLSession.shared
         )
 
-        let libraryRepo = plexClient
+        let libraryStore: LibraryStoreProtocol
+        do {
+            libraryStore = try Self.makeLibraryStore()
+        } catch {
+            fatalError("Failed to initialize LibraryStore: \(error)")
+        }
+
+        let libraryRepo = LibraryRepo(remote: plexClient, store: libraryStore)
         let playbackEngine = AVQueuePlayerEngine(audioSession: AudioSession())
         let queueManager = QueueManager(engine: playbackEngine)
         let appRouter = AppRouter(library: libraryRepo, queue: queueManager)
@@ -80,7 +87,17 @@ final class AppCoordinator {
     // MARK: - Actions
 
     func fetchAlbums() async throws -> [Album] {
-        try await libraryRepo.fetchAlbums()
+        let cachedAlbums = try await libraryRepo.fetchAlbums()
+
+        do {
+            _ = try await libraryRepo.refreshLibrary(reason: .userInitiated)
+            return try await libraryRepo.fetchAlbums()
+        } catch {
+            if !cachedAlbums.isEmpty {
+                return cachedAlbums
+            }
+            throw error
+        }
     }
 
     func playAlbum(_ album: Album) async throws {
@@ -125,6 +142,19 @@ final class AppCoordinator {
 
         // Default fallback (will fail, but better than crashing)
         return URL(string: "http://localhost:32400")!
+    }
+
+    private static func makeLibraryStore() throws -> LibraryStore {
+        let fileManager = FileManager.default
+        guard let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            throw LibraryError.operationFailed(reason: "Unable to resolve application support directory.")
+        }
+
+        let appDirectory = appSupportURL.appendingPathComponent("Lunara", isDirectory: true)
+        try fileManager.createDirectory(at: appDirectory, withIntermediateDirectories: true)
+
+        let databaseURL = appDirectory.appendingPathComponent("library.sqlite")
+        return try LibraryStore(databaseURL: databaseURL)
     }
 }
 

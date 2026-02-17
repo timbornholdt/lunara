@@ -6,6 +6,47 @@ import Testing
 @MainActor
 struct AppCoordinatorTests {
     @Test
+    func fetchAlbums_refreshesThenReturnsUpdatedAlbums() async throws {
+        let subject = makeSubject()
+        subject.library.albumsByPage[1] = [makeAlbum(id: "cached-1")]
+        subject.library.refreshHook = {
+            subject.library.albumsByPage[1] = [makeAlbum(id: "fresh-1"), makeAlbum(id: "fresh-2")]
+        }
+
+        let albums = try await subject.coordinator.fetchAlbums()
+
+        #expect(subject.library.refreshReasons == [.userInitiated])
+        #expect(albums.map(\.plexID) == ["fresh-1", "fresh-2"])
+    }
+
+    @Test
+    func fetchAlbums_whenRefreshFails_returnsCachedAlbums() async throws {
+        let subject = makeSubject()
+        subject.library.albumsByPage[1] = [makeAlbum(id: "cached-1")]
+        subject.library.refreshError = LibraryError.timeout
+
+        let albums = try await subject.coordinator.fetchAlbums()
+
+        #expect(subject.library.refreshReasons == [.userInitiated])
+        #expect(albums.map(\.plexID) == ["cached-1"])
+    }
+
+    @Test
+    func fetchAlbums_whenRefreshFailsAndCacheEmpty_throwsRefreshError() async {
+        let subject = makeSubject()
+        subject.library.refreshError = LibraryError.timeout
+
+        do {
+            _ = try await subject.coordinator.fetchAlbums()
+            Issue.record("Expected fetchAlbums to throw")
+        } catch let error as LibraryError {
+            #expect(error == .timeout)
+        } catch {
+            Issue.record("Expected LibraryError, got: \(error)")
+        }
+    }
+
+    @Test
     func pausePlayback_delegatesToRouterQueuePause() {
         let subject = makeSubject()
 
@@ -43,7 +84,8 @@ struct AppCoordinatorTests {
 
     private func makeSubject() -> (
         coordinator: AppCoordinator,
-        queue: CoordinatorQueueManagerMock
+        queue: CoordinatorQueueManagerMock,
+        library: CoordinatorLibraryRepoMock
     ) {
         let keychain = MockKeychainHelper()
         let authManager = AuthManager(keychain: keychain, authAPI: nil, debugTokenProvider: { nil })
@@ -65,14 +107,34 @@ struct AppCoordinatorTests {
             appRouter: appRouter
         )
 
-        return (coordinator, queue)
+        return (coordinator, queue, library)
+    }
+
+    private func makeAlbum(id: String) -> Album {
+        Album(
+            plexID: id,
+            title: "Album \(id)",
+            artistName: "Artist",
+            year: nil,
+            thumbURL: nil,
+            genre: nil,
+            rating: nil,
+            addedAt: nil,
+            trackCount: 1,
+            duration: 180
+        )
     }
 }
 
 @MainActor
 private final class CoordinatorLibraryRepoMock: LibraryRepoProtocol {
+    var albumsByPage: [Int: [Album]] = [:]
+    var refreshReasons: [LibraryRefreshReason] = []
+    var refreshError: LibraryError?
+    var refreshHook: (() -> Void)?
+
     func albums(page: LibraryPage) async throws -> [Album] {
-        []
+        albumsByPage[page.number] ?? []
     }
 
     func album(id: String) async throws -> Album? {
@@ -96,7 +158,12 @@ private final class CoordinatorLibraryRepoMock: LibraryRepoProtocol {
     }
 
     func refreshLibrary(reason: LibraryRefreshReason) async throws -> LibraryRefreshOutcome {
-        LibraryRefreshOutcome(
+        refreshReasons.append(reason)
+        if let refreshError {
+            throw refreshError
+        }
+        refreshHook?()
+        return LibraryRefreshOutcome(
             reason: reason,
             refreshedAt: Date(timeIntervalSince1970: 0),
             albumCount: 0,
