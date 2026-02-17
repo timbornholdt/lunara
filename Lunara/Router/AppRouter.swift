@@ -51,4 +51,20 @@ final class AppRouter {
         queue.playNow(items)
         logger.info("playAlbum queued \(items.count, privacy: .public) items for album id '\(album.plexID, privacy: .public)'")
     }
+
+    func pausePlayback() {
+        queue.pause()
+    }
+
+    func resumePlayback() {
+        queue.resume()
+    }
+
+    func skipToNextTrack() {
+        queue.skipToNext()
+    }
+
+    func stopPlayback() {
+        queue.clear()
+    }
 }

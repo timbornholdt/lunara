@@ -99,6 +99,42 @@ struct AppRouterTests {
         #expect(subject.library.streamURLRequests == [track.plexID])
     }
 
+    @Test
+    func pausePlayback_delegatesToQueuePause() {
+        let subject = makeSubject()
+
+        subject.router.pausePlayback()
+
+        #expect(subject.queue.pauseCallCount == 1)
+    }
+
+    @Test
+    func resumePlayback_delegatesToQueueResume() {
+        let subject = makeSubject()
+
+        subject.router.resumePlayback()
+
+        #expect(subject.queue.resumeCallCount == 1)
+    }
+
+    @Test
+    func skipToNextTrack_delegatesToQueueSkipToNext() {
+        let subject = makeSubject()
+
+        subject.router.skipToNextTrack()
+
+        #expect(subject.queue.skipToNextCallCount == 1)
+    }
+
+    @Test
+    func stopPlayback_delegatesToQueueClear() {
+        let subject = makeSubject()
+
+        subject.router.stopPlayback()
+
+        #expect(subject.queue.clearCallCount == 1)
+    }
+
     private func makeSubject() -> (
         router: AppRouter,
         library: LibraryRepoMock,
@@ -186,6 +222,10 @@ private final class QueueManagerMock: QueueManagerProtocol {
     private(set) var lastError: MusicError?
 
     private(set) var playNowCalls: [[QueueItem]] = []
+    private(set) var pauseCallCount = 0
+    private(set) var resumeCallCount = 0
+    private(set) var skipToNextCallCount = 0
+    private(set) var clearCallCount = 0
 
     func playNow(_ items: [QueueItem]) {
         playNowCalls.append(items)
@@ -197,8 +237,16 @@ private final class QueueManagerMock: QueueManagerProtocol {
     func playNext(_ items: [QueueItem]) { }
     func playLater(_ items: [QueueItem]) { }
     func play() { }
-    func pause() { }
-    func resume() { }
-    func skipToNext() { }
-    func clear() { }
+    func pause() {
+        pauseCallCount += 1
+    }
+    func resume() {
+        resumeCallCount += 1
+    }
+    func skipToNext() {
+        skipToNextCallCount += 1
+    }
+    func clear() {
+        clearCallCount += 1
+    }
 }
