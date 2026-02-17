@@ -86,18 +86,12 @@ final class AppCoordinator {
 
     // MARK: - Actions
 
-    func fetchAlbums() async throws -> [Album] {
-        let cachedAlbums = try await libraryRepo.fetchAlbums()
+    func loadLibraryOnLaunch() async throws -> [Album] {
+        try await syncAlbums(refreshReason: .appLaunch)
+    }
 
-        do {
-            _ = try await libraryRepo.refreshLibrary(reason: .userInitiated)
-            return try await libraryRepo.fetchAlbums()
-        } catch {
-            if !cachedAlbums.isEmpty {
-                return cachedAlbums
-            }
-            throw error
-        }
+    func fetchAlbums() async throws -> [Album] {
+        try await syncAlbums(refreshReason: .userInitiated)
     }
 
     func playAlbum(_ album: Album) async throws {
@@ -130,6 +124,20 @@ final class AppCoordinator {
     }
 
     // MARK: - Private Helpers
+
+    private func syncAlbums(refreshReason: LibraryRefreshReason) async throws -> [Album] {
+        let cachedAlbums = try await libraryRepo.fetchAlbums()
+
+        do {
+            _ = try await libraryRepo.refreshLibrary(reason: refreshReason)
+            return try await libraryRepo.fetchAlbums()
+        } catch {
+            if !cachedAlbums.isEmpty {
+                return cachedAlbums
+            }
+            throw error
+        }
+    }
 
     private static func loadServerURL() -> URL {
         // Try LocalConfig.plist first

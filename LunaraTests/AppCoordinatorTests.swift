@@ -6,15 +6,50 @@ import Testing
 @MainActor
 struct AppCoordinatorTests {
     @Test
+    func loadLibraryOnLaunch_refreshesWithAppLaunchReasonAndReturnsUpdatedAlbums() async throws {
+        let subject = makeSubject()
+        subject.library.albumsByPage[1] = [makeAlbum(id: "cached-1")]
+        subject.library.refreshHook = {
+            subject.library.albumsByPage[1] = [makeAlbum(id: "fresh-1"), makeAlbum(id: "fresh-2")]
+        }
+        let albums = try await subject.coordinator.loadLibraryOnLaunch()
+        #expect(subject.library.refreshReasons == [.appLaunch])
+        #expect(albums.map(\.plexID) == ["fresh-1", "fresh-2"])
+    }
+
+    @Test
+    func loadLibraryOnLaunch_whenRefreshFails_returnsCachedAlbums() async throws {
+        let subject = makeSubject()
+        subject.library.albumsByPage[1] = [makeAlbum(id: "cached-1")]
+        subject.library.refreshError = LibraryError.timeout
+        let albums = try await subject.coordinator.loadLibraryOnLaunch()
+        #expect(subject.library.refreshReasons == [.appLaunch])
+        #expect(albums.map(\.plexID) == ["cached-1"])
+    }
+
+    @Test
+    func loadLibraryOnLaunch_whenRefreshFailsAndCacheEmpty_throwsRefreshError() async {
+        let subject = makeSubject()
+        subject.library.refreshError = LibraryError.timeout
+
+        do {
+            _ = try await subject.coordinator.loadLibraryOnLaunch()
+            Issue.record("Expected loadLibraryOnLaunch to throw")
+        } catch let error as LibraryError {
+            #expect(error == .timeout)
+        } catch {
+            Issue.record("Expected LibraryError, got: \(error)")
+        }
+    }
+
+    @Test
     func fetchAlbums_refreshesThenReturnsUpdatedAlbums() async throws {
         let subject = makeSubject()
         subject.library.albumsByPage[1] = [makeAlbum(id: "cached-1")]
         subject.library.refreshHook = {
             subject.library.albumsByPage[1] = [makeAlbum(id: "fresh-1"), makeAlbum(id: "fresh-2")]
         }
-
         let albums = try await subject.coordinator.fetchAlbums()
-
         #expect(subject.library.refreshReasons == [.userInitiated])
         #expect(albums.map(\.plexID) == ["fresh-1", "fresh-2"])
     }
@@ -24,9 +59,7 @@ struct AppCoordinatorTests {
         let subject = makeSubject()
         subject.library.albumsByPage[1] = [makeAlbum(id: "cached-1")]
         subject.library.refreshError = LibraryError.timeout
-
         let albums = try await subject.coordinator.fetchAlbums()
-
         #expect(subject.library.refreshReasons == [.userInitiated])
         #expect(albums.map(\.plexID) == ["cached-1"])
     }
@@ -49,36 +82,28 @@ struct AppCoordinatorTests {
     @Test
     func pausePlayback_delegatesToRouterQueuePause() {
         let subject = makeSubject()
-
         subject.coordinator.pausePlayback()
-
         #expect(subject.queue.pauseCallCount == 1)
     }
 
     @Test
     func resumePlayback_delegatesToRouterQueueResume() {
         let subject = makeSubject()
-
         subject.coordinator.resumePlayback()
-
         #expect(subject.queue.resumeCallCount == 1)
     }
 
     @Test
     func skipToNextTrack_delegatesToRouterQueueSkipToNext() {
         let subject = makeSubject()
-
         subject.coordinator.skipToNextTrack()
-
         #expect(subject.queue.skipToNextCallCount == 1)
     }
 
     @Test
     func stopPlayback_delegatesToRouterQueueClear() {
         let subject = makeSubject()
-
         subject.coordinator.stopPlayback()
-
         #expect(subject.queue.clearCallCount == 1)
     }
 
@@ -107,9 +132,7 @@ struct AppCoordinatorTests {
             appRouter: AppRouter(library: repo, queue: queue)
         )
         remote.albums = [makeAlbum(id: "fresh-1"), makeAlbum(id: "fresh-2")]
-
         let albums = try await coordinator.fetchAlbums()
-
         #expect(albums.map(\.plexID) == ["fresh-1", "fresh-2"])
         #expect(store.replaceLibraryCallCount == 1)
         #expect(artworkPipeline.thumbnailRequests.map(\.ownerID) == ["fresh-1", "fresh-2"])
