@@ -15,11 +15,13 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
     private var currentAttributes: [String: String] = [:]
     private var metadataItems: [[String: String]] = []
     private var directoryItems: [[String: String]] = []
+    private var currentMetadataIndex: Int?
     func decode(_ data: Data) throws -> PlexMediaContainer {
         let parser = XMLParser(data: data)
         parser.delegate = self
         metadataItems.removeAll()
         directoryItems.removeAll()
+        currentMetadataIndex = nil
 
         guard parser.parse() else {
             throw XMLDecodingError.invalidXML
@@ -57,7 +59,7 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
                 albumCount: albumCount,
                 summary: attrs["summary"],
                 titleSort: attrs["titleSort"],
-                key: attrs["key"]
+                key: attrs["partKey"] ?? attrs["key"]
             )
         }
 
@@ -111,9 +113,17 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
         if elementName == "Metadata" {
             // Store all attributes for this Metadata element
             metadataItems.append(attributeDict)
+            currentMetadataIndex = metadataItems.count - 1
         } else if elementName == "Track" || elementName == "Video" {
             // Plex track listing endpoints commonly use <Track> elements instead of <Metadata>
             metadataItems.append(attributeDict)
+            currentMetadataIndex = metadataItems.count - 1
+        } else if elementName == "Part",
+                  let metadataIndex = currentMetadataIndex,
+                  let partKey = attributeDict["key"],
+                  !partKey.isEmpty {
+            // Prefer direct file part URLs for playback over metadata URLs.
+            metadataItems[metadataIndex]["partKey"] = partKey
         } else if elementName == "Directory" {
             // Store all attributes for this Directory element
             directoryItems.append(attributeDict)
@@ -126,7 +136,9 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
         namespaceURI: String?,
         qualifiedName qName: String?
     ) {
-        // No-op; parser state is fully captured from start-element attributes.
+        if elementName == "Track" || elementName == "Video" || elementName == "Metadata" {
+            currentMetadataIndex = nil
+        }
     }
 }
 
