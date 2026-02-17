@@ -8,6 +8,7 @@ struct DebugLibraryView: View {
 
     let coordinator: AppCoordinator
     private let logger = Logger(subsystem: "holdings.chinlock.lunara", category: "DebugLibraryView")
+    private let duplicateReporter = AlbumDuplicateDebugReporter()
 
     @State private var albums: [Album] = []
     @State private var isLoading = false
@@ -215,6 +216,12 @@ struct DebugLibraryView: View {
                     self.isLoading = false
                 }
                 logger.info("Fetched \(fetchedAlbums.count, privacy: .public) albums")
+                duplicateReporter.logReport(
+                    albums: fetchedAlbums,
+                    logger: logger,
+                    spotlightTitle: "After the Gold Rush",
+                    spotlightArtist: "Neil Young"
+                )
             } catch let error as LibraryError {
                 await MainActor.run {
                     self.isLoading = false
