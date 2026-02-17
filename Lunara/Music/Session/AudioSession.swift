@@ -58,8 +58,12 @@ final class AudioSession: AudioSessionProtocol {
     }
 
     func configureForPlayback() throws {
-        try audioSession.setCategory(.playback, mode: .default, options: [])
-        try audioSession.setActive(true, options: [])
+        do {
+            try audioSession.setCategory(.playback, mode: .default, options: [])
+            try audioSession.setActive(true, options: [])
+        } catch {
+            throw MusicError.audioSessionFailed
+        }
 
         if let interruptionObserver {
             notificationCenter.removeObserver(interruptionObserver)

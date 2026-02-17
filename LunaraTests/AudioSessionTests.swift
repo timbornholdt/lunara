@@ -101,6 +101,62 @@ struct AudioSessionTests {
         #expect(notificationCenterSpy.removeObserverCallCount == 1)
         #expect(notificationCenterSpy.removedObservers.first as? ObserverToken == firstObserver)
     }
+
+    @Test
+    func configureForPlayback_whenSetCategoryFails_throwsMusicErrorAndDoesNotObserveInterruptions() {
+        let audioSessionSpy = AudioSessionSpy()
+        audioSessionSpy.setCategoryError = TestError.stub
+        let notificationCenterSpy = NotificationCenterSpy()
+        let subject = AudioSession(audioSession: audioSessionSpy, notificationCenter: notificationCenterSpy)
+
+        do {
+            try subject.configureForPlayback()
+            Issue.record("Expected configureForPlayback to throw")
+        } catch let error as MusicError {
+            #expect(error == .audioSessionFailed)
+        } catch {
+            Issue.record("Unexpected error type: \(error)")
+        }
+
+        #expect(notificationCenterSpy.addObserverCallCount == 0)
+    }
+
+    @Test
+    func configureForPlayback_whenSetActiveFails_throwsMusicErrorAndDoesNotObserveInterruptions() {
+        let audioSessionSpy = AudioSessionSpy()
+        audioSessionSpy.setActiveError = TestError.stub
+        let notificationCenterSpy = NotificationCenterSpy()
+        let subject = AudioSession(audioSession: audioSessionSpy, notificationCenter: notificationCenterSpy)
+
+        do {
+            try subject.configureForPlayback()
+            Issue.record("Expected configureForPlayback to throw")
+        } catch let error as MusicError {
+            #expect(error == .audioSessionFailed)
+        } catch {
+            Issue.record("Unexpected error type: \(error)")
+        }
+
+        #expect(notificationCenterSpy.addObserverCallCount == 0)
+    }
+
+    @Test
+    func interruptionNotification_whenPayloadMissingType_ignoresNotification() throws {
+        let audioSessionSpy = AudioSessionSpy()
+        let notificationCenterSpy = NotificationCenterSpy()
+        let subject = AudioSession(audioSession: audioSessionSpy, notificationCenter: notificationCenterSpy)
+        var beganCallCount = 0
+        var endedCallCount = 0
+
+        subject.onInterruptionBegan = { beganCallCount += 1 }
+        subject.onInterruptionEnded = { _ in endedCallCount += 1 }
+
+        try subject.configureForPlayback()
+        notificationCenterSpy.emitRawInterruption(userInfo: [:])
+
+        #expect(beganCallCount == 0)
+        #expect(endedCallCount == 0)
+    }
 }
 
 private final class AudioSessionSpy: AudioSessionType {
@@ -113,11 +169,18 @@ private final class AudioSessionSpy: AudioSessionType {
     private(set) var lastActiveValue: Bool?
     private(set) var lastSetActiveOptions: AVAudioSession.SetActiveOptions?
 
+    var setCategoryError: Error?
+    var setActiveError: Error?
+
     func setCategory(
         _ category: AVAudioSession.Category,
         mode: AVAudioSession.Mode,
         options: AVAudioSession.CategoryOptions
     ) throws {
+        if let setCategoryError {
+            throw setCategoryError
+        }
+
         setCategoryCallCount += 1
         lastCategory = category
         lastMode = mode
@@ -125,6 +188,10 @@ private final class AudioSessionSpy: AudioSessionType {
     }
 
     func setActive(_ active: Bool, options: AVAudioSession.SetActiveOptions) throws {
+        if let setActiveError {
+            throw setActiveError
+        }
+
         setActiveCallCount += 1
         lastActiveValue = active
         lastSetActiveOptions = options
@@ -177,6 +244,19 @@ private final class NotificationCenterSpy: NotificationCenterType {
 
         interruptionHandler?(notification)
     }
+
+    func emitRawInterruption(userInfo: [AnyHashable: Any]) {
+        let notification = Notification(
+            name: AVAudioSession.interruptionNotification,
+            object: nil,
+            userInfo: userInfo
+        )
+        interruptionHandler?(notification)
+    }
 }
 
 private final class ObserverToken: NSObject {}
+
+private enum TestError: Error {
+    case stub
+}
