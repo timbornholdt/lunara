@@ -82,10 +82,35 @@ final class PlexAPIClientTests: XCTestCase {
         let albums = try await client.fetchAlbums()
 
         XCTAssertEqual(albums.count, 2)
+        XCTAssertEqual(albums[0].plexID, "1001")
         XCTAssertEqual(albums[0].title, "Abbey Road")
         XCTAssertEqual(albums[0].artistName, "The Beatles")
         XCTAssertEqual(albums[0].year, 1969)
+        XCTAssertEqual(albums[1].plexID, "1002")
         XCTAssertEqual(albums[1].title, "Dark Side of the Moon")
+    }
+
+    func test_fetchAlbums_withMissingRatingKey_throwsInvalidResponse() async throws {
+        try authManager.setToken("token")
+        mockSession.dataToReturn = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <MediaContainer>
+            <Directory key="/library/metadata/1001/children" type="album" title="Abbey Road" parentTitle="The Beatles" />
+        </MediaContainer>
+        """.data(using: .utf8)!
+
+        do {
+            _ = try await client.fetchAlbums()
+            XCTFail("Should throw invalidResponse")
+        } catch let error as LibraryError {
+            if case .invalidResponse = error {
+                // Expected
+            } else {
+                XCTFail("Wrong error type: \(error)")
+            }
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
     }
 
     func test_fetchAlbums_with401Response_invalidatesToken() async throws {

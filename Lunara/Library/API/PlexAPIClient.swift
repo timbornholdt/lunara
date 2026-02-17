@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 // MARK: - PlexAPIClient
 
@@ -13,6 +14,7 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
     private let session: URLSessionProtocol
     private let xmlDecoder: XMLDecoder
     private let jsonDecoder: JSONDecoder
+    private let logger = Logger(subsystem: "holdings.chinlock.lunara", category: "PlexAPIClient")
 
     // Plex client identification headers (required by Plex API)
     private let clientIdentifier = "Lunara-iOS"
@@ -53,8 +55,17 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
             return []
         }
 
-        return directories.compactMap { directory in
-            guard directory.type == "album" else { return nil }
+        var albums: [Album] = []
+        albums.reserveCapacity(directories.count)
+
+        for directory in directories {
+            guard directory.type == "album" else { continue }
+            guard let albumID = directory.ratingKey, !albumID.isEmpty else {
+                logger.error(
+                    "Album directory missing required ratingKey. title='\(directory.title, privacy: .public)' key='\(directory.key, privacy: .public)'"
+                )
+                throw LibraryError.invalidResponse
+            }
 
             // Convert addedAt timestamp to Date
             let addedAtDate = directory.addedAt.map { Date(timeIntervalSince1970: TimeInterval($0)) }
@@ -62,8 +73,8 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
             // Convert duration from milliseconds to seconds
             let durationSeconds = directory.duration.map { TimeInterval($0) / 1000.0 } ?? 0.0
 
-            return Album(
-                plexID: directory.key,
+            albums.append(Album(
+                plexID: albumID,
                 title: directory.title,
                 artistName: directory.parentTitle ?? "Unknown Artist",
                 year: directory.year,
@@ -73,8 +84,10 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
                 addedAt: addedAtDate,
                 trackCount: directory.leafCount ?? 0,
                 duration: durationSeconds
-            )
+            ))
         }
+
+        return albums
     }
 
     /// Fetch tracks for a specific album
