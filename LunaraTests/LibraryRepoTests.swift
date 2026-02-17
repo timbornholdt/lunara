@@ -56,6 +56,54 @@ struct LibraryRepoTests {
     }
 
     @Test
+    func refreshLibrary_withSplitAlbumGroups_mergesAlbumsAndRehomesTracksToCanonicalAlbum() async throws {
+        let subject = makeSubject()
+        let splitAlbumA = makeAlbum(id: "album-b", title: "Shared Album", artistName: "Shared Artist", year: 1999, trackCount: 1)
+        let splitAlbumB = makeAlbum(id: "album-a", title: "Shared Album", artistName: "Shared Artist", year: 1999, trackCount: 1)
+        subject.remote.albums = [splitAlbumA, splitAlbumB]
+        subject.remote.tracksByAlbumID[splitAlbumA.plexID] = [
+            makeTrack(id: "track-b1", albumID: splitAlbumA.plexID, number: 2)
+        ]
+        subject.remote.tracksByAlbumID[splitAlbumB.plexID] = [
+            makeTrack(id: "track-a1", albumID: splitAlbumB.plexID, number: 1)
+        ]
+
+        let outcome = try await subject.repo.refreshLibrary(reason: .userInitiated)
+        let persistedSnapshot = try #require(subject.store.replacedSnapshot)
+
+        #expect(persistedSnapshot.albums.map(\.plexID) == ["album-a"])
+        #expect(persistedSnapshot.albums.first?.trackCount == 2)
+        #expect(persistedSnapshot.tracks.map(\.plexID) == ["track-a1", "track-b1"])
+        #expect(persistedSnapshot.tracks.map(\.albumID) == ["album-a", "album-a"])
+        #expect(outcome.albumCount == 1)
+        #expect(outcome.trackCount == 2)
+    }
+
+    @Test
+    func refreshLibrary_withDifferentRemoteOrder_keepsCanonicalAlbumSelectionStable() async throws {
+        let subject = makeSubject()
+        let splitAlbumA = makeAlbum(id: "album-b", title: "Shared Album", artistName: "Shared Artist", year: 1999, trackCount: 1)
+        let splitAlbumB = makeAlbum(id: "album-a", title: "Shared Album", artistName: "Shared Artist", year: 1999, trackCount: 1)
+        subject.remote.tracksByAlbumID[splitAlbumA.plexID] = [
+            makeTrack(id: "track-b1", albumID: splitAlbumA.plexID, number: 2)
+        ]
+        subject.remote.tracksByAlbumID[splitAlbumB.plexID] = [
+            makeTrack(id: "track-a1", albumID: splitAlbumB.plexID, number: 1)
+        ]
+
+        subject.remote.albums = [splitAlbumA, splitAlbumB]
+        _ = try await subject.repo.refreshLibrary(reason: .appLaunch)
+        let firstCanonicalIDs = subject.store.replacedSnapshot?.albums.map(\.plexID)
+
+        subject.remote.albums = [splitAlbumB, splitAlbumA]
+        _ = try await subject.repo.refreshLibrary(reason: .userInitiated)
+        let secondCanonicalIDs = subject.store.replacedSnapshot?.albums.map(\.plexID)
+
+        #expect(firstCanonicalIDs == ["album-a"])
+        #expect(secondCanonicalIDs == ["album-a"])
+    }
+
+    @Test
     func refreshLibrary_whenRemoteFails_doesNotReplaceStoreAndPropagatesError() async {
         let subject = makeSubject()
         subject.remote.fetchAlbumsError = .timeout
@@ -151,12 +199,18 @@ struct LibraryRepoTests {
         return (repo, remote, store)
     }
 
-    private func makeAlbum(id: String, trackCount: Int = 0) -> Album {
+    private func makeAlbum(
+        id: String,
+        title: String? = nil,
+        artistName: String? = nil,
+        year: Int? = nil,
+        trackCount: Int = 0
+    ) -> Album {
         Album(
             plexID: id,
-            title: "Album \(id)",
-            artistName: "Artist",
-            year: nil,
+            title: title ?? "Album \(id)",
+            artistName: artistName ?? "Artist",
+            year: year,
             thumbURL: nil,
             genre: nil,
             rating: nil,
