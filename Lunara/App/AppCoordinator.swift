@@ -12,6 +12,7 @@ final class AppCoordinator {
     let authManager: AuthManager
     let plexClient: PlexAPIClient
     let libraryRepo: LibraryRepoProtocol
+    let artworkPipeline: ArtworkPipelineProtocol
     let playbackEngine: PlaybackEngineProtocol
     let queueManager: QueueManagerProtocol
     let appRouter: AppRouter
@@ -28,6 +29,7 @@ final class AppCoordinator {
         authManager: AuthManager,
         plexClient: PlexAPIClient,
         libraryRepo: LibraryRepoProtocol,
+        artworkPipeline: ArtworkPipelineProtocol,
         playbackEngine: PlaybackEngineProtocol,
         queueManager: QueueManagerProtocol,
         appRouter: AppRouter
@@ -35,6 +37,7 @@ final class AppCoordinator {
         self.authManager = authManager
         self.plexClient = plexClient
         self.libraryRepo = libraryRepo
+        self.artworkPipeline = artworkPipeline
         self.playbackEngine = playbackEngine
         self.queueManager = queueManager
         self.appRouter = appRouter
@@ -44,24 +47,28 @@ final class AppCoordinator {
         // Initialize dependencies
         let keychain = KeychainHelper()
         let serverURL = Self.loadServerURL()
-
-        // To resolve circular dependency:
-        // 1. Create AuthManager without authAPI
-        // 2. Create PlexAPIClient with that AuthManager
-        // 3. AuthManager's authAPI can be set later if needed,
-        //    or we use PlexAPIClient directly for OAuth
-
-        // Create AuthManager (authAPI is optional, defaults to nil)
         let authManager = AuthManager(keychain: keychain)
-
-        // Create PlexAPIClient (which implements PlexAuthAPIProtocol)
         let plexClient = PlexAPIClient(
             baseURL: serverURL,
             authManager: authManager,
             session: URLSession.shared
         )
 
-        let libraryRepo = plexClient
+        let libraryStore: LibraryStoreProtocol
+        do {
+            libraryStore = try Self.makeLibraryStore()
+        } catch {
+            fatalError("Failed to initialize LibraryStore: \(error)")
+        }
+
+        let artworkPipeline: ArtworkPipelineProtocol
+        do {
+            artworkPipeline = try Self.makeArtworkPipeline(store: libraryStore)
+        } catch {
+            fatalError("Failed to initialize ArtworkPipeline: \(error)")
+        }
+
+        let libraryRepo = LibraryRepo(remote: plexClient, store: libraryStore, artworkPipeline: artworkPipeline)
         let playbackEngine = AVQueuePlayerEngine(audioSession: AudioSession())
         let queueManager = QueueManager(engine: playbackEngine)
         let appRouter = AppRouter(library: libraryRepo, queue: queueManager)
@@ -70,6 +77,7 @@ final class AppCoordinator {
             authManager: authManager,
             plexClient: plexClient,
             libraryRepo: libraryRepo,
+            artworkPipeline: artworkPipeline,
             playbackEngine: playbackEngine,
             queueManager: queueManager,
             appRouter: appRouter
@@ -78,8 +86,12 @@ final class AppCoordinator {
 
     // MARK: - Actions
 
+    func loadLibraryOnLaunch() async throws -> [Album] {
+        try await syncAlbums(refreshReason: .appLaunch)
+    }
+
     func fetchAlbums() async throws -> [Album] {
-        try await libraryRepo.fetchAlbums()
+        try await syncAlbums(refreshReason: .userInitiated)
     }
 
     func playAlbum(_ album: Album) async throws {
@@ -113,6 +125,20 @@ final class AppCoordinator {
 
     // MARK: - Private Helpers
 
+    private func syncAlbums(refreshReason: LibraryRefreshReason) async throws -> [Album] {
+        let cachedAlbums = try await libraryRepo.fetchAlbums()
+
+        do {
+            _ = try await libraryRepo.refreshLibrary(reason: refreshReason)
+            return try await libraryRepo.fetchAlbums()
+        } catch {
+            if !cachedAlbums.isEmpty {
+                return cachedAlbums
+            }
+            throw error
+        }
+    }
+
     private static func loadServerURL() -> URL {
         // Try LocalConfig.plist first
         if let configPath = Bundle.main.path(forResource: "LocalConfig", ofType: "plist"),
@@ -124,5 +150,32 @@ final class AppCoordinator {
 
         // Default fallback (will fail, but better than crashing)
         return URL(string: "http://localhost:32400")!
+    }
+
+    private static func makeLibraryStore() throws -> LibraryStore {
+        let appDirectory = try appDirectory()
+        let databaseURL = appDirectory.appendingPathComponent("library.sqlite")
+        return try LibraryStore(databaseURL: databaseURL)
+    }
+
+    private static func makeArtworkPipeline(store: LibraryStoreProtocol) throws -> ArtworkPipeline {
+        let appDirectory = try appDirectory()
+        let artworkCacheDirectoryURL = appDirectory.appendingPathComponent("artwork-cache", isDirectory: true)
+        return ArtworkPipeline(
+            store: store,
+            session: URLSession.shared,
+            cacheDirectoryURL: artworkCacheDirectoryURL
+        )
+    }
+
+    private static func appDirectory() throws -> URL {
+        let fileManager = FileManager.default
+        guard let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            throw LibraryError.operationFailed(reason: "Unable to resolve application support directory.")
+        }
+
+        let appDirectory = appSupportURL.appendingPathComponent("Lunara", isDirectory: true)
+        try fileManager.createDirectory(at: appDirectory, withIntermediateDirectories: true)
+        return appDirectory
     }
 }

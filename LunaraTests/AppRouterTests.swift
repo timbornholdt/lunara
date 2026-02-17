@@ -178,7 +178,7 @@ struct AppRouterTests {
 @MainActor
 private final class LibraryRepoMock: LibraryRepoProtocol {
     var albums: [Album] = []
-    var fetchAlbumsCallCount = 0
+    var albumPageRequests: [LibraryPage] = []
 
     var tracksByAlbumID: [String: [Track]] = [:]
     var trackRequests: [String] = []
@@ -188,9 +188,19 @@ private final class LibraryRepoMock: LibraryRepoProtocol {
     var streamURLRequests: [String] = []
     var streamURLError: LibraryError?
 
-    func fetchAlbums() async throws -> [Album] {
-        fetchAlbumsCallCount += 1
-        return albums
+    func albums(page: LibraryPage) async throws -> [Album] {
+        albumPageRequests.append(page)
+
+        guard page.offset < albums.count else {
+            return []
+        }
+
+        let endIndex = min(page.offset + page.size, albums.count)
+        return Array(albums[page.offset..<endIndex])
+    }
+
+    func album(id: String) async throws -> Album? {
+        albums.first { $0.plexID == id }
     }
 
     func tracks(forAlbum albumID: String) async throws -> [Track] {
@@ -210,6 +220,33 @@ private final class LibraryRepoMock: LibraryRepoProtocol {
             throw LibraryError.resourceNotFound(type: "track", id: track.plexID)
         }
         return url
+    }
+
+    func collections() async throws -> [Collection] {
+        []
+    }
+
+    func artists() async throws -> [Artist] {
+        []
+    }
+
+    func artist(id: String) async throws -> Artist? {
+        nil
+    }
+
+    func refreshLibrary(reason: LibraryRefreshReason) async throws -> LibraryRefreshOutcome {
+        LibraryRefreshOutcome(
+            reason: reason,
+            refreshedAt: Date(timeIntervalSince1970: 0),
+            albumCount: 0,
+            trackCount: 0,
+            artistCount: 0,
+            collectionCount: 0
+        )
+    }
+
+    func lastRefreshDate() async throws -> Date? {
+        nil
     }
 }
 

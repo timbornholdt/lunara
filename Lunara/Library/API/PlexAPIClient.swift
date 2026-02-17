@@ -153,6 +153,38 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
         return url
     }
 
+    func authenticatedArtworkURL(for rawValue: String?) async throws -> URL? {
+        guard let rawValue, !rawValue.isEmpty else {
+            return nil
+        }
+
+        let token = try await authManager.validToken()
+
+        let initialURL: URL?
+        if let parsed = URL(string: rawValue), parsed.scheme != nil {
+            initialURL = parsed
+        } else if rawValue.hasPrefix("/") {
+            initialURL = URL(string: rawValue, relativeTo: baseURL)?.absoluteURL
+        } else {
+            initialURL = URL(string: "/\(rawValue)", relativeTo: baseURL)?.absoluteURL
+        }
+
+        guard let resolvedURL = initialURL else {
+            return nil
+        }
+
+        guard var components = URLComponents(url: resolvedURL, resolvingAgainstBaseURL: false) else {
+            return nil
+        }
+
+        var queryItems = components.queryItems ?? []
+        if !queryItems.contains(where: { $0.name == "X-Plex-Token" }) {
+            queryItems.append(URLQueryItem(name: "X-Plex-Token", value: token))
+        }
+        components.queryItems = queryItems
+        return components.url
+    }
+
     // MARK: - PlexAuthAPIProtocol (OAuth Methods)
 
     /// Request a new PIN for user authorization

@@ -1,0 +1,170 @@
+import Foundation
+import GRDB
+
+struct AlbumRecord: Codable, FetchableRecord, PersistableRecord, TableRecord {
+    static let databaseTableName = "albums"
+
+    let plexID: String
+    let title: String
+    let artistName: String
+    let year: Int?
+    let thumbURL: String?
+    let genre: String?
+    let rating: Int?
+    let addedAt: Date?
+    let trackCount: Int
+    let duration: TimeInterval
+
+    init(model: Album) {
+        plexID = model.plexID
+        title = model.title
+        artistName = model.artistName
+        year = model.year
+        thumbURL = model.thumbURL
+        genre = model.genre
+        rating = model.rating
+        addedAt = model.addedAt
+        trackCount = model.trackCount
+        duration = model.duration
+    }
+
+    var model: Album {
+        Album(
+            plexID: plexID,
+            title: title,
+            artistName: artistName,
+            year: year,
+            thumbURL: thumbURL,
+            genre: genre,
+            rating: rating,
+            addedAt: addedAt,
+            trackCount: trackCount,
+            duration: duration
+        )
+    }
+}
+
+struct TrackRecord: Codable, FetchableRecord, PersistableRecord, TableRecord {
+    static let databaseTableName = "tracks"
+
+    let plexID: String
+    let albumID: String
+    let title: String
+    let trackNumber: Int
+    let duration: TimeInterval
+    let artistName: String
+    let key: String
+    let thumbURL: String?
+
+    init(model: Track) {
+        plexID = model.plexID
+        albumID = model.albumID
+        title = model.title
+        trackNumber = model.trackNumber
+        duration = model.duration
+        artistName = model.artistName
+        key = model.key
+        thumbURL = model.thumbURL
+    }
+
+    var model: Track {
+        Track(
+            plexID: plexID,
+            albumID: albumID,
+            title: title,
+            trackNumber: trackNumber,
+            duration: duration,
+            artistName: artistName,
+            key: key,
+            thumbURL: thumbURL
+        )
+    }
+}
+
+struct ArtistRecord: Codable, FetchableRecord, PersistableRecord, TableRecord {
+    static let databaseTableName = "artists"
+
+    let plexID: String
+    let name: String
+    let sortName: String?
+    let thumbURL: String?
+    let genre: String?
+    let summary: String?
+    let albumCount: Int
+
+    init(model: Artist) {
+        plexID = model.plexID
+        name = model.name
+        sortName = model.sortName
+        thumbURL = model.thumbURL
+        genre = model.genre
+        summary = model.summary
+        albumCount = model.albumCount
+    }
+
+    var model: Artist {
+        Artist(
+            plexID: plexID,
+            name: name,
+            sortName: sortName,
+            thumbURL: thumbURL,
+            genre: genre,
+            summary: summary,
+            albumCount: albumCount
+        )
+    }
+}
+
+struct CollectionRecord: Codable, FetchableRecord, PersistableRecord, TableRecord {
+    static let databaseTableName = "collections"
+
+    let plexID: String
+    let title: String
+    let thumbURL: String?
+    let summary: String?
+    let albumCount: Int
+    let updatedAt: Date?
+
+    init(model: Collection) {
+        plexID = model.plexID
+        title = model.title
+        thumbURL = model.thumbURL
+        summary = model.summary
+        albumCount = model.albumCount
+        updatedAt = model.updatedAt
+    }
+
+    var model: Collection {
+        Collection(
+            plexID: plexID,
+            title: title,
+            thumbURL: thumbURL,
+            summary: summary,
+            albumCount: albumCount,
+            updatedAt: updatedAt
+        )
+    }
+}
+
+struct ArtworkPathRecord: Codable, FetchableRecord, PersistableRecord, TableRecord {
+    static let databaseTableName = "artwork_paths"
+
+    let ownerID: String
+    let ownerType: String
+    let variant: String
+    let path: String
+
+    init(key: ArtworkKey, path: String) {
+        ownerID = key.ownerID
+        ownerType = key.ownerType.rawValue
+        variant = key.variant.rawValue
+        self.path = path
+    }
+}
+
+struct LibraryMetadataRecord: Codable, FetchableRecord, PersistableRecord, TableRecord {
+    static let databaseTableName = "library_metadata"
+
+    let key: String
+    let value: String
+}

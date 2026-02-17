@@ -48,6 +48,7 @@ final class AppRouter {
             items.append(QueueItem(trackID: track.plexID, url: url))
         }
 
+        logEnqueueReport(album: album, tracks: tracks, items: items)
         queue.playNow(items)
         logger.info("playAlbum queued \(items.count, privacy: .public) items for album id '\(album.plexID, privacy: .public)'")
     }
@@ -66,5 +67,46 @@ final class AppRouter {
 
     func stopPlayback() {
         queue.clear()
+    }
+
+    private func logEnqueueReport(album: Album, tracks: [Track], items: [QueueItem]) {
+        var tracksByID: [String: Track] = [:]
+        tracksByID.reserveCapacity(tracks.count)
+        for track in tracks {
+            tracksByID[track.plexID] = track
+        }
+
+        var lines: [String] = []
+        lines.append("========== LUNARA PLAY ALBUM ENQUEUE REPORT ==========")
+        lines.append("albumTitle=\(album.title)")
+        lines.append("albumID=\(album.plexID)")
+        lines.append("trackCount=\(tracks.count)")
+        lines.append("queuedCount=\(items.count)")
+
+        for (index, item) in items.enumerated() {
+            guard let track = tracksByID[item.trackID] else {
+                lines.append("[\(index + 1)] trackID=\(item.trackID) missing-track-metadata url=\(sanitizeURL(item.url))")
+                continue
+            }
+
+            lines.append(
+                "[\(index + 1)] trackNumber=\(track.trackNumber) trackID=\(track.plexID) title=\(track.title) duration=\(Int(track.duration))s key=\(track.key) url=\(sanitizeURL(item.url))"
+            )
+        }
+
+        lines.append("======================================================")
+        logger.info("\(lines.joined(separator: "\n"), privacy: .public)")
+    }
+
+    private func sanitizeURL(_ url: URL) -> String {
+        guard let host = url.host else {
+            return url.path.isEmpty ? url.absoluteString : url.path
+        }
+
+        if url.path.isEmpty {
+            return host
+        }
+
+        return host + url.path
     }
 }

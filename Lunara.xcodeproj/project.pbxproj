@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		A1B2C3D42F50100000AAA001 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D32F50100000AAA001 /* GRDB */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		F1CAF13B2F43741300DEA453 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -71,6 +75,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1B2C3D42F50100000AAA001 /* GRDB in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -131,6 +136,7 @@
 			);
 			name = Lunara;
 			packageProductDependencies = (
+				A1B2C3D32F50100000AAA001 /* GRDB */,
 			);
 			productName = Lunara;
 			productReference = F1CAF12D2F43741200DEA453 /* Lunara.app */;
@@ -214,6 +220,9 @@
 			);
 			mainGroup = F1CAF1242F43741200DEA453;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				A1B2C3D22F50100000AAA001 /* XCRemoteSwiftPackageReference "GRDB" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = F1CAF12E2F43741200DEA453 /* Products */;
 			projectDirPath = "";
@@ -640,6 +649,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A1B2C3D22F50100000AAA001 /* XCRemoteSwiftPackageReference "GRDB" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/groue/GRDB.swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 7.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A1B2C3D32F50100000AAA001 /* GRDB */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1B2C3D22F50100000AAA001 /* XCRemoteSwiftPackageReference "GRDB" */;
+			productName = GRDB;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = F1CAF1252F43741200DEA453 /* Project object */;
 }

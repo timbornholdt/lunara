@@ -8,6 +8,7 @@ struct DebugLibraryView: View {
 
     let coordinator: AppCoordinator
     private let logger = Logger(subsystem: "holdings.chinlock.lunara", category: "DebugLibraryView")
+    private let duplicateReporter = AlbumDuplicateDebugReporter()
 
     @State private var albums: [Album] = []
     @State private var isLoading = false
@@ -32,7 +33,7 @@ struct DebugLibraryView: View {
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button("Fetch Albums") {
-                        fetchAlbums()
+                        refreshAlbumsUserInitiated()
                     }
                     .disabled(isLoading)
                 }
@@ -46,7 +47,7 @@ struct DebugLibraryView: View {
             .task {
                 // Auto-fetch albums on first appearance
                 if albums.isEmpty && !isLoading {
-                    fetchAlbums()
+                    fetchAlbumsOnLaunch()
                 }
             }
         }
@@ -193,7 +194,7 @@ struct DebugLibraryView: View {
                 .foregroundStyle(.secondary)
 
             Button("Try Again") {
-                fetchAlbums()
+                refreshAlbumsUserInitiated()
             }
             .buttonStyle(.borderedProminent)
         }
@@ -202,19 +203,42 @@ struct DebugLibraryView: View {
 
     // MARK: - Actions
 
-    private func fetchAlbums() {
-        logger.info("Fetch albums requested from debug screen")
+    private func fetchAlbumsOnLaunch() {
+        loadAlbums(
+            logMessage: "Fetch albums requested for app launch from debug screen",
+            loader: { try await coordinator.loadLibraryOnLaunch() }
+        )
+    }
+
+    private func refreshAlbumsUserInitiated() {
+        loadAlbums(
+            logMessage: "Fetch albums requested from debug screen",
+            loader: { try await coordinator.fetchAlbums() }
+        )
+    }
+
+    private func loadAlbums(
+        logMessage: String,
+        loader: @escaping @MainActor () async throws -> [Album]
+    ) {
+        logger.info("\(logMessage, privacy: .public)")
         isLoading = true
         errorMessage = nil
 
         Task {
             do {
-                let fetchedAlbums = try await coordinator.fetchAlbums()
+                let fetchedAlbums = try await loader()
                 await MainActor.run {
                     self.albums = fetchedAlbums
                     self.isLoading = false
                 }
                 logger.info("Fetched \(fetchedAlbums.count, privacy: .public) albums")
+                duplicateReporter.logReport(
+                    albums: fetchedAlbums,
+                    logger: logger,
+                    spotlightTitle: "After the Gold Rush",
+                    spotlightArtist: "Neil Young"
+                )
             } catch let error as LibraryError {
                 await MainActor.run {
                     self.isLoading = false

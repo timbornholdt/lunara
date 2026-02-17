@@ -30,8 +30,9 @@ If something isn't in this document, it's not in scope yet. If a task would viol
 
 - **Phase 1 (Shared Types + Plex Connectivity):** Complete
 - **Phase 2 (Playback Engine + Queue Manager):** Complete
-- **Current phase:** Phase 3 (Library Domain Core)
-- **Last verified milestone:** Phase 2 acceptance verified on device and in test suite on February 17, 2026.
+- **Phase 3 (Library Domain Core):** Complete
+- **Current phase:** Phase 4 (UI Shell)
+- **Last verified milestone:** Phase 3 acceptance verified in test suite on February 17, 2026.
 
 ---
 
@@ -466,6 +467,7 @@ These two are built together because the PlaybackEngine needs someone to drive t
 ### Phase 3: Library Domain Core
 
 **Goal:** Cached browsing with pull-to-refresh.
+**Status:** Complete (implemented and acceptance-hardened on February 17, 2026).
 
 **Build:**
 - `LibraryStore` (GRDB): schema for albums, tracks, artists, collections, artwork paths.
@@ -475,6 +477,11 @@ These two are built together because the PlaybackEngine needs someone to drive t
 - Error handling: network failures during refresh show banner, cached data stays visible.
 
 **Acceptance:** Launch → library loads instantly from cache. Pull-to-refresh updates from Plex. 2,000+ albums scroll smoothly with no artwork loading jank (placeholders for uncached, instant for cached). Kill network during refresh → error banner, cached data still works.
+
+**Completion evidence (February 17, 2026):**
+- Full project test command passes: `xcodebuild test -project /Users/timbornholdt/Repos/Lunara/Lunara.xcodeproj -scheme Lunara -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.2'`.
+- Dependency chain wiring complete: `AppCoordinator` composes `LibraryRepo + LibraryStore + ArtworkPipeline` with protocol-based injection.
+- Refresh path hardened: relative Plex artwork paths are resolved to authenticated absolute URLs; metadata refresh completes without waiting on artwork warmup; cached fallback behavior remains intact when refresh fails.
 
 **AI scope:** GRDB schema (one session). LibraryRepo (one session). Artwork pipeline (one session). Three sessions minimum.
 
