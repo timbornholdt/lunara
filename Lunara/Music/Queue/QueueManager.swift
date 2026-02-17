@@ -18,7 +18,9 @@ final class QueueManager: QueueManagerProtocol {
     private let engine: PlaybackEngineProtocol
     private let persistence: QueueStatePersisting
     private var observedTrackID: String?
+    private var lastPersistedElapsed: TimeInterval = 0
     private var pendingSeekAfterNextPlay: TimeInterval?
+    private var persistenceTask: Task<Void, Never>?
 
     init(
         engine: PlaybackEngineProtocol,
@@ -105,13 +107,14 @@ final class QueueManager: QueueManagerProtocol {
         items = []
         currentIndex = nil
         pendingSeekAfterNextPlay = nil
+        lastPersistedElapsed = 0
         engine.stop()
-        do {
-            try persistence.clear()
-            lastError = nil
-        } catch {
-            lastError = .queueOperationFailed(reason: "Failed to clear queue state: \(error.localizedDescription)")
-        }
+        enqueuePersistenceTask(
+            operation: { [persistence] in
+                try await persistence.clear()
+            },
+            failurePrefix: "Failed to clear queue state"
+        )
     }
 
     private func playCurrentItem() {
@@ -157,12 +160,15 @@ final class QueueManager: QueueManagerProtocol {
             if let snapshotIndex = snapshot.currentIndex, snapshot.items.indices.contains(snapshotIndex) {
                 currentIndex = snapshotIndex
                 pendingSeekAfterNextPlay = snapshot.elapsed
+                lastPersistedElapsed = snapshot.elapsed
             } else if !snapshot.items.isEmpty {
                 currentIndex = 0
                 pendingSeekAfterNextPlay = snapshot.elapsed
+                lastPersistedElapsed = snapshot.elapsed
             } else {
                 currentIndex = nil
                 pendingSeekAfterNextPlay = nil
+                lastPersistedElapsed = 0
             }
 
             lastError = nil
@@ -170,22 +176,45 @@ final class QueueManager: QueueManagerProtocol {
             items = []
             currentIndex = nil
             pendingSeekAfterNextPlay = nil
+            lastPersistedElapsed = 0
             lastError = .queueOperationFailed(reason: "Failed to restore queue state: \(error.localizedDescription)")
         }
     }
 
     private func persistQueueState(elapsed: TimeInterval) {
+        let clampedElapsed = max(0, elapsed)
+        lastPersistedElapsed = clampedElapsed
         let snapshot = QueueSnapshot(
             items: items,
             currentIndex: currentIndex,
-            elapsed: max(0, elapsed)
+            elapsed: clampedElapsed
         )
 
-        do {
-            try persistence.save(snapshot)
-            lastError = nil
-        } catch {
-            lastError = .queueOperationFailed(reason: "Failed to persist queue state: \(error.localizedDescription)")
+        enqueuePersistenceTask(
+            operation: { [persistence] in
+                try await persistence.save(snapshot)
+            },
+            failurePrefix: "Failed to persist queue state"
+        )
+    }
+
+    private func enqueuePersistenceTask(
+        operation: @escaping @Sendable () async throws -> Void,
+        failurePrefix: String
+    ) {
+        let previousTask = persistenceTask
+        persistenceTask = Task { [weak self] in
+            await previousTask?.value
+            do {
+                try await operation()
+                await MainActor.run {
+                    self?.lastError = nil
+                }
+            } catch {
+                await MainActor.run {
+                    self?.lastError = .queueOperationFailed(reason: "\(failurePrefix): \(error.localizedDescription)")
+                }
+            }
         }
     }
 
@@ -194,6 +223,7 @@ final class QueueManager: QueueManagerProtocol {
             guard let self else { return }
             _ = self.engine.currentTrackID
             _ = self.engine.playbackState
+            _ = self.engine.elapsed
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 self?.handleEngineStateChange()
@@ -214,12 +244,48 @@ final class QueueManager: QueueManagerProtocol {
         if latestTrackID == nil, engine.playbackState == .idle {
             advanceAndPlayNextIfPossible()
         }
+
+        if shouldPersistElapsedProgress() {
+            persistQueueState(elapsed: engine.elapsed)
+        }
     }
 
     private func handleTrackStarted(trackID: String) {
-        guard let startedIndex = items.firstIndex(where: { $0.trackID == trackID }) else { return }
+        guard let startedIndex = resolveStartedIndex(for: trackID) else { return }
         currentIndex = startedIndex
         prepareUpcomingTrack()
         persistQueueState(elapsed: engine.elapsed)
+    }
+
+    private func resolveStartedIndex(for trackID: String) -> Int? {
+        if let currentIndex, items.indices.contains(currentIndex), items[currentIndex].trackID == trackID {
+            return currentIndex
+        }
+
+        if let currentIndex {
+            let nextRange = items.indices.filter { $0 > currentIndex }
+            if let nextMatch = nextRange.first(where: { items[$0].trackID == trackID }) {
+                return nextMatch
+            }
+
+            let previousRange = items.indices.filter { $0 < currentIndex }.reversed()
+            if let previousMatch = previousRange.first(where: { items[$0].trackID == trackID }) {
+                return previousMatch
+            }
+        }
+
+        return items.firstIndex(where: { $0.trackID == trackID })
+    }
+
+    private func shouldPersistElapsedProgress() -> Bool {
+        guard engine.currentTrackID != nil else { return false }
+        guard engine.playbackState == .playing else { return false }
+
+        let elapsed = max(0, engine.elapsed)
+        if elapsed < lastPersistedElapsed {
+            return true
+        }
+
+        return (elapsed - lastPersistedElapsed) >= 5
     }
 }

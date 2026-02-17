@@ -5,13 +5,17 @@ import Testing
 @MainActor
 struct QueueStatePersistenceTests {
     @Test
-    func saveThenLoad_roundTripsQueueSnapshot() throws {
+    func saveThenLoad_roundTripsQueueSnapshot() async throws {
         let directoryURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         let fileURL = directoryURL.appendingPathComponent("queue_state.json")
         let persistence = FileQueueStatePersistence(fileURL: fileURL)
         defer {
-            try? FileManager.default.removeItem(at: directoryURL)
+            do {
+                try FileManager.default.removeItem(at: directoryURL)
+            } catch {
+                // Safe to ignore cleanup failures for temp test directories.
+            }
         }
 
         let snapshot = QueueSnapshot(
@@ -23,20 +27,24 @@ struct QueueStatePersistenceTests {
             elapsed: 31
         )
 
-        try persistence.save(snapshot)
+        try await persistence.save(snapshot)
         let loaded = try persistence.load()
 
         #expect(loaded == snapshot)
     }
 
     @Test
-    func clear_removesPersistedSnapshot() throws {
+    func clear_removesPersistedSnapshot() async throws {
         let directoryURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         let fileURL = directoryURL.appendingPathComponent("queue_state.json")
         let persistence = FileQueueStatePersistence(fileURL: fileURL)
         defer {
-            try? FileManager.default.removeItem(at: directoryURL)
+            do {
+                try FileManager.default.removeItem(at: directoryURL)
+            } catch {
+                // Safe to ignore cleanup failures for temp test directories.
+            }
         }
 
         let snapshot = QueueSnapshot(
@@ -45,8 +53,8 @@ struct QueueStatePersistenceTests {
             elapsed: 0
         )
 
-        try persistence.save(snapshot)
-        try persistence.clear()
+        try await persistence.save(snapshot)
+        try await persistence.clear()
 
         let loaded = try persistence.load()
         #expect(loaded == nil)

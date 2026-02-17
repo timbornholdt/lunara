@@ -67,14 +67,14 @@ final class QueueStatePersistenceMock: QueueStatePersisting {
         return loadResult
     }
 
-    func save(_ snapshot: QueueSnapshot) throws {
+    func save(_ snapshot: QueueSnapshot) async throws {
         if let saveError {
             throw saveError
         }
         savedSnapshots.append(snapshot)
     }
 
-    func clear() throws {
+    func clear() async throws {
         if let clearError {
             throw clearError
         }

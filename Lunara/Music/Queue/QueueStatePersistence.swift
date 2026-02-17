@@ -1,16 +1,17 @@
 import Foundation
 
-protocol QueueStatePersisting {
+protocol QueueStatePersisting: AnyObject {
     func load() throws -> QueueSnapshot?
-    func save(_ snapshot: QueueSnapshot) throws
-    func clear() throws
+    func save(_ snapshot: QueueSnapshot) async throws
+    func clear() async throws
 }
 
-struct FileQueueStatePersistence: QueueStatePersisting {
+final class FileQueueStatePersistence: QueueStatePersisting {
     private let fileURL: URL
     private let fileManager: FileManager
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
+    private let ioQueue = DispatchQueue(label: "holdings.chinlock.lunara.queue.persistence")
 
     init(
         fileURL: URL? = nil,
@@ -25,30 +26,53 @@ struct FileQueueStatePersistence: QueueStatePersisting {
     }
 
     func load() throws -> QueueSnapshot? {
-        guard fileManager.fileExists(atPath: fileURL.path) else {
-            return nil
-        }
+        try ioQueue.sync {
+            guard fileManager.fileExists(atPath: fileURL.path) else {
+                return nil
+            }
 
-        let data = try Data(contentsOf: fileURL)
-        return try decoder.decode(QueueSnapshot.self, from: data)
+            let data = try Data(contentsOf: fileURL)
+            return try decoder.decode(QueueSnapshot.self, from: data)
+        }
     }
 
-    func save(_ snapshot: QueueSnapshot) throws {
-        let directoryURL = fileURL.deletingLastPathComponent()
-        if !fileManager.fileExists(atPath: directoryURL.path) {
-            try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+    func save(_ snapshot: QueueSnapshot) async throws {
+        let encodedData = try await MainActor.run {
+            try self.encoder.encode(snapshot)
         }
+        try await withCheckedThrowingContinuation { continuation in
+            ioQueue.async {
+                do {
+                    let directoryURL = self.fileURL.deletingLastPathComponent()
+                    if !self.fileManager.fileExists(atPath: directoryURL.path) {
+                        try self.fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+                    }
 
-        let data = try encoder.encode(snapshot)
-        try data.write(to: fileURL, options: .atomic)
+                    try encodedData.write(to: self.fileURL, options: .atomic)
+                    continuation.resume()
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
     }
 
-    func clear() throws {
-        guard fileManager.fileExists(atPath: fileURL.path) else {
-            return
-        }
+    func clear() async throws {
+        try await withCheckedThrowingContinuation { continuation in
+            ioQueue.async {
+                do {
+                    guard self.fileManager.fileExists(atPath: self.fileURL.path) else {
+                        continuation.resume()
+                        return
+                    }
 
-        try fileManager.removeItem(at: fileURL)
+                    try self.fileManager.removeItem(at: self.fileURL)
+                    continuation.resume()
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
     }
 
     private static func defaultFileURL(fileManager: FileManager) -> URL {
