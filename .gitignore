@@ -81,6 +81,7 @@ Lunara/LocalConfig.plist
 # =========================
 *.tmp
 *.temp
+tmp/plex-capture/
 
 # Temporary fix scripts
 fix-*.sh

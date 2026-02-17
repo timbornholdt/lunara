@@ -1,4 +1,5 @@
 import SwiftUI
+import os
 
 /// Debug view for Phase 1 verification
 /// Shows basic album fetching to verify Plex connectivity
@@ -6,6 +7,7 @@ import SwiftUI
 struct DebugLibraryView: View {
 
     let coordinator: AppCoordinator
+    private let logger = Logger(subsystem: "holdings.chinlock.lunara", category: "DebugLibraryView")
 
     @State private var albums: [Album] = []
     @State private var isLoading = false
@@ -115,6 +117,7 @@ struct DebugLibraryView: View {
     // MARK: - Actions
 
     private func fetchAlbums() {
+        logger.info("Fetch albums requested from debug screen")
         isLoading = true
         errorMessage = nil
 
@@ -125,32 +128,39 @@ struct DebugLibraryView: View {
                     self.albums = fetchedAlbums
                     self.isLoading = false
                 }
+                logger.info("Fetched \(fetchedAlbums.count, privacy: .public) albums")
             } catch let error as LibraryError {
                 await MainActor.run {
                     self.isLoading = false
                     self.errorMessage = error.userMessage
                 }
+                logger.error("Fetch albums failed with LibraryError: \(String(describing: error), privacy: .public)")
             } catch {
                 await MainActor.run {
                     self.isLoading = false
                     self.errorMessage = error.localizedDescription
                 }
+                logger.error("Fetch albums failed with unexpected error: \(error.localizedDescription, privacy: .public)")
             }
         }
     }
 
     private func playAlbum(_ album: Album) {
+        logger.info("Play tapped for album '\(album.title, privacy: .public)' with plexID '\(album.plexID, privacy: .public)'")
         Task {
             do {
                 try await coordinator.playAlbum(album)
+                logger.info("Play request succeeded for album '\(album.title, privacy: .public)'")
             } catch let error as LunaraError {
                 await MainActor.run {
                     self.errorMessage = error.userMessage
                 }
+                logger.error("Play request failed for album '\(album.title, privacy: .public)'. Error: \(String(describing: error), privacy: .public)")
             } catch {
                 await MainActor.run {
                     self.errorMessage = error.localizedDescription
                 }
+                logger.error("Play request failed for album '\(album.title, privacy: .public)' with unexpected error: \(error.localizedDescription, privacy: .public)")
             }
         }
     }

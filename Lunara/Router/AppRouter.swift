@@ -1,9 +1,11 @@
 import Foundation
+import os
 
 @MainActor
 final class AppRouter {
     private let library: LibraryRepoProtocol
     private let queue: QueueManagerProtocol
+    private let logger = Logger(subsystem: "holdings.chinlock.lunara", category: "AppRouter")
 
     init(library: LibraryRepoProtocol, queue: QueueManagerProtocol) {
         self.library = library
@@ -15,17 +17,35 @@ final class AppRouter {
     }
 
     func playAlbum(_ album: Album) async throws {
-        let tracks = try await library.tracks(forAlbum: album.plexID)
+        logger.info("playAlbum started for album '\(album.title, privacy: .public)' id '\(album.plexID, privacy: .public)'")
+        let tracks: [Track]
+        do {
+            tracks = try await library.tracks(forAlbum: album.plexID)
+        } catch {
+            logger.error("playAlbum failed to fetch tracks for album id '\(album.plexID, privacy: .public)': \(error.localizedDescription, privacy: .public)")
+            throw error
+        }
+
+        logger.info("playAlbum fetched \(tracks.count, privacy: .public) tracks for album id '\(album.plexID, privacy: .public)'")
         guard !tracks.isEmpty else { return }
 
         var items: [QueueItem] = []
         items.reserveCapacity(tracks.count)
 
         for track in tracks {
-            let url = try await resolveURL(for: track)
+            let url: URL
+            do {
+                url = try await resolveURL(for: track)
+            } catch {
+                logger.error(
+                    "playAlbum failed to resolve URL for track id '\(track.plexID, privacy: .public)' key '\(track.key, privacy: .public)': \(error.localizedDescription, privacy: .public)"
+                )
+                throw error
+            }
             items.append(QueueItem(trackID: track.plexID, url: url))
         }
 
         queue.playNow(items)
+        logger.info("playAlbum queued \(items.count, privacy: .public) items for album id '\(album.plexID, privacy: .public)'")
     }
 }
