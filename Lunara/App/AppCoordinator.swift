@@ -1,5 +1,4 @@
 import Foundation
-import os
 import SwiftUI
 
 /// Coordinates app-wide dependencies and state
@@ -13,6 +12,7 @@ final class AppCoordinator {
     let authManager: AuthManager
     let plexClient: PlexAPIClient
     let libraryRepo: LibraryRepoProtocol
+    let artworkPipeline: ArtworkPipelineProtocol
     let playbackEngine: PlaybackEngineProtocol
     let queueManager: QueueManagerProtocol
     let appRouter: AppRouter
@@ -29,6 +29,7 @@ final class AppCoordinator {
         authManager: AuthManager,
         plexClient: PlexAPIClient,
         libraryRepo: LibraryRepoProtocol,
+        artworkPipeline: ArtworkPipelineProtocol,
         playbackEngine: PlaybackEngineProtocol,
         queueManager: QueueManagerProtocol,
         appRouter: AppRouter
@@ -36,6 +37,7 @@ final class AppCoordinator {
         self.authManager = authManager
         self.plexClient = plexClient
         self.libraryRepo = libraryRepo
+        self.artworkPipeline = artworkPipeline
         self.playbackEngine = playbackEngine
         self.queueManager = queueManager
         self.appRouter = appRouter
@@ -45,17 +47,7 @@ final class AppCoordinator {
         // Initialize dependencies
         let keychain = KeychainHelper()
         let serverURL = Self.loadServerURL()
-
-        // To resolve circular dependency:
-        // 1. Create AuthManager without authAPI
-        // 2. Create PlexAPIClient with that AuthManager
-        // 3. AuthManager's authAPI can be set later if needed,
-        //    or we use PlexAPIClient directly for OAuth
-
-        // Create AuthManager (authAPI is optional, defaults to nil)
         let authManager = AuthManager(keychain: keychain)
-
-        // Create PlexAPIClient (which implements PlexAuthAPIProtocol)
         let plexClient = PlexAPIClient(
             baseURL: serverURL,
             authManager: authManager,
@@ -69,7 +61,14 @@ final class AppCoordinator {
             fatalError("Failed to initialize LibraryStore: \(error)")
         }
 
-        let libraryRepo = LibraryRepo(remote: plexClient, store: libraryStore)
+        let artworkPipeline: ArtworkPipelineProtocol
+        do {
+            artworkPipeline = try Self.makeArtworkPipeline(store: libraryStore)
+        } catch {
+            fatalError("Failed to initialize ArtworkPipeline: \(error)")
+        }
+
+        let libraryRepo = LibraryRepo(remote: plexClient, store: libraryStore, artworkPipeline: artworkPipeline)
         let playbackEngine = AVQueuePlayerEngine(audioSession: AudioSession())
         let queueManager = QueueManager(engine: playbackEngine)
         let appRouter = AppRouter(library: libraryRepo, queue: queueManager)
@@ -78,6 +77,7 @@ final class AppCoordinator {
             authManager: authManager,
             plexClient: plexClient,
             libraryRepo: libraryRepo,
+            artworkPipeline: artworkPipeline,
             playbackEngine: playbackEngine,
             queueManager: queueManager,
             appRouter: appRouter
@@ -145,6 +145,22 @@ final class AppCoordinator {
     }
 
     private static func makeLibraryStore() throws -> LibraryStore {
+        let appDirectory = try appDirectory()
+        let databaseURL = appDirectory.appendingPathComponent("library.sqlite")
+        return try LibraryStore(databaseURL: databaseURL)
+    }
+
+    private static func makeArtworkPipeline(store: LibraryStoreProtocol) throws -> ArtworkPipeline {
+        let appDirectory = try appDirectory()
+        let artworkCacheDirectoryURL = appDirectory.appendingPathComponent("artwork-cache", isDirectory: true)
+        return ArtworkPipeline(
+            store: store,
+            session: URLSession.shared,
+            cacheDirectoryURL: artworkCacheDirectoryURL
+        )
+    }
+
+    private static func appDirectory() throws -> URL {
         let fileManager = FileManager.default
         guard let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
             throw LibraryError.operationFailed(reason: "Unable to resolve application support directory.")
@@ -152,144 +168,6 @@ final class AppCoordinator {
 
         let appDirectory = appSupportURL.appendingPathComponent("Lunara", isDirectory: true)
         try fileManager.createDirectory(at: appDirectory, withIntermediateDirectories: true)
-
-        let databaseURL = appDirectory.appendingPathComponent("library.sqlite")
-        return try LibraryStore(databaseURL: databaseURL)
-    }
-}
-
-struct AlbumDuplicateDebugReporter {
-    func logReport(
-        albums: [Album],
-        logger: Logger,
-        spotlightTitle: String? = nil,
-        spotlightArtist: String? = nil
-    ) {
-        let report = makeReport(
-            albums: albums,
-            spotlightTitle: spotlightTitle,
-            spotlightArtist: spotlightArtist
-        )
-
-        print(report)
-        logger.info("\(report, privacy: .public)")
-    }
-
-    func makeReport(
-        albums: [Album],
-        spotlightTitle: String? = nil,
-        spotlightArtist: String? = nil
-    ) -> String {
-        let exactGroups = groupDuplicates(
-            albums: albums,
-            keyBuilder: { album in
-                "\(normalize(album.artistName))|\(normalize(album.title))|\(album.year?.description ?? "")"
-            }
-        )
-
-        let candidateGroups = groupDuplicates(
-            albums: albums,
-            keyBuilder: { album in
-                "\(normalize(album.artistName))|\(normalize(album.title))"
-            }
-        )
-
-        let spotlightMatches = albums.filter { album in
-            if let spotlightTitle, !normalize(album.title).contains(normalize(spotlightTitle)) {
-                return false
-            }
-
-            if let spotlightArtist, !normalize(album.artistName).contains(normalize(spotlightArtist)) {
-                return false
-            }
-
-            return true
-        }.sorted(by: albumSort)
-
-        var lines: [String] = []
-        lines.append("========== LUNARA DUPLICATE ALBUM DEBUG REPORT ==========")
-        lines.append("Album count: \(albums.count)")
-        lines.append("Exact duplicate groups (artist + title + year): \(exactGroups.count)")
-
-        if exactGroups.isEmpty {
-            lines.append("  none")
-        } else {
-            lines.append(contentsOf: describe(groups: exactGroups))
-        }
-
-        lines.append("Candidate duplicate groups (artist + title, year ignored): \(candidateGroups.count)")
-        if candidateGroups.isEmpty {
-            lines.append("  none")
-        } else {
-            lines.append(contentsOf: describe(groups: candidateGroups))
-        }
-
-        if spotlightTitle != nil || spotlightArtist != nil {
-            lines.append("Spotlight matches:")
-            if spotlightMatches.isEmpty {
-                lines.append("  none")
-            } else {
-                for album in spotlightMatches {
-                    lines.append("  - \(albumLine(album))")
-                }
-            }
-        }
-
-        lines.append("========================================================")
-        return lines.joined(separator: "\n")
-    }
-
-    private func groupDuplicates(
-        albums: [Album],
-        keyBuilder: (Album) -> String
-    ) -> [[Album]] {
-        let grouped = Dictionary(grouping: albums, by: keyBuilder)
-        return grouped.values
-            .filter { $0.count > 1 }
-            .map { $0.sorted(by: albumSort) }
-            .sorted { lhs, rhs in
-                guard let lhsFirst = lhs.first, let rhsFirst = rhs.first else {
-                    return lhs.count > rhs.count
-                }
-                return albumSort(lhsFirst, rhsFirst)
-            }
-    }
-
-    private func describe(groups: [[Album]]) -> [String] {
-        var lines: [String] = []
-
-        for (index, group) in groups.enumerated() {
-            guard let first = group.first else {
-                continue
-            }
-
-            lines.append("  [\(index + 1)] \(first.artistName) - \(first.title) (\(group.count) entries)")
-            for album in group {
-                lines.append("      - \(albumLine(album))")
-            }
-        }
-
-        return lines
-    }
-
-    private func albumLine(_ album: Album) -> String {
-        "id=\(album.plexID), year=\(album.year.map(String.init) ?? "nil"), trackCount=\(album.trackCount), duration=\(Int(album.duration))s"
-    }
-
-    private func normalize(_ value: String) -> String {
-        value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-    }
-
-    private func albumSort(_ lhs: Album, _ rhs: Album) -> Bool {
-        if lhs.artistName != rhs.artistName {
-            return lhs.artistName.localizedCaseInsensitiveCompare(rhs.artistName) == .orderedAscending
-        }
-        if lhs.title != rhs.title {
-            return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
-        }
-        if lhs.year != rhs.year {
-            return (lhs.year ?? Int.min) < (rhs.year ?? Int.min)
-        }
-        return lhs.plexID < rhs.plexID
+        return appDirectory
     }
 }

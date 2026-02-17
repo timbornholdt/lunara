@@ -101,6 +101,12 @@ final class LibraryStoreMock: LibraryStoreProtocol {
         replaceLibraryCallCount += 1
         replacedSnapshot = snapshot
         replacedRefreshedAt = refreshedAt
+        albumsByPage = [1: snapshot.albums]
+        albumByID = Dictionary(uniqueKeysWithValues: snapshot.albums.map { ($0.plexID, $0) })
+        tracksByAlbumID = Dictionary(grouping: snapshot.tracks, by: \.albumID)
+        cachedArtists = snapshot.artists
+        cachedCollections = snapshot.collections
+        lastRefresh = refreshedAt
     }
 
     func lastRefreshDate() async throws -> Date? {

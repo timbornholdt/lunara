@@ -82,10 +82,44 @@ struct AppCoordinatorTests {
         #expect(subject.queue.clearCallCount == 1)
     }
 
+    @Test
+    func fetchAlbums_withConcreteLibraryRepo_refreshesAndPreloadsArtwork() async throws {
+        let keychain = MockKeychainHelper()
+        let authManager = AuthManager(keychain: keychain, authAPI: nil, debugTokenProvider: { nil })
+        let plexClient = PlexAPIClient(
+            baseURL: URL(string: "http://localhost:32400")!,
+            authManager: authManager,
+            session: MockURLSession()
+        )
+        let remote = LibraryRemoteMock()
+        let store = LibraryStoreMock()
+        let artworkPipeline = ArtworkPipelineMock()
+        let now = Date(timeIntervalSince1970: 123)
+        let repo = LibraryRepo(remote: remote, store: store, artworkPipeline: artworkPipeline, nowProvider: { now })
+        let queue = CoordinatorQueueManagerMock()
+        let coordinator = AppCoordinator(
+            authManager: authManager,
+            plexClient: plexClient,
+            libraryRepo: repo,
+            artworkPipeline: artworkPipeline,
+            playbackEngine: CoordinatorPlaybackEngineMock(),
+            queueManager: queue,
+            appRouter: AppRouter(library: repo, queue: queue)
+        )
+        remote.albums = [makeAlbum(id: "fresh-1"), makeAlbum(id: "fresh-2")]
+
+        let albums = try await coordinator.fetchAlbums()
+
+        #expect(albums.map(\.plexID) == ["fresh-1", "fresh-2"])
+        #expect(store.replaceLibraryCallCount == 1)
+        #expect(artworkPipeline.thumbnailRequests.map(\.ownerID) == ["fresh-1", "fresh-2"])
+    }
+
     private func makeSubject() -> (
         coordinator: AppCoordinator,
         queue: CoordinatorQueueManagerMock,
-        library: CoordinatorLibraryRepoMock
+        library: CoordinatorLibraryRepoMock,
+        artworkPipeline: ArtworkPipelineMock
     ) {
         let keychain = MockKeychainHelper()
         let authManager = AuthManager(keychain: keychain, authAPI: nil, debugTokenProvider: { nil })
@@ -95,6 +129,7 @@ struct AppCoordinatorTests {
             session: MockURLSession()
         )
         let library = CoordinatorLibraryRepoMock()
+        let artworkPipeline = ArtworkPipelineMock()
         let playbackEngine = CoordinatorPlaybackEngineMock()
         let queue = CoordinatorQueueManagerMock()
         let appRouter = AppRouter(library: library, queue: queue)
@@ -102,12 +137,13 @@ struct AppCoordinatorTests {
             authManager: authManager,
             plexClient: plexClient,
             libraryRepo: library,
+            artworkPipeline: artworkPipeline,
             playbackEngine: playbackEngine,
             queueManager: queue,
             appRouter: appRouter
         )
 
-        return (coordinator, queue, library)
+        return (coordinator, queue, library, artworkPipeline)
     }
 
     private func makeAlbum(id: String) -> Album {

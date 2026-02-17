@@ -24,15 +24,18 @@ final class LibraryRepo: LibraryRepoProtocol {
 
     private let remote: LibraryRemoteDataSource
     private let store: LibraryStoreProtocol
+    private let artworkPipeline: ArtworkPipelineProtocol
     private let nowProvider: () -> Date
 
     init(
         remote: LibraryRemoteDataSource,
         store: LibraryStoreProtocol,
+        artworkPipeline: ArtworkPipelineProtocol,
         nowProvider: @escaping () -> Date = Date.init
     ) {
         self.remote = remote
         self.store = store
+        self.artworkPipeline = artworkPipeline
         self.nowProvider = nowProvider
     }
 
@@ -85,6 +88,7 @@ final class LibraryRepo: LibraryRepoProtocol {
             }
 
             let dedupedLibrary = dedupeLibrary(albums: remoteAlbums, tracks: cachedTracks)
+            await preloadThumbnailArtwork(for: dedupedLibrary.albums)
 
             // Artist/collection endpoints are not exposed by PlexAPIClient yet.
             // Preserve cached values so refresh updates album/track data without erasing other cache slices.
@@ -245,5 +249,20 @@ final class LibraryRepo: LibraryRepoProtocol {
             trackCount: max(primary.trackCount, fallback.trackCount),
             duration: max(primary.duration, fallback.duration)
         )
+    }
+
+    private func preloadThumbnailArtwork(for albums: [Album]) async {
+        for album in albums {
+            do {
+                _ = try await artworkPipeline.fetchThumbnail(
+                    for: album.plexID,
+                    ownerKind: .album,
+                    sourceURL: album.thumbURL.flatMap(URL.init(string:))
+                )
+            } catch {
+                // Artwork warmup is best-effort so metadata refresh remains available when image fetch fails.
+                continue
+            }
+        }
     }
 }

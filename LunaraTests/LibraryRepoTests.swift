@@ -52,6 +52,21 @@ struct LibraryRepoTests {
             artistCount: 1,
             collectionCount: 1
         ))
+        #expect(subject.artworkPipeline.thumbnailRequests.map(\.ownerID) == ["album-a", "album-b"])
+    }
+
+    @Test
+    func refreshLibrary_whenArtworkPreloadFails_stillPersistsMetadataSnapshot() async throws {
+        let subject = makeSubject()
+        subject.remote.albums = [makeAlbum(id: "album-1")]
+        subject.store.tracksByAlbumID["album-1"] = [makeTrack(id: "track-1", albumID: "album-1", number: 1)]
+        subject.artworkPipeline.fetchThumbnailError = .timeout
+
+        let outcome = try await subject.repo.refreshLibrary(reason: .appLaunch)
+
+        #expect(subject.store.replaceLibraryCallCount == 1)
+        #expect(subject.store.replacedSnapshot?.albums.map(\.plexID) == ["album-1"])
+        #expect(outcome.albumCount == 1)
     }
 
     @Test
@@ -203,12 +218,14 @@ struct LibraryRepoTests {
     private func makeSubject(now: Date = Date(timeIntervalSince1970: 1000)) -> (
         repo: LibraryRepo,
         remote: LibraryRemoteMock,
-        store: LibraryStoreMock
+        store: LibraryStoreMock,
+        artworkPipeline: ArtworkPipelineMock
     ) {
         let remote = LibraryRemoteMock()
         let store = LibraryStoreMock()
-        let repo = LibraryRepo(remote: remote, store: store, nowProvider: { now })
-        return (repo, remote, store)
+        let artworkPipeline = ArtworkPipelineMock()
+        let repo = LibraryRepo(remote: remote, store: store, artworkPipeline: artworkPipeline, nowProvider: { now })
+        return (repo, remote, store, artworkPipeline)
     }
 
     private func makeAlbum(
