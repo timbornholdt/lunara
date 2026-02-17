@@ -72,6 +72,8 @@ final class PlexAPIClientTests: XCTestCase {
 
         XCTAssertNotNil(mockSession.lastRequest)
         let url = mockSession.lastRequest!.url!
+        XCTAssertEqual(url.path, "/library/sections/4/all")
+        XCTAssertTrue(url.query?.contains("type=9") ?? false)
         XCTAssertTrue(url.query?.contains("X-Plex-Token=test_token_123") ?? false)
     }
 
@@ -82,10 +84,35 @@ final class PlexAPIClientTests: XCTestCase {
         let albums = try await client.fetchAlbums()
 
         XCTAssertEqual(albums.count, 2)
+        XCTAssertEqual(albums[0].plexID, "1001")
         XCTAssertEqual(albums[0].title, "Abbey Road")
         XCTAssertEqual(albums[0].artistName, "The Beatles")
         XCTAssertEqual(albums[0].year, 1969)
+        XCTAssertEqual(albums[1].plexID, "1002")
         XCTAssertEqual(albums[1].title, "Dark Side of the Moon")
+    }
+
+    func test_fetchAlbums_withMissingRatingKey_throwsInvalidResponse() async throws {
+        try authManager.setToken("token")
+        mockSession.dataToReturn = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <MediaContainer>
+            <Directory key="/library/metadata/1001/children" type="album" title="Abbey Road" parentTitle="The Beatles" />
+        </MediaContainer>
+        """.data(using: .utf8)!
+
+        do {
+            _ = try await client.fetchAlbums()
+            XCTFail("Should throw invalidResponse")
+        } catch let error as LibraryError {
+            if case .invalidResponse = error {
+                // Expected
+            } else {
+                XCTFail("Wrong error type: \(error)")
+            }
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
     }
 
     func test_fetchAlbums_with401Response_invalidatesToken() async throws {
@@ -173,6 +200,7 @@ final class PlexAPIClientTests: XCTestCase {
         XCTAssertEqual(tracks[0].trackNumber, 1)
         XCTAssertEqual(tracks[0].artistName, "The Beatles")
         XCTAssertEqual(tracks[0].albumID, "12345")
+        XCTAssertEqual(tracks[0].key, "/library/parts/11/123/file.mp3")
     }
 
     func test_fetchTracks_includesAlbumID_inEndpoint() async throws {
@@ -183,6 +211,48 @@ final class PlexAPIClientTests: XCTestCase {
 
         let url = mockSession.lastRequest!.url!
         XCTAssertTrue(url.path.contains("99999"))
+    }
+
+    func test_fetchTracks_whenTrackContainsPart_usesPartKeyForPlaybackURL() async throws {
+        try authManager.setToken("token")
+        mockSession.dataToReturn = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <MediaContainer>
+            <Track ratingKey="2001" type="track" title="Come Together" index="1" grandparentTitle="The Beatles" key="/library/metadata/2001">
+                <Media id="1" duration="259000">
+                    <Part id="2" key="/library/parts/2/123/file.mp3" />
+                </Media>
+            </Track>
+        </MediaContainer>
+        """.data(using: .utf8)!
+
+        let tracks = try await client.fetchTracks(forAlbum: "12345")
+
+        XCTAssertEqual(tracks.count, 1)
+        XCTAssertEqual(tracks[0].key, "/library/parts/2/123/file.mp3")
+    }
+
+    func test_fetchTracks_whenTrackLacksPlayablePartKey_throwsInvalidResponse() async throws {
+        try authManager.setToken("token")
+        mockSession.dataToReturn = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <MediaContainer>
+            <Track ratingKey="2001" type="track" title="Come Together" index="1" grandparentTitle="The Beatles" key="/library/metadata/2001" />
+        </MediaContainer>
+        """.data(using: .utf8)!
+
+        do {
+            _ = try await client.fetchTracks(forAlbum: "12345")
+            XCTFail("Should throw invalidResponse")
+        } catch let error as LibraryError {
+            if case .invalidResponse = error {
+                // Expected
+            } else {
+                XCTFail("Wrong error type: \(error)")
+            }
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
     }
 
     // MARK: - streamURL() Tests
@@ -272,9 +342,21 @@ final class PlexAPIClientTests: XCTestCase {
         """
         <?xml version="1.0" encoding="UTF-8"?>
         <MediaContainer>
-            <Metadata ratingKey="2001" type="track" title="Come Together" index="1" grandparentTitle="The Beatles" duration="259000" key="/library/metadata/2001/file.mp3" />
-            <Metadata ratingKey="2002" type="track" title="Something" index="2" grandparentTitle="The Beatles" duration="182000" key="/library/metadata/2002/file.mp3" />
-            <Metadata ratingKey="2003" type="track" title="Here Comes The Sun" index="7" grandparentTitle="The Beatles" duration="185000" key="/library/metadata/2003/file.mp3" />
+            <Track ratingKey="2001" type="track" title="Come Together" index="1" grandparentTitle="The Beatles" duration="259000" key="/library/metadata/2001/file.mp3">
+                <Media id="1" duration="259000">
+                    <Part id="11" key="/library/parts/11/123/file.mp3" />
+                </Media>
+            </Track>
+            <Track ratingKey="2002" type="track" title="Something" index="2" grandparentTitle="The Beatles" duration="182000" key="/library/metadata/2002/file.mp3">
+                <Media id="2" duration="182000">
+                    <Part id="22" key="/library/parts/22/123/file.mp3" />
+                </Media>
+            </Track>
+            <Track ratingKey="2003" type="track" title="Here Comes The Sun" index="7" grandparentTitle="The Beatles" duration="185000" key="/library/metadata/2003/file.mp3">
+                <Media id="3" duration="185000">
+                    <Part id="33" key="/library/parts/33/123/file.mp3" />
+                </Media>
+            </Track>
         </MediaContainer>
         """.data(using: .utf8)!
     }
