@@ -24,7 +24,23 @@ final class AppCoordinator {
 
     // MARK: - Initialization
 
-    init() {
+    init(
+        authManager: AuthManager,
+        plexClient: PlexAPIClient,
+        libraryRepo: LibraryRepoProtocol,
+        playbackEngine: PlaybackEngineProtocol,
+        queueManager: QueueManagerProtocol,
+        appRouter: AppRouter
+    ) {
+        self.authManager = authManager
+        self.plexClient = plexClient
+        self.libraryRepo = libraryRepo
+        self.playbackEngine = playbackEngine
+        self.queueManager = queueManager
+        self.appRouter = appRouter
+    }
+
+    convenience init() {
         // Initialize dependencies
         let keychain = KeychainHelper()
         let serverURL = Self.loadServerURL()
@@ -36,21 +52,28 @@ final class AppCoordinator {
         //    or we use PlexAPIClient directly for OAuth
 
         // Create AuthManager (authAPI is optional, defaults to nil)
-        self.authManager = AuthManager(keychain: keychain)
+        let authManager = AuthManager(keychain: keychain)
 
         // Create PlexAPIClient (which implements PlexAuthAPIProtocol)
-        self.plexClient = PlexAPIClient(
+        let plexClient = PlexAPIClient(
             baseURL: serverURL,
             authManager: authManager,
             session: URLSession.shared
         )
 
-        self.libraryRepo = plexClient
+        let libraryRepo = plexClient
         let playbackEngine = AVQueuePlayerEngine(audioSession: AudioSession())
-        self.playbackEngine = playbackEngine
         let queueManager = QueueManager(engine: playbackEngine)
-        self.queueManager = queueManager
-        self.appRouter = AppRouter(library: libraryRepo, queue: queueManager)
+        let appRouter = AppRouter(library: libraryRepo, queue: queueManager)
+
+        self.init(
+            authManager: authManager,
+            plexClient: plexClient,
+            libraryRepo: libraryRepo,
+            playbackEngine: playbackEngine,
+            queueManager: queueManager,
+            appRouter: appRouter
+        )
     }
 
     // MARK: - Actions
@@ -61,6 +84,22 @@ final class AppCoordinator {
 
     func playAlbum(_ album: Album) async throws {
         try await appRouter.playAlbum(album)
+    }
+
+    func pausePlayback() {
+        appRouter.pausePlayback()
+    }
+
+    func resumePlayback() {
+        appRouter.resumePlayback()
+    }
+
+    func skipToNextTrack() {
+        appRouter.skipToNextTrack()
+    }
+
+    func stopPlayback() {
+        appRouter.stopPlayback()
     }
 
     /// Sign out and clear stored token
