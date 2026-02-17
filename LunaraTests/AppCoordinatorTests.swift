@@ -71,12 +71,43 @@ struct AppCoordinatorTests {
 
 @MainActor
 private final class CoordinatorLibraryRepoMock: LibraryRepoProtocol {
-    func fetchAlbums() async throws -> [Album] {
+    func albums(page: LibraryPage) async throws -> [Album] {
         []
+    }
+
+    func album(id: String) async throws -> Album? {
+        nil
     }
 
     func tracks(forAlbum albumID: String) async throws -> [Track] {
         []
+    }
+
+    func collections() async throws -> [Collection] {
+        []
+    }
+
+    func artists() async throws -> [Artist] {
+        []
+    }
+
+    func artist(id: String) async throws -> Artist? {
+        nil
+    }
+
+    func refreshLibrary(reason: LibraryRefreshReason) async throws -> LibraryRefreshOutcome {
+        LibraryRefreshOutcome(
+            reason: reason,
+            refreshedAt: Date(timeIntervalSince1970: 0),
+            albumCount: 0,
+            trackCount: 0,
+            artistCount: 0,
+            collectionCount: 0
+        )
+    }
+
+    func lastRefreshDate() async throws -> Date? {
+        nil
     }
 
     func streamURL(for track: Track) async throws -> URL {
