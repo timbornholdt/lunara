@@ -91,3 +91,10 @@ final class TimeoutTaskMock: PlaybackTimeoutTask {
     }
 }
 
+final class PlaybackDiagnosticsLoggerMock: PlaybackDiagnosticsLogging {
+    private(set) var playbackFailureLogs: [(reason: String, sanitizedURLContext: String)] = []
+
+    func logPlaybackFailure(reason: String, sanitizedURLContext: String) {
+        playbackFailureLogs.append((reason: reason, sanitizedURLContext: sanitizedURLContext))
+    }
+}

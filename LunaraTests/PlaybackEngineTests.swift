@@ -10,10 +10,12 @@ struct PlaybackEngineTests {
         let audioSession = AudioSessionMock()
         let driver = PlaybackEngineDriverMock()
         let timeoutScheduler = TimeoutSchedulerMock()
+        let diagnosticsLogger = PlaybackDiagnosticsLoggerMock()
         let subject = AVQueuePlayerEngine(
             audioSession: audioSession,
             driver: driver,
             timeoutScheduler: timeoutScheduler,
+            diagnosticsLogger: diagnosticsLogger,
             bufferingTimeout: 5
         )
 
@@ -35,10 +37,12 @@ struct PlaybackEngineTests {
         audioSession.configureForPlaybackError = MusicError.audioSessionFailed
         let driver = PlaybackEngineDriverMock()
         let timeoutScheduler = TimeoutSchedulerMock()
+        let diagnosticsLogger = PlaybackDiagnosticsLoggerMock()
         let subject = AVQueuePlayerEngine(
             audioSession: audioSession,
             driver: driver,
-            timeoutScheduler: timeoutScheduler
+            timeoutScheduler: timeoutScheduler,
+            diagnosticsLogger: diagnosticsLogger
         )
 
         subject.play(url: URL(string: "https://example.com/track.mp3")!, trackID: "track-1")
@@ -53,10 +57,12 @@ struct PlaybackEngineTests {
         let audioSession = AudioSessionMock()
         let driver = PlaybackEngineDriverMock()
         let timeoutScheduler = TimeoutSchedulerMock()
+        let diagnosticsLogger = PlaybackDiagnosticsLoggerMock()
         let subject = AVQueuePlayerEngine(
             audioSession: audioSession,
             driver: driver,
-            timeoutScheduler: timeoutScheduler
+            timeoutScheduler: timeoutScheduler,
+            diagnosticsLogger: diagnosticsLogger
         )
 
         subject.play(url: URL(string: "https://example.com/track.mp3")!, trackID: "track-1")
@@ -73,10 +79,12 @@ struct PlaybackEngineTests {
         let audioSession = AudioSessionMock()
         let driver = PlaybackEngineDriverMock()
         let timeoutScheduler = TimeoutSchedulerMock()
+        let diagnosticsLogger = PlaybackDiagnosticsLoggerMock()
         let subject = AVQueuePlayerEngine(
             audioSession: audioSession,
             driver: driver,
-            timeoutScheduler: timeoutScheduler
+            timeoutScheduler: timeoutScheduler,
+            diagnosticsLogger: diagnosticsLogger
         )
 
         subject.play(url: URL(string: "https://example.com/track.mp3")!, trackID: "track-1")
@@ -97,6 +105,36 @@ struct PlaybackEngineTests {
 
         #expect(subject.engine.playbackState == .error("network dropped"))
         #expect(subject.driver.stopCallCount == 1)
+        #expect(subject.diagnosticsLogger.playbackFailureLogs.count == 1)
+        #expect(subject.diagnosticsLogger.playbackFailureLogs.first?.reason == "network dropped")
+        #expect(subject.diagnosticsLogger.playbackFailureLogs.first?.sanitizedURLContext == "example.com/track.mp3")
+    }
+
+    @Test
+    func streamFailureEvent_logsOnlyFirstFailureForActivePlayback() {
+        let subject = makeSubject()
+
+        subject.engine.play(url: URL(string: "https://example.com/track.mp3?X-Plex-Token=secret")!, trackID: "track-1")
+        subject.driver.emitCurrentItemFailed("Playback stalled.")
+        subject.driver.emitCurrentItemFailed("network dropped")
+
+        #expect(subject.diagnosticsLogger.playbackFailureLogs.count == 1)
+        #expect(subject.diagnosticsLogger.playbackFailureLogs.first?.reason == "Playback stalled.")
+        #expect(subject.diagnosticsLogger.playbackFailureLogs.first?.sanitizedURLContext == "example.com/track.mp3")
+    }
+
+    @Test
+    func streamFailureEvent_afterNewPlay_logsFailureAgainForNewTrack() {
+        let subject = makeSubject()
+
+        subject.engine.play(url: URL(string: "https://example.com/one.mp3")!, trackID: "track-1")
+        subject.driver.emitCurrentItemFailed("first failure")
+        subject.engine.play(url: URL(string: "https://example.com/two.mp3?token=abc")!, trackID: "track-2")
+        subject.driver.emitCurrentItemFailed("second failure")
+
+        #expect(subject.diagnosticsLogger.playbackFailureLogs.count == 2)
+        #expect(subject.diagnosticsLogger.playbackFailureLogs[0].sanitizedURLContext == "example.com/one.mp3")
+        #expect(subject.diagnosticsLogger.playbackFailureLogs[1].sanitizedURLContext == "example.com/two.mp3")
     }
 
     @Test
@@ -192,17 +230,20 @@ struct PlaybackEngineTests {
         engine: AVQueuePlayerEngine,
         audioSession: AudioSessionMock,
         driver: PlaybackEngineDriverMock,
-        timeoutScheduler: TimeoutSchedulerMock
+        timeoutScheduler: TimeoutSchedulerMock,
+        diagnosticsLogger: PlaybackDiagnosticsLoggerMock
     ) {
         let audioSession = AudioSessionMock()
         let driver = PlaybackEngineDriverMock()
         let timeoutScheduler = TimeoutSchedulerMock()
+        let diagnosticsLogger = PlaybackDiagnosticsLoggerMock()
         let engine = AVQueuePlayerEngine(
             audioSession: audioSession,
             driver: driver,
-            timeoutScheduler: timeoutScheduler
+            timeoutScheduler: timeoutScheduler,
+            diagnosticsLogger: diagnosticsLogger
         )
-        return (engine, audioSession, driver, timeoutScheduler)
+        return (engine, audioSession, driver, timeoutScheduler, diagnosticsLogger)
     }
 }
 

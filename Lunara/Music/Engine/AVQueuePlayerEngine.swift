@@ -1,6 +1,7 @@
 import AVFoundation
 import Foundation
 import Observation
+import OSLog
 
 protocol PlaybackTimeoutScheduling: AnyObject {
     @discardableResult
@@ -9,6 +10,22 @@ protocol PlaybackTimeoutScheduling: AnyObject {
 
 protocol PlaybackTimeoutTask: AnyObject {
     func cancel()
+}
+
+protocol PlaybackDiagnosticsLogging: AnyObject {
+    func logPlaybackFailure(reason: String, sanitizedURLContext: String)
+}
+
+final class OSPlaybackDiagnosticsLogger: PlaybackDiagnosticsLogging {
+    private let logger: Logger
+
+    init(logger: Logger = Logger(subsystem: "Lunara", category: "PlaybackDiagnostics")) {
+        self.logger = logger
+    }
+
+    func logPlaybackFailure(reason: String, sanitizedURLContext: String) {
+        logger.error("Playback failure reason=\(reason, privacy: .public) url=\(sanitizedURLContext, privacy: .public)")
+    }
 }
 
 final class DispatchQueuePlaybackTimeoutScheduler: PlaybackTimeoutScheduling {
@@ -48,19 +65,24 @@ final class AVQueuePlayerEngine: PlaybackEngineProtocol {
     private let audioSession: AudioSessionProtocol
     private let driver: PlaybackEngineDriver
     private let timeoutScheduler: PlaybackTimeoutScheduling
+    private let diagnosticsLogger: PlaybackDiagnosticsLogging
     private let bufferingTimeout: TimeInterval
 
     private var bufferingTimeoutTask: PlaybackTimeoutTask?
+    private var activePlaybackURL: URL?
+    private var hasLoggedFailureForActivePlayback = false
 
     init(
         audioSession: AudioSessionProtocol,
         driver: PlaybackEngineDriver? = nil,
         timeoutScheduler: PlaybackTimeoutScheduling? = nil,
+        diagnosticsLogger: PlaybackDiagnosticsLogging? = nil,
         bufferingTimeout: TimeInterval = 8
     ) {
         self.audioSession = audioSession
         self.driver = driver ?? AVQueuePlayerDriver()
         self.timeoutScheduler = timeoutScheduler ?? DispatchQueuePlaybackTimeoutScheduler()
+        self.diagnosticsLogger = diagnosticsLogger ?? OSPlaybackDiagnosticsLogger()
         self.bufferingTimeout = bufferingTimeout
 
         wireDependencies()
@@ -75,6 +97,8 @@ final class AVQueuePlayerEngine: PlaybackEngineProtocol {
         }
 
         currentTrackID = trackID
+        activePlaybackURL = url
+        hasLoggedFailureForActivePlayback = false
         elapsed = 0
         duration = 0
 
@@ -128,6 +152,7 @@ final class AVQueuePlayerEngine: PlaybackEngineProtocol {
         }
 
         driver.onCurrentItemFailed = { [weak self] message in
+            self?.logPlaybackFailureIfNeeded(reason: message)
             self?.transitionToError(message)
         }
 
@@ -203,5 +228,25 @@ final class AVQueuePlayerEngine: PlaybackEngineProtocol {
     private func cancelBufferingTimeout() {
         bufferingTimeoutTask?.cancel()
         bufferingTimeoutTask = nil
+    }
+
+    private func logPlaybackFailureIfNeeded(reason: String) {
+        guard !hasLoggedFailureForActivePlayback else { return }
+        hasLoggedFailureForActivePlayback = true
+
+        diagnosticsLogger.logPlaybackFailure(
+            reason: reason,
+            sanitizedURLContext: sanitizeURLContext(activePlaybackURL)
+        )
+    }
+
+    private func sanitizeURLContext(_ url: URL?) -> String {
+        guard let url else { return "unknown" }
+
+        if let host = url.host {
+            return host + url.path
+        }
+
+        return url.path.isEmpty ? "unknown" : url.path
     }
 }
