@@ -27,7 +27,10 @@ final class AppRouter {
         }
 
         logger.info("playAlbum fetched \(tracks.count, privacy: .public) tracks for album id '\(album.plexID, privacy: .public)'")
-        guard !tracks.isEmpty else { return }
+        guard !tracks.isEmpty else {
+            logger.error("playAlbum found zero tracks for album id '\(album.plexID, privacy: .public)'")
+            throw LibraryError.resourceNotFound(type: "tracks", id: album.plexID)
+        }
 
         var items: [QueueItem] = []
         items.reserveCapacity(tracks.count)

@@ -72,6 +72,8 @@ final class PlexAPIClientTests: XCTestCase {
 
         XCTAssertNotNil(mockSession.lastRequest)
         let url = mockSession.lastRequest!.url!
+        XCTAssertEqual(url.path, "/library/sections/4/all")
+        XCTAssertTrue(url.query?.contains("type=9") ?? false)
         XCTAssertTrue(url.query?.contains("X-Plex-Token=test_token_123") ?? false)
     }
 

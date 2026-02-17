@@ -59,12 +59,19 @@ struct AppRouterTests {
     }
 
     @Test
-    func playAlbum_whenAlbumHasNoTracks_doesNotResolveURLsOrMutateQueue() async throws {
+    func playAlbum_whenAlbumHasNoTracks_throwsResourceNotFoundAndDoesNotMutateQueue() async {
         let subject = makeSubject()
         let album = makeAlbum(id: "album-empty")
         subject.library.tracksByAlbumID[album.plexID] = []
 
-        try await subject.router.playAlbum(album)
+        do {
+            try await subject.router.playAlbum(album)
+            Issue.record("Expected playAlbum to throw for empty album")
+        } catch let error as LibraryError {
+            #expect(error == .resourceNotFound(type: "tracks", id: album.plexID))
+        } catch {
+            Issue.record("Expected LibraryError, got: \(error)")
+        }
 
         #expect(subject.library.trackRequests == [album.plexID])
         #expect(subject.library.streamURLRequests.isEmpty)

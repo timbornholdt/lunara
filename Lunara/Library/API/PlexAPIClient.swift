@@ -44,8 +44,12 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
 
     /// Fetch all albums from the Plex library
     func fetchAlbums() async throws -> [Album] {
-        let endpoint = "/library/sections/4/albums"
-        let request = try await buildRequest(path: endpoint, requiresAuth: true)
+        let endpoint = "/library/sections/4/all"
+        let request = try await buildRequest(
+            path: endpoint,
+            queryItems: [URLQueryItem(name: "type", value: "9")],
+            requiresAuth: true
+        )
 
         let (data, response) = try await session.data(for: request)
         try validateResponse(response)
@@ -187,16 +191,23 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
     // MARK: - Private Helpers
 
     /// Build a URLRequest with proper headers and authentication
-    private func buildRequest(path: String, requiresAuth: Bool) async throws -> URLRequest {
+    private func buildRequest(
+        path: String,
+        queryItems: [URLQueryItem] = [],
+        requiresAuth: Bool
+    ) async throws -> URLRequest {
         var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)!
         components.path = path
+        var mergedQueryItems = queryItems
 
         // Add auth token as query parameter if required
         if requiresAuth {
             let token = try await authManager.validToken()
-            components.queryItems = [
-                URLQueryItem(name: "X-Plex-Token", value: token)
-            ]
+            mergedQueryItems.append(URLQueryItem(name: "X-Plex-Token", value: token))
+        }
+
+        if !mergedQueryItems.isEmpty {
+            components.queryItems = mergedQueryItems
         }
 
         guard let url = components.url else {
