@@ -45,7 +45,18 @@ final class LibraryRepo: LibraryRepoProtocol {
     }
 
     func tracks(forAlbum albumID: String) async throws -> [Track] {
-        try await store.fetchTracks(forAlbum: albumID)
+        let cachedTracks = try await store.fetchTracks(forAlbum: albumID)
+        if !cachedTracks.isEmpty {
+            return cachedTracks
+        }
+
+        do {
+            return try await remote.fetchTracks(forAlbum: albumID)
+        } catch let error as LibraryError {
+            throw error
+        } catch {
+            throw LibraryError.operationFailed(reason: "Track fetch failed: \(error.localizedDescription)")
+        }
     }
 
     func collections() async throws -> [Collection] {
@@ -65,16 +76,15 @@ final class LibraryRepo: LibraryRepoProtocol {
 
         do {
             let remoteAlbums = try await remote.fetchAlbums()
-
-            var tracks: [Track] = []
-            tracks.reserveCapacity(remoteAlbums.reduce(0) { $0 + max(0, $1.trackCount) })
-
+            var cachedTracks: [Track] = []
             for album in remoteAlbums {
-                let albumTracks = try await remote.fetchTracks(forAlbum: album.plexID)
-                tracks.append(contentsOf: albumTracks)
+                let albumTracks = try await store.fetchTracks(forAlbum: album.plexID)
+                if !albumTracks.isEmpty {
+                    cachedTracks.append(contentsOf: albumTracks)
+                }
             }
 
-            let dedupedLibrary = dedupeLibrary(albums: remoteAlbums, tracks: tracks)
+            let dedupedLibrary = dedupeLibrary(albums: remoteAlbums, tracks: cachedTracks)
 
             // Artist/collection endpoints are not exposed by PlexAPIClient yet.
             // Preserve cached values so refresh updates album/track data without erasing other cache slices.
@@ -93,7 +103,7 @@ final class LibraryRepo: LibraryRepoProtocol {
                 reason: reason,
                 refreshedAt: refreshedAt,
                 albumCount: dedupedLibrary.albums.count,
-                trackCount: dedupedLibrary.tracks.count,
+                trackCount: cachedTracks.count,
                 artistCount: cachedArtists.count,
                 collectionCount: cachedCollections.count
             )
@@ -196,7 +206,7 @@ final class LibraryRepo: LibraryRepoProtocol {
                 genre: group.canonicalAlbum.genre,
                 rating: group.canonicalAlbum.rating,
                 addedAt: group.canonicalAlbum.addedAt,
-                trackCount: mergedTracks.count,
+                trackCount: max(group.canonicalAlbum.trackCount, mergedTracks.count),
                 duration: max(group.canonicalAlbum.duration, mergedDuration)
             )
 

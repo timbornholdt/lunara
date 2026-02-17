@@ -25,11 +25,10 @@ struct LibraryRepoTests {
         let albumA = makeAlbum(id: "album-a", trackCount: 2)
         let albumB = makeAlbum(id: "album-b", trackCount: 1)
         subject.remote.albums = [albumA, albumB]
-        subject.remote.tracksByAlbumID[albumA.plexID] = [
-            makeTrack(id: "track-a1", albumID: albumA.plexID, number: 1),
-            makeTrack(id: "track-a2", albumID: albumA.plexID, number: 2)
+        subject.store.tracksByAlbumID[albumA.plexID] = [
+            makeTrack(id: "track-a1", albumID: albumA.plexID, number: 1)
         ]
-        subject.remote.tracksByAlbumID[albumB.plexID] = [
+        subject.store.tracksByAlbumID[albumB.plexID] = [
             makeTrack(id: "track-b1", albumID: albumB.plexID, number: 1)
         ]
         subject.store.cachedArtists = [makeArtist(id: "artist-1")]
@@ -38,10 +37,10 @@ struct LibraryRepoTests {
         let outcome = try await subject.repo.refreshLibrary(reason: .userInitiated)
 
         #expect(subject.remote.fetchAlbumsCallCount == 1)
-        #expect(subject.remote.fetchTracksRequests == [albumA.plexID, albumB.plexID])
+        #expect(subject.remote.fetchTracksRequests.isEmpty)
         #expect(subject.store.replaceLibraryCallCount == 1)
         #expect(subject.store.replacedSnapshot?.albums.map(\.plexID) == ["album-a", "album-b"])
-        #expect(subject.store.replacedSnapshot?.tracks.map(\.plexID) == ["track-a1", "track-a2", "track-b1"])
+        #expect(subject.store.replacedSnapshot?.tracks.map(\.plexID) == ["track-a1", "track-b1"])
         #expect(subject.store.replacedSnapshot?.artists.map(\.plexID) == ["artist-1"])
         #expect(subject.store.replacedSnapshot?.collections.map(\.plexID) == ["collection-1"])
         #expect(subject.store.replacedRefreshedAt == now)
@@ -49,7 +48,7 @@ struct LibraryRepoTests {
             reason: .userInitiated,
             refreshedAt: now,
             albumCount: 2,
-            trackCount: 3,
+            trackCount: 2,
             artistCount: 1,
             collectionCount: 1
         ))
@@ -61,10 +60,10 @@ struct LibraryRepoTests {
         let splitAlbumA = makeAlbum(id: "album-b", title: "Shared Album", artistName: "Shared Artist", year: 1999, trackCount: 1)
         let splitAlbumB = makeAlbum(id: "album-a", title: "Shared Album", artistName: "Shared Artist", year: 1999, trackCount: 1)
         subject.remote.albums = [splitAlbumA, splitAlbumB]
-        subject.remote.tracksByAlbumID[splitAlbumA.plexID] = [
+        subject.store.tracksByAlbumID[splitAlbumA.plexID] = [
             makeTrack(id: "track-b1", albumID: splitAlbumA.plexID, number: 2)
         ]
-        subject.remote.tracksByAlbumID[splitAlbumB.plexID] = [
+        subject.store.tracksByAlbumID[splitAlbumB.plexID] = [
             makeTrack(id: "track-a1", albumID: splitAlbumB.plexID, number: 1)
         ]
 
@@ -84,10 +83,10 @@ struct LibraryRepoTests {
         let subject = makeSubject()
         let splitAlbumA = makeAlbum(id: "album-b", title: "Shared Album", artistName: "Shared Artist", year: 1999, trackCount: 1)
         let splitAlbumB = makeAlbum(id: "album-a", title: "Shared Album", artistName: "Shared Artist", year: 1999, trackCount: 1)
-        subject.remote.tracksByAlbumID[splitAlbumA.plexID] = [
+        subject.store.tracksByAlbumID[splitAlbumA.plexID] = [
             makeTrack(id: "track-b1", albumID: splitAlbumA.plexID, number: 2)
         ]
-        subject.remote.tracksByAlbumID[splitAlbumB.plexID] = [
+        subject.store.tracksByAlbumID[splitAlbumB.plexID] = [
             makeTrack(id: "track-a1", albumID: splitAlbumB.plexID, number: 1)
         ]
 
@@ -146,6 +145,19 @@ struct LibraryRepoTests {
 
         #expect(tracks.map(\.plexID) == ["track-7"])
         #expect(subject.store.fetchTrackRequests == ["album-7"])
+        #expect(subject.remote.fetchTracksRequests.isEmpty)
+    }
+
+    @Test
+    func tracks_whenStoreHasNoTracks_fetchesFromRemote() async throws {
+        let subject = makeSubject()
+        subject.remote.tracksByAlbumID["album-9"] = [makeTrack(id: "track-9", albumID: "album-9", number: 1)]
+
+        let tracks = try await subject.repo.tracks(forAlbum: "album-9")
+
+        #expect(tracks.map(\.plexID) == ["track-9"])
+        #expect(subject.store.fetchTrackRequests == ["album-9"])
+        #expect(subject.remote.fetchTracksRequests == ["album-9"])
     }
 
     @Test
