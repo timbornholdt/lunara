@@ -1,0 +1,133 @@
+import SwiftUI
+
+struct LibraryGridView: View {
+    @State private var viewModel: LibraryGridViewModel
+
+    private let columns = [
+        GridItem(.adaptive(minimum: 140, maximum: 220), spacing: 16)
+    ]
+
+    init(viewModel: LibraryGridViewModel) {
+        _viewModel = State(initialValue: viewModel)
+    }
+
+    var body: some View {
+        NavigationStack {
+            content
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .navigationTitle("Albums")
+                .lunaraLinenBackground()
+                .lunaraErrorBanner(using: viewModel.errorBannerState)
+                .task {
+                    await viewModel.loadInitialIfNeeded()
+                }
+                .refreshable {
+                    await viewModel.refresh()
+                }
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if viewModel.albums.isEmpty,
+           case .loading = viewModel.loadingState {
+            VStack {
+                Spacer()
+                ProgressView("Loading albums...")
+                Spacer()
+            }
+        } else if viewModel.albums.isEmpty,
+                  case .error(let message) = viewModel.loadingState {
+            VStack(spacing: 16) {
+                Spacer()
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.system(size: 44))
+                    .foregroundStyle(.orange)
+                Text(message)
+                    .foregroundStyle(Color.lunara(.textSecondary))
+                    .multilineTextAlignment(.center)
+                Button("Retry") {
+                    Task {
+                        await viewModel.refresh()
+                    }
+                }
+                .buttonStyle(LunaraPillButtonStyle())
+                Spacer()
+            }
+        } else {
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: 20) {
+                    ForEach(viewModel.albums) { album in
+                        albumCard(for: album)
+                            .onAppear {
+                                Task {
+                                    await viewModel.loadNextPageIfNeeded(currentAlbumID: album.plexID)
+                                }
+                            }
+                    }
+                }
+
+                if viewModel.isLoadingNextPage {
+                    ProgressView()
+                        .padding(.top, 12)
+                }
+            }
+        }
+    }
+
+    private func albumCard(for album: Album) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            artworkView(for: album)
+
+            Text(album.title)
+                .font(.headline)
+                .lineLimit(2)
+                .foregroundStyle(Color.lunara(.textPrimary))
+
+            Text(album.subtitle)
+                .font(.subheadline)
+                .lineLimit(2)
+                .foregroundStyle(Color.lunara(.textSecondary))
+
+            Button("Play") {
+                Task {
+                    await viewModel.playAlbum(album)
+                }
+            }
+            .buttonStyle(LunaraPillButtonStyle())
+        }
+        .padding(12)
+        .background(Color.lunara(.backgroundElevated), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    @ViewBuilder
+    private func artworkView(for album: Album) -> some View {
+        let thumbnailURL = viewModel.thumbnailURL(for: album.plexID)
+
+        ZStack {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.lunara(.backgroundBase))
+
+            if let thumbnailURL {
+                AsyncImage(url: thumbnailURL) { image in
+                    image
+                        .resizable()
+                        .scaledToFill()
+                } placeholder: {
+                    ProgressView()
+                }
+            } else {
+                Image(systemName: "opticaldisc")
+                    .font(.system(size: 34))
+                    .foregroundStyle(Color.lunara(.textSecondary))
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .aspectRatio(1, contentMode: .fit)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .task {
+            viewModel.loadThumbnailIfNeeded(for: album)
+        }
+    }
+}
