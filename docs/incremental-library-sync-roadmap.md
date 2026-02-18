@@ -4,20 +4,23 @@ Updated: February 18, 2026
 
 ## Goal
 
-Stop full cache replacement during refresh. Keep existing albums/artwork unless they changed, and only fetch/store the minimum needed to reconcile with Plex.
+Stop full cache replacement during refresh and move the app to a single shared, cache-backed library read model.
+
+The cache should be incrementally reconciled from Plex, then reused across all screens (albums grid, album detail, collection detail, up next, now playing context, and debug/diagnostics) without each screen refetching remote content.
 
 This roadmap is written for future implementation bots and should be executed in small, reviewable sessions.
 
 ## Why This Exists
 
-- Current refresh behavior deletes and reinserts album/track rows during each successful refresh.
-- Artwork files are cached on disk, but metadata refresh still behaves like a full rewrite.
-- This library is private and changes infrequently, so sync should optimize for low churn and predictable behavior.
+- Refresh now performs incremental metadata + artwork reconciliation in the Library domain.
+- UI behavior still depends too much on paginated view-level loading state for some experiences (for example search across all albums).
+- Long-term architecture requires the local store to be the canonical app-wide source for library reads, with refresh acting as background maintenance.
+- This library is private and changes infrequently, so the app should optimize for cache reuse, low churn, and predictable startup behavior.
 
 ## Non-Negotiable Constraints
 
 - Follow `/Users/timbornholdt/Repos/Lunara/README.md` architecture boundaries.
-- Keep work inside Library domain and wiring points only.
+- Keep work inside Library domain plus approved wiring points (AppRouter and views consuming Library-domain read APIs).
 - Protocol-first changes before concrete implementation.
 - No new dependencies.
 - Preserve current UX rule: cached data remains usable when refresh fails.
@@ -26,18 +29,20 @@ This roadmap is written for future implementation bots and should be executed in
 ## Current Baseline (for orientation)
 
 - Refresh orchestration: `/Users/timbornholdt/Repos/Lunara/Lunara/Library/Repo/LibraryRepo.swift`
-- Full replacement write path: `/Users/timbornholdt/Repos/Lunara/Lunara/Library/Store/LibraryStore.swift`
+- Incremental store engine: `/Users/timbornholdt/Repos/Lunara/Lunara/Library/Store/LibraryStore+IncrementalSync.swift`
 - Artwork cache pipeline: `/Users/timbornholdt/Repos/Lunara/Lunara/Library/Artwork/ArtworkPipeline.swift`
 - App refresh fallback behavior: `/Users/timbornholdt/Repos/Lunara/Lunara/App/AppCoordinator.swift`
+- Album grid view-model read behavior: `/Users/timbornholdt/Repos/Lunara/Lunara/Views/Library/LibraryGridViewModel.swift`
 
 ## Target End State
 
-- Album metadata updates are row-level and incremental.
-- Deleted albums are pruned deliberately (not by wiping all tables first).
-- Track updates are incremental and tied to changed albums.
+- Album and track metadata updates are row-level and incremental.
+- Deleted entities are pruned deliberately (not by wiping all tables first).
 - Artwork is retained for unchanged albums and refreshed only when needed.
-- Refresh cadence reflects low-churn library behavior.
-- If Plex supports conditional validation headers, unchanged refreshes skip parse/write work.
+- A single Library-domain cached catalog is the default source for app reads.
+- Screens query/filter/sort against cached data (or cached slices), not remote fetches.
+- Refresh updates cache in place and publishes read-model updates without forcing full UI reload semantics.
+- If Plex supports conditional validation headers, unchanged refreshes can skip parse/write work.
 
 ## Delivery Plan
 
@@ -148,11 +153,54 @@ Status: Completed on February 18, 2026.
   - invalidates artwork for pruned/deleted album IDs from sync prune results,
   - keeps invalidation/warmup best-effort in an async task so metadata refresh completion is not blocked.
 
-## Stage 5: Conditional Request Feasibility Study
+## Stage 5: App-Wide Cached Catalog Adoption (Up Next)
+
+Status: Up next.
 
 ### Purpose
 
-Determine whether this specific Plex deployment reliably supports HTTP validators for album refresh optimization.
+Make the incremental cache the primary read path for the entire app so all screens operate on one consistent local catalog and refresh behavior becomes background reconciliation instead of per-screen fetch behavior.
+
+### Deliverables
+
+- Define protocol-first read-model contract(s) in Library domain for catalog access.
+  - Recommended shape: a `LibraryCatalog` (or equivalent) that exposes cached album/artist/collection reads, filtering, and pagination slices.
+  - Include APIs for full-library album search (title + artist) so search is not limited to preloaded pages.
+- Implement catalog loading from `LibraryStore` as startup/bootstrap behavior.
+  - Initial view data should come from cache immediately.
+  - Refresh should merge incremental updates into the same in-memory model (or read-through store query layer) without throwing away visible state.
+- Migrate screen data flows to catalog-backed reads:
+  - Albums grid/listing and search.
+  - Album detail context hydration.
+  - Collection detail and artist-related views.
+  - Up next queue metadata lookups.
+  - Now playing metadata/artwork lookups.
+- Keep action boundaries unchanged:
+  - Views still send actions through `AppRouter`.
+  - Library domain remains source for library metadata.
+  - Music domain remains source for playback state.
+
+### Implementation Notes
+
+- This is a cross-screen read-path migration, but still one module at a time.
+- Avoid view-local source-of-truth caches that diverge from store-backed catalog state.
+- Keep paging for rendering performance, but paging must be derived from a full cached dataset/queryable store so search and detail lookups can operate over all albums.
+- Do not introduce Music-domain imports into Library-domain types (or vice versa).
+- If needed, split into sub-sessions:
+  - 5a contracts + catalog model
+  - 5b album grid migration
+  - 5c detail/up-next/now-playing metadata adoption
+
+### Decision Gate
+
+- Stage 5 is complete when no user-facing screen relies on remote fetch as its primary metadata source during normal navigation.
+- App cold launch with existing cache should render key views without network.
+
+## Stage 6: Conditional Request Feasibility Study
+
+### Purpose
+
+Determine whether this specific Plex deployment reliably supports HTTP validators for refresh optimization.
 
 ### Research Tasks
 
@@ -169,7 +217,7 @@ Determine whether this specific Plex deployment reliably supports HTTP validator
 - If validators are stable and `304` behavior is reliable, implement conditional request handling.
 - If not reliable, retain incremental reconciliation without conditional short-circuiting.
 
-## Stage 6: Conditional Request Integration (Only If Gate Passes)
+## Stage 7: Conditional Request Integration (Only If Gate Passes)
 
 ### Deliverables
 
@@ -206,6 +254,10 @@ This reduces unnecessary network work even before conditional requests are prove
   - unchanged `thumbURL` does not invalidate cache
   - changed `thumbURL` invalidates and refetches
   - deleted album removes artwork mapping/file
+- App-wide cached catalog behavior:
+  - search scans full cached catalog, not just rendered page slices
+  - detail/up-next/now-playing views resolve metadata from cache without remote dependency
+  - incremental refresh publishes updates without forcing full cache reset semantics
 - Conditional path (if implemented):
   - `304` path skips writes
   - `200` path updates data and validator metadata
@@ -215,24 +267,25 @@ This reduces unnecessary network work even before conditional requests are prove
 - Paging still works for 2,000+ albums.
 - Library grid remains usable while offline with cached content.
 - Existing dedupe behavior remains correct.
+- App relaunch reuses local cache as primary source before refresh completes.
 
 ## Manual QA Checklist (Device)
 
-1. Launch app with network available and existing cache; verify albums load quickly.
-2. Trigger refresh without server-side library changes; verify no broad re-download behavior and no visible churn.
-3. Modify one album in Plex (metadata or artwork), refresh, verify only that album updates.
-4. Remove one album in Plex, refresh, verify it disappears locally and associated artwork is pruned.
-5. Disconnect network, trigger refresh, verify cached albums remain visible and error banner appears.
-6. Relaunch app and verify artwork previously seen loads from disk cache.
+1. Launch app with network disabled after a prior successful sync; verify albums, album detail, collections, up next metadata, and now playing metadata render from cache.
+2. Re-enable network, trigger refresh with no server-side changes; verify no visible cache reset/reload flash and no broad artwork churn.
+3. Search albums by artist and title terms that are not in first rendered pages; verify results still appear.
+4. Modify one album in Plex (metadata or artwork), refresh, verify only that album updates across grid and detail surfaces.
+5. Remove one album in Plex, refresh, verify it disappears locally and associated artwork is pruned.
+6. Disconnect network, trigger refresh, verify cached data remains visible and error banner appears.
 
 ## Suggested Session Slicing for Future Bots
 
-1. Contract + migration design review.
-2. Store incremental write implementation + tests.
-3. Repo reconciliation implementation + tests.
-4. Artwork incremental invalidation + tests.
-5. Conditional feasibility instrumentation + diagnostics.
-6. Conditional integration (only if viability confirmed).
+1. Stage 5a: catalog read-model contracts and bootstrap wiring.
+2. Stage 5b: album grid/search migration to full-cache-backed reads.
+3. Stage 5c: album detail, collection detail, up-next, and now-playing metadata migration.
+4. Stage 5d: regression tests + offline QA pass for app-wide cache-first behavior.
+5. Stage 6: conditional feasibility instrumentation + diagnostics.
+6. Stage 7: conditional integration (only if viability confirmed).
 
 Each session should stay within one module and end with passing tests plus a short QA checklist.
 
@@ -240,5 +293,5 @@ Each session should stay within one module and end with passing tests plus a sho
 
 - Webhook/event-driven sync.
 - New backend services.
-- Cross-domain refactors.
+- Cross-domain architecture violations.
 - Performance tricks unrelated to incremental sync correctness.
