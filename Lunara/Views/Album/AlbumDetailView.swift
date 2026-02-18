@@ -42,7 +42,7 @@ struct AlbumDetailView: View {
                 .lunaraHeading(.title, weight: .semibold)
 
             Text(subtitleText)
-                .font(.subheadline)
+                .font(AlbumDetailTypography.font(for: .subtitleMetadata))
                 .foregroundStyle(Color.lunara(.textSecondary))
 
             Button("Play Album") {
@@ -126,19 +126,19 @@ struct AlbumDetailView: View {
         } label: {
             HStack(spacing: 10) {
                 Text("\(track.trackNumber)")
-                    .font(.subheadline.monospacedDigit())
+                    .font(AlbumDetailTypography.font(for: .trackNumber))
                     .foregroundStyle(Color.lunara(.textSecondary))
                     .frame(width: 24, alignment: .trailing)
 
                 Text(track.title)
-                    .font(.body)
+                    .font(AlbumDetailTypography.font(for: .trackTitle))
                     .foregroundStyle(Color.lunara(.textPrimary))
                     .lineLimit(1)
 
                 Spacer()
 
                 Text(track.formattedDuration)
-                    .font(.footnote.monospacedDigit())
+                    .font(AlbumDetailTypography.font(for: .trackDuration))
                     .foregroundStyle(Color.lunara(.textSecondary))
             }
             .padding(.vertical, 8)
@@ -168,7 +168,7 @@ struct AlbumDetailView: View {
         if let review = viewModel.review {
             sectionCard(title: "Review") {
                 Text(review)
-                    .font(.body)
+                    .font(AlbumDetailTypography.font(for: .reviewBody))
                     .foregroundStyle(Color.lunara(.textPrimary))
             }
         }
@@ -201,7 +201,7 @@ struct AlbumDetailView: View {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 88), spacing: 8)], alignment: .leading, spacing: 8) {
                 ForEach(tags, id: \.self) { tag in
                     Text(tag)
-                        .font(.caption.weight(.medium))
+                        .font(AlbumDetailTypography.font(for: .pill))
                         .foregroundStyle(Color.lunara(.textPrimary))
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
