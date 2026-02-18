@@ -67,15 +67,22 @@ final class LibraryRepo: LibraryRepoProtocol {
 
     func tracks(forAlbum albumID: String) async throws -> [Track] {
         let cachedTracks = try await store.fetchTracks(forAlbum: albumID)
-        if !cachedTracks.isEmpty {
-            return cachedTracks
-        }
 
         do {
-            return try await remote.fetchTracks(forAlbum: albumID)
+            let remoteTracks = try await remote.fetchTracks(forAlbum: albumID)
+            if !remoteTracks.isEmpty {
+                return remoteTracks
+            }
+            return cachedTracks
         } catch let error as LibraryError {
+            if !cachedTracks.isEmpty {
+                return cachedTracks
+            }
             throw error
         } catch {
+            if !cachedTracks.isEmpty {
+                return cachedTracks
+            }
             throw LibraryError.operationFailed(reason: "Track fetch failed: \(error.localizedDescription)")
         }
     }

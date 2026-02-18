@@ -178,13 +178,14 @@ struct LibraryRepoTests {
         }
     }
     @Test
-    func tracks_readsFromStore() async throws {
+    func tracks_prefersRemoteWhenStoreHasCachedTracks() async throws {
         let subject = makeSubject()
         subject.store.tracksByAlbumID["album-7"] = [makeTrack(id: "track-7", albumID: "album-7", number: 1)]
+        subject.remote.tracksByAlbumID["album-7"] = [makeTrack(id: "track-7-remote", albumID: "album-7", number: 1)]
         let tracks = try await subject.repo.tracks(forAlbum: "album-7")
-        #expect(tracks.map(\.plexID) == ["track-7"])
+        #expect(tracks.map(\.plexID) == ["track-7-remote"])
         #expect(subject.store.fetchTrackRequests == ["album-7"])
-        #expect(subject.remote.fetchTracksRequests.isEmpty)
+        #expect(subject.remote.fetchTracksRequests == ["album-7"])
     }
     @Test
     func tracks_whenStoreHasNoTracks_fetchesFromRemote() async throws {
@@ -194,6 +195,18 @@ struct LibraryRepoTests {
         #expect(tracks.map(\.plexID) == ["track-9"])
         #expect(subject.store.fetchTrackRequests == ["album-9"])
         #expect(subject.remote.fetchTracksRequests == ["album-9"])
+    }
+    @Test
+    func tracks_whenRemoteFailsAndStoreHasCachedTracks_returnsCachedTracks() async throws {
+        let subject = makeSubject()
+        subject.store.tracksByAlbumID["album-8"] = [makeTrack(id: "track-8-cached", albumID: "album-8", number: 1)]
+        subject.remote.fetchTracksErrorByAlbumID["album-8"] = .timeout
+
+        let tracks = try await subject.repo.tracks(forAlbum: "album-8")
+
+        #expect(tracks.map(\.plexID) == ["track-8-cached"])
+        #expect(subject.store.fetchTrackRequests == ["album-8"])
+        #expect(subject.remote.fetchTracksRequests == ["album-8"])
     }
     @Test
     func streamURL_delegatesToRemote() async throws {
