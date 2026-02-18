@@ -7,8 +7,14 @@ struct LibraryRootTabView: View {
     }
 
     let coordinator: AppCoordinator
+    let tabBarTheme: LunaraTabBarTheme
 
     @State private var selectedTab: Tab = .albums
+
+    init(coordinator: AppCoordinator, tabBarTheme: LunaraTabBarTheme = .garden) {
+        self.coordinator = coordinator
+        self.tabBarTheme = tabBarTheme
+    }
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -29,6 +35,12 @@ struct LibraryRootTabView: View {
                     Label("Debug View", systemImage: "ladybug")
                 }
                 .tag(Tab.debug)
+        }
+        .tint(Color.lunara(tabBarTheme.selectedTintRole))
+        .toolbarBackground(Color.lunara(tabBarTheme.backgroundRole), for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
+        .onAppear {
+            LunaraTabBarStyler.apply(theme: tabBarTheme)
         }
     }
 }
