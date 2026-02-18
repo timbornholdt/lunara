@@ -1,3 +1,4 @@
+import CoreFoundation
 import SwiftUI
 import Testing
 @testable import Lunara
