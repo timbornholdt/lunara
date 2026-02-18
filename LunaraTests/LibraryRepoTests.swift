@@ -82,11 +82,8 @@ struct LibraryRepoTests {
             artistCount: 1,
             collectionCount: 1
         ))
-        await waitForArtworkRequests(
-            on: subject.artworkPipeline,
-            expectedOwnerIDs: ["album-a", "album-b"]
-        )
-        #expect(subject.artworkPipeline.thumbnailRequests.map(\.ownerID) == ["album-a", "album-b"])
+        await waitForArtworkRequests(on: subject.artworkPipeline, expectedOwnerIDs: [])
+        #expect(subject.artworkPipeline.thumbnailRequests.isEmpty)
     }
     @Test
     func refreshLibrary_whenArtworkPreloadFails_stillPersistsMetadataSnapshot() async throws {
@@ -228,6 +225,69 @@ struct LibraryRepoTests {
         #expect(subject.store.syncCheckpointByKey["reconciliation.tracks.changed"]?.value == "1")
         #expect(subject.store.syncCheckpointByKey["reconciliation.tracks.unchanged"]?.value == "1")
         #expect(subject.store.syncCheckpointByKey["reconciliation.tracks.deleted"]?.value == "1")
+    }
+
+    @Test
+    func refreshLibrary_withUnchangedThumbAndExistingCachedFile_doesNotInvalidateOrRefetchArtwork() async throws {
+        let subject = makeSubject()
+        let album = makeAlbum(id: "album-1", thumbURL: "/library/metadata/1/thumb/1", trackCount: 1)
+        subject.store.albumsByPage[1] = [album]
+        subject.store.tracksByAlbumID[album.plexID] = [makeTrack(id: "track-1", albumID: album.plexID, number: 1)]
+        subject.remote.albums = [album]
+        subject.remote.tracksByAlbumID[album.plexID] = [makeTrack(id: "track-1", albumID: album.plexID, number: 1)]
+
+        let cachedPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("library-repo-artwork-\(UUID().uuidString).jpg")
+        try Data("cached".utf8).write(to: cachedPath)
+        subject.store.artworkPathByKey[ArtworkKey(ownerID: album.plexID, ownerType: .album, variant: .thumbnail)] = cachedPath.path
+
+        _ = try await subject.repo.refreshLibrary(reason: .userInitiated)
+        await waitForArtworkRequests(on: subject.artworkPipeline, expectedOwnerIDs: [])
+
+        #expect(subject.artworkPipeline.thumbnailRequests.isEmpty)
+        #expect(subject.artworkPipeline.invalidatedOwners.isEmpty)
+    }
+
+    @Test
+    func refreshLibrary_withChangedThumbURL_invalidatesAndRefetchesArtwork() async throws {
+        let subject = makeSubject()
+        let cachedAlbum = makeAlbum(id: "album-2", thumbURL: "/library/metadata/2/thumb/old", trackCount: 1)
+        let refreshedAlbum = makeAlbum(id: "album-2", thumbURL: "/library/metadata/2/thumb/new", trackCount: 1)
+        subject.store.albumsByPage[1] = [cachedAlbum]
+        subject.store.tracksByAlbumID[cachedAlbum.plexID] = [makeTrack(id: "track-2", albumID: cachedAlbum.plexID, number: 1)]
+        subject.remote.albums = [refreshedAlbum]
+        subject.remote.tracksByAlbumID[refreshedAlbum.plexID] = [makeTrack(id: "track-2", albumID: refreshedAlbum.plexID, number: 1)]
+
+        let resolved = try #require(URL(string: "http://localhost:32400/library/metadata/2/thumb/new?X-Plex-Token=test"))
+        let refreshedThumb = try #require(refreshedAlbum.thumbURL)
+        subject.remote.artworkURLByRawValue[refreshedThumb] = resolved
+
+        _ = try await subject.repo.refreshLibrary(reason: .userInitiated)
+        await waitForArtworkRequests(on: subject.artworkPipeline, expectedOwnerIDs: [refreshedAlbum.plexID])
+
+        #expect(subject.artworkPipeline.invalidatedOwners == [
+            ArtworkPipelineMock.InvalidateOwnerRequest(ownerID: refreshedAlbum.plexID, ownerKind: .album)
+        ])
+        #expect(subject.artworkPipeline.thumbnailRequests.first?.sourceURL == resolved)
+    }
+
+    @Test
+    func refreshLibrary_whenAlbumPruned_invalidatesAlbumArtworkCache() async throws {
+        let subject = makeSubject()
+        let activeAlbum = makeAlbum(id: "album-active", thumbURL: "/library/metadata/active/thumb", trackCount: 1)
+        subject.remote.albums = [activeAlbum]
+        subject.remote.tracksByAlbumID[activeAlbum.plexID] = [makeTrack(id: "track-active", albumID: activeAlbum.plexID, number: 1)]
+        subject.store.pruneResult = LibrarySyncPruneResult(
+            prunedAlbumIDs: ["album-deleted"],
+            prunedTrackIDs: ["track-deleted"]
+        )
+
+        _ = try await subject.repo.refreshLibrary(reason: .userInitiated)
+        await waitForArtworkRequests(on: subject.artworkPipeline, expectedOwnerIDs: [activeAlbum.plexID])
+
+        #expect(subject.artworkPipeline.invalidatedOwners.contains(
+            ArtworkPipelineMock.InvalidateOwnerRequest(ownerID: "album-deleted", ownerKind: .album)
+        ))
     }
     @Test
     func tracks_prefersRemoteWhenStoreHasCachedTracks() async throws {

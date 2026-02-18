@@ -35,15 +35,20 @@ extension LibraryRepo {
             try await store.upsertTracks(dedupedLibrary.tracks, in: run)
             try await store.markAlbumsSeen(dedupedLibrary.albums.map(\.plexID), in: run)
             try await store.markTracksSeen(dedupedLibrary.tracks.map(\.plexID), in: run)
-            _ = try await store.pruneRowsNotSeen(in: run)
+            let pruneResult = try await store.pruneRowsNotSeen(in: run)
             try await store.completeIncrementalSync(run, refreshedAt: refreshedAt)
 
             let dedupedAlbums = dedupedLibrary.albums
+            let cachedAlbumsByID = Dictionary(uniqueKeysWithValues: cachedAlbums.map { ($0.plexID, $0) })
             Task { [weak self] in
                 guard let self else {
                     return
                 }
-                await self.preloadThumbnailArtwork(for: dedupedAlbums)
+                await self.reconcileThumbnailArtwork(
+                    cachedAlbumsByID: cachedAlbumsByID,
+                    refreshedAlbums: dedupedAlbums,
+                    deletedAlbumIDs: pruneResult.prunedAlbumIDs
+                )
             }
 
             let cachedArtists = try await store.fetchArtists()

@@ -122,6 +122,8 @@ Status: Completed on February 18, 2026.
 
 ## Stage 4: Artwork Incremental Behavior
 
+Status: Completed on February 18, 2026.
+
 ### Deliverables
 
 - During reconciliation, detect artwork reference changes (for example `thumbURL` changes).
@@ -134,6 +136,17 @@ Status: Completed on February 18, 2026.
 
 - Keep existing LRU eviction and disk-first load semantics.
 - Do not block metadata refresh on artwork warmup.
+- Implemented in:
+  - `/Users/timbornholdt/Repos/Lunara/Lunara/Library/Repo/LibraryRepo+RefreshReconciliation.swift`
+  - `/Users/timbornholdt/Repos/Lunara/Lunara/Library/Repo/LibraryRepo+AlbumMetadata.swift`
+  - `/Users/timbornholdt/Repos/Lunara/LunaraTests/LibraryRepoTests.swift`
+  - `/Users/timbornholdt/Repos/Lunara/LunaraTests/LibraryRepoTestDoubles.swift`
+- `LibraryRepo` artwork refresh is now incremental:
+  - invalidates album artwork cache when `thumbURL` changes,
+  - skips refetch for unchanged `thumbURL` when cached thumbnail path exists on disk,
+  - forces warmup only for new albums, changed artwork references, or missing cached files,
+  - invalidates artwork for pruned/deleted album IDs from sync prune results,
+  - keeps invalidation/warmup best-effort in an async task so metadata refresh completion is not blocked.
 
 ## Stage 5: Conditional Request Feasibility Study
 
