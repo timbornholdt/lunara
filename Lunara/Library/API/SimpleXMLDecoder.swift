@@ -63,6 +63,7 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
                 index: index,
                 parentTitle: attrs["parentTitle"],
                 grandparentTitle: attrs["grandparentTitle"],
+                originalTitle: attrs["originalTitle"],
                 year: year,
                 thumb: attrs["thumb"],
                 duration: duration,

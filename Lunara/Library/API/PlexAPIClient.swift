@@ -123,7 +123,7 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
                 title: plexMetadata.title,
                 trackNumber: plexMetadata.index ?? 0,
                 duration: TimeInterval(plexMetadata.duration ?? 0) / 1000.0,
-                artistName: plexMetadata.grandparentTitle ?? plexMetadata.parentTitle ?? "Unknown Artist",
+                artistName: plexMetadata.originalTitle ?? plexMetadata.grandparentTitle ?? plexMetadata.parentTitle ?? "Unknown Artist",
                 key: key,
                 thumbURL: plexMetadata.thumb
             ))

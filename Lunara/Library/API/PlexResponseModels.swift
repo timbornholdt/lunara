@@ -50,6 +50,7 @@ struct PlexMetadata: Codable {
     let index: Int?
     let parentTitle: String?
     let grandparentTitle: String?
+    let originalTitle: String?
     let year: Int?
     let thumb: String?
     let duration: Int?
@@ -71,6 +72,7 @@ struct PlexMetadata: Codable {
         case index
         case parentTitle
         case grandparentTitle
+        case originalTitle
         case year
         case thumb
         case duration
