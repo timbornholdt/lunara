@@ -169,6 +169,48 @@ struct LibraryGridViewModelTests {
         #expect(detailViewModel.moods.isEmpty)
     }
 
+    @Test
+    func filteredAlbums_whenSearchQueryMatchesTitle_filtersByAlbumTitle() async {
+        let subject = makeSubject()
+        subject.library.albumsByPage[1] = [
+            makeAlbum(id: "album-1", title: "Blue Train", artistName: "John Coltrane"),
+            makeAlbum(id: "album-2", title: "Giant Steps", artistName: "John Coltrane")
+        ]
+        await subject.viewModel.loadInitialIfNeeded()
+
+        subject.viewModel.searchQuery = "blue"
+
+        #expect(subject.viewModel.filteredAlbums.map(\.plexID) == ["album-1"])
+    }
+
+    @Test
+    func filteredAlbums_whenSearchQueryMatchesArtist_filtersByAlbumArtist() async {
+        let subject = makeSubject()
+        subject.library.albumsByPage[1] = [
+            makeAlbum(id: "album-1", title: "Kind of Blue", artistName: "Miles Davis"),
+            makeAlbum(id: "album-2", title: "A Love Supreme", artistName: "John Coltrane")
+        ]
+        await subject.viewModel.loadInitialIfNeeded()
+
+        subject.viewModel.searchQuery = "coltrane"
+
+        #expect(subject.viewModel.filteredAlbums.map(\.plexID) == ["album-2"])
+    }
+
+    @Test
+    func filteredAlbums_whenSearchQueryIsWhitespace_returnsAllAlbums() async {
+        let subject = makeSubject()
+        subject.library.albumsByPage[1] = [
+            makeAlbum(id: "album-1"),
+            makeAlbum(id: "album-2")
+        ]
+        await subject.viewModel.loadInitialIfNeeded()
+
+        subject.viewModel.searchQuery = "   "
+
+        #expect(subject.viewModel.filteredAlbums.map(\.plexID) == ["album-1", "album-2"])
+    }
+
     private func makeSubject(prefetchThreshold: Int = 2) -> (
         viewModel: LibraryGridViewModel,
         library: LibraryGridRepoMock,
@@ -189,11 +231,16 @@ struct LibraryGridViewModelTests {
         return (viewModel, library, artwork, actions)
     }
 
-    private func makeAlbum(id: String, thumbURL: String? = nil) -> Album {
+    private func makeAlbum(
+        id: String,
+        title: String? = nil,
+        artistName: String? = nil,
+        thumbURL: String? = nil
+    ) -> Album {
         Album(
             plexID: id,
-            title: "Album \(id)",
-            artistName: "Artist",
+            title: title ?? "Album \(id)",
+            artistName: artistName ?? "Artist",
             year: nil,
             thumbURL: thumbURL,
             genre: nil,

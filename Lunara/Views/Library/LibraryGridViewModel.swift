@@ -28,10 +28,23 @@ final class LibraryGridViewModel {
     private var pendingArtworkAlbumIDs: Set<String> = []
 
     var albums: [Album] = []
+    var searchQuery = ""
     var loadingState: LoadingState = .idle
     var isLoadingNextPage = false
     var artworkByAlbumID: [String: URL] = [:]
     var errorBannerState = ErrorBannerState()
+
+    var filteredAlbums: [Album] {
+        let normalizedQuery = normalizedSearchQuery(searchQuery)
+        guard !normalizedQuery.isEmpty else {
+            return albums
+        }
+
+        return albums.filter { album in
+            normalizedSearchQuery(album.title).contains(normalizedQuery) ||
+                normalizedSearchQuery(album.artistName).contains(normalizedQuery)
+        }
+    }
 
     init(
         library: LibraryRepoProtocol,
@@ -201,5 +214,11 @@ final class LibraryGridViewModel {
             return lunaraError.userMessage
         }
         return error.localizedDescription
+    }
+
+    private func normalizedSearchQuery(_ value: String) -> String {
+        value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
     }
 }

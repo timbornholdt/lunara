@@ -27,6 +27,7 @@ struct LibraryGridView: View {
                     }
                 }
                 .toolbarBackground(.hidden, for: .navigationBar)
+                .searchable(text: $viewModel.searchQuery, placement: .navigationBarDrawer(displayMode: .automatic), prompt: Text("Search albums or artists"))
                 .navigationDestination(item: $selectedAlbum) { album in
                     AlbumDetailView(viewModel: viewModel.makeAlbumDetailViewModel(for: album))
                 }
@@ -68,10 +69,23 @@ struct LibraryGridView: View {
                 .buttonStyle(LunaraPillButtonStyle())
                 Spacer()
             }
+        } else if !viewModel.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  viewModel.filteredAlbums.isEmpty {
+            VStack(spacing: 16) {
+                Spacer()
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 40))
+                    .foregroundStyle(Color.lunara(.textSecondary))
+                Text("No albums matched your search.")
+                    .font(albumSubtitleFont)
+                    .foregroundStyle(Color.lunara(.textSecondary))
+                    .multilineTextAlignment(.center)
+                Spacer()
+            }
         } else {
             ScrollView {
                 LazyVGrid(columns: columns, spacing: 20) {
-                    ForEach(viewModel.albums) { album in
+                    ForEach(viewModel.filteredAlbums) { album in
                         albumCard(for: album)
                             .onAppear {
                                 Task {
