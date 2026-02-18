@@ -139,6 +139,16 @@ final class LibraryRepo: LibraryRepoProtocol {
         }
     }
 
+    func authenticatedArtworkURL(for rawValue: String?) async throws -> URL? {
+        do {
+            return try await remote.authenticatedArtworkURL(for: rawValue)
+        } catch let error as LibraryError {
+            throw error
+        } catch {
+            throw LibraryError.operationFailed(reason: "Artwork URL resolution failed: \(error.localizedDescription)")
+        }
+    }
+
     private func dedupeLibrary(albums: [Album], tracks: [Track]) -> DedupeResult {
         var groups: [String: DedupeGroup] = [:]
         var albumIDsByGroupKey: [String: [String]] = [:]
