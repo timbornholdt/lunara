@@ -80,6 +80,9 @@ final class LibraryStoreMock: LibraryStoreProtocol {
     var replaceLibraryCallCount = 0
     var replacedSnapshot: LibrarySnapshot?
     var replacedRefreshedAt: Date?
+    var begunSyncRuns: [LibrarySyncRun] = []
+    var syncCheckpointByKey: [String: LibrarySyncCheckpoint] = [:]
+    var pruneResult: LibrarySyncPruneResult = .empty
 
     var replaceLibraryError: LibraryError?
 
@@ -132,6 +135,33 @@ final class LibraryStoreMock: LibraryStoreProtocol {
 
     func lastRefreshDate() async throws -> Date? {
         lastRefresh
+    }
+
+    func beginIncrementalSync(startedAt: Date) async throws -> LibrarySyncRun {
+        let run = LibrarySyncRun(id: "mock-sync-\(begunSyncRuns.count + 1)", startedAt: startedAt)
+        begunSyncRuns.append(run)
+        return run
+    }
+
+    func upsertAlbums(_ albums: [Album], in run: LibrarySyncRun) async throws { }
+    func upsertTracks(_ tracks: [Track], in run: LibrarySyncRun) async throws { }
+    func markAlbumsSeen(_ albumIDs: [String], in run: LibrarySyncRun) async throws { }
+    func markTracksSeen(_ trackIDs: [String], in run: LibrarySyncRun) async throws { }
+
+    func pruneRowsNotSeen(in run: LibrarySyncRun) async throws -> LibrarySyncPruneResult {
+        pruneResult
+    }
+
+    func setSyncCheckpoint(_ checkpoint: LibrarySyncCheckpoint, in run: LibrarySyncRun?) async throws {
+        syncCheckpointByKey[checkpoint.key] = checkpoint
+    }
+
+    func syncCheckpoint(forKey key: String) async throws -> LibrarySyncCheckpoint? {
+        syncCheckpointByKey[key]
+    }
+
+    func completeIncrementalSync(_ run: LibrarySyncRun, refreshedAt: Date) async throws {
+        lastRefresh = refreshedAt
     }
 
     func artworkPath(for key: ArtworkKey) async throws -> String? {

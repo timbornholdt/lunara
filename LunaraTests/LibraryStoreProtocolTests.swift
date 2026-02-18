@@ -51,6 +51,38 @@ struct LibraryStoreProtocolTests {
         #expect(albumTracks.map(\.plexID) == ["track-1", "track-2"])
     }
 
+    @Test
+    func librarySyncRun_init_setsStableIDAndStartTimestamp() {
+        let start = Date(timeIntervalSince1970: 1234)
+        let run = LibrarySyncRun(id: "sync-1", startedAt: start)
+
+        #expect(run.id == "sync-1")
+        #expect(run.startedAt == start)
+    }
+
+    @Test
+    func librarySyncPruneResult_isEmptyOnlyWhenNoAlbumsOrTracksWerePruned() {
+        let empty = LibrarySyncPruneResult.empty
+        let prunedTracksOnly = LibrarySyncPruneResult(prunedAlbumIDs: [], prunedTrackIDs: ["track-1"])
+
+        #expect(empty.isEmpty)
+        #expect(!prunedTracksOnly.isEmpty)
+    }
+
+    @Test
+    func librarySyncCheckpoint_preservesKeyValueAndTimestamp() {
+        let timestamp = Date(timeIntervalSince1970: 2222)
+        let checkpoint = LibrarySyncCheckpoint(
+            key: "albums.lastSeenCursor",
+            value: "cursor-42",
+            updatedAt: timestamp
+        )
+
+        #expect(checkpoint.key == "albums.lastSeenCursor")
+        #expect(checkpoint.value == "cursor-42")
+        #expect(checkpoint.updatedAt == timestamp)
+    }
+
     private func makeAlbum(id: String) -> Album {
         Album(
             plexID: id,

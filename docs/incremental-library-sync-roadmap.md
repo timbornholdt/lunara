@@ -43,6 +43,8 @@ This roadmap is written for future implementation bots and should be executed in
 
 ## Stage 1: Define Sync Contracts (Protocol-First)
 
+Status: Completed on February 18, 2026.
+
 ### Deliverables
 
 - Extend `LibraryStoreProtocol` with incremental APIs:
@@ -57,6 +59,11 @@ This roadmap is written for future implementation bots and should be executed in
 
 - Keep existing methods until migration is complete.
 - Document transaction guarantees in protocol comments.
+- Implemented in:
+  - `/Users/timbornholdt/Repos/Lunara/Lunara/Library/Store/LibraryStoreProtocol.swift`
+  - `/Users/timbornholdt/Repos/Lunara/Lunara/Library/Store/LibraryStore.swift`
+  - `/Users/timbornholdt/Repos/Lunara/LunaraTests/LibraryStoreProtocolTests.swift`
+- `LibraryStore` incremental APIs are currently explicit Stage 1 placeholders that throw `LibraryError.operationFailed` until Stage 2 GRDB reconciliation is implemented.
 
 ## Stage 2: Migrations + Incremental Store Engine
 
