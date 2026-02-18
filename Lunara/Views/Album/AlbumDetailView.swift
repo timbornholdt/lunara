@@ -139,27 +139,46 @@ struct AlbumDetailView: View {
     }
 
     private func trackRow(_ track: Track) -> some View {
-        Button {
+        let secondaryArtist = AlbumTrackPresentation.secondaryArtist(
+            trackArtist: track.artistName,
+            albumArtist: viewModel.album.artistName
+        )
+
+        return Button {
             Task {
                 await viewModel.playTrackNow(track)
             }
         } label: {
-            HStack(spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
                 Text("\(track.trackNumber)")
                     .font(AlbumDetailTypography.font(for: .trackNumber))
                     .foregroundStyle(Color.lunara(.textSecondary))
                     .frame(width: 24, alignment: .trailing)
+                    .padding(.top, 2)
 
-                Text(track.title)
-                    .font(AlbumDetailTypography.font(for: .trackTitle))
-                    .foregroundStyle(Color.lunara(.textPrimary))
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(track.title)
+                        .font(AlbumDetailTypography.font(for: .trackTitle))
+                        .foregroundStyle(Color.lunara(.textPrimary))
+                        .lineLimit(nil)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if let secondaryArtist {
+                        Text(secondaryArtist)
+                            .font(.subheadline)
+                            .foregroundStyle(Color.lunara(.textSecondary))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .layoutPriority(1)
 
                 Spacer()
 
                 Text(track.formattedDuration)
                     .font(AlbumDetailTypography.font(for: .trackDuration))
                     .foregroundStyle(Color.lunara(.textSecondary))
+                    .fixedSize(horizontal: true, vertical: false)
             }
             .padding(.vertical, 8)
         }
