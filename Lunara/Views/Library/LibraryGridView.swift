@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct LibraryGridView: View {
     @State private var viewModel: LibraryGridViewModel
@@ -19,6 +20,9 @@ struct LibraryGridView: View {
                 .navigationTitle("Albums")
                 .lunaraLinenBackground()
                 .lunaraErrorBanner(using: viewModel.errorBannerState)
+                .onAppear {
+                    configureNavigationBarTypography()
+                }
                 .task {
                     await viewModel.loadInitialIfNeeded()
                 }
@@ -81,12 +85,12 @@ struct LibraryGridView: View {
             artworkView(for: album)
 
             Text(album.title)
-                .lunaraHeading(.section, weight: .semibold)
+                .font(albumTitleFont)
                 .lineLimit(2)
                 .foregroundStyle(Color.lunara(.textPrimary))
 
             Text(album.subtitle)
-                .font(.subheadline)
+                .font(albumSubtitleFont)
                 .lineLimit(2)
                 .foregroundStyle(Color.lunara(.textSecondary))
 
@@ -129,5 +133,37 @@ struct LibraryGridView: View {
         .task {
             viewModel.loadThumbnailIfNeeded(for: album)
         }
+    }
+
+    private var albumTitleFont: Font {
+        let size: CGFloat = 20
+        if UIFont(name: "PlayfairDisplay-SemiBold", size: size) != nil {
+            return .custom("PlayfairDisplay-SemiBold", size: size, relativeTo: .title3)
+        }
+
+        return .system(size: size, weight: .semibold, design: .serif)
+    }
+
+    private var albumSubtitleFont: Font {
+        let size: CGFloat = 16
+        if UIFont(name: "PlayfairDisplay-Regular", size: size) != nil {
+            return .custom("PlayfairDisplay-Regular", size: size, relativeTo: .subheadline)
+        }
+
+        return .system(size: size, weight: .regular, design: .serif)
+    }
+
+    private func configureNavigationBarTypography() {
+        let largeTitleSize: CGFloat = 56
+        let inlineTitleSize: CGFloat = 24
+
+        let largeTitleFont = UIFont(name: "PlayfairDisplay-SemiBold", size: largeTitleSize)
+            ?? UIFont.systemFont(ofSize: largeTitleSize, weight: .semibold)
+        let inlineTitleFont = UIFont(name: "PlayfairDisplay-SemiBold", size: inlineTitleSize)
+            ?? UIFont.systemFont(ofSize: inlineTitleSize, weight: .semibold)
+
+        let navBar = UINavigationBar.appearance()
+        navBar.largeTitleTextAttributes = [.font: largeTitleFont]
+        navBar.titleTextAttributes = [.font: inlineTitleFont]
     }
 }
