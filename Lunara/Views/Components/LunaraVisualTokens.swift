@@ -56,23 +56,76 @@ struct LunaraLinenToken: Equatable {
 }
 
 enum LunaraVisualTokens {
-    static func colorToken(for role: LunaraSemanticColorRole) -> LunaraColorToken {
+    static func colorToken(for role: LunaraSemanticColorRole, in scheme: ColorScheme) -> LunaraColorToken {
         switch role {
         case .backgroundBase:
-            return LunaraColorToken(red: 0.964, green: 0.941, blue: 0.886, opacity: 1.0)
+            switch scheme {
+            case .light:
+                return LunaraColorToken(red: 0.960, green: 0.949, blue: 0.863, opacity: 1.0)
+            case .dark:
+                return LunaraColorToken(red: 0.094, green: 0.114, blue: 0.086, opacity: 1.0)
+            @unknown default:
+                return LunaraColorToken(red: 0.960, green: 0.949, blue: 0.863, opacity: 1.0)
+            }
         case .backgroundElevated:
-            return LunaraColorToken(red: 0.987, green: 0.972, blue: 0.932, opacity: 1.0)
+            switch scheme {
+            case .light:
+                return LunaraColorToken(red: 0.985, green: 0.968, blue: 0.807, opacity: 1.0)
+            case .dark:
+                return LunaraColorToken(red: 0.156, green: 0.196, blue: 0.122, opacity: 1.0)
+            @unknown default:
+                return LunaraColorToken(red: 0.985, green: 0.968, blue: 0.807, opacity: 1.0)
+            }
         case .textPrimary:
-            return LunaraColorToken(red: 0.165, green: 0.153, blue: 0.129, opacity: 1.0)
+            switch scheme {
+            case .light:
+                return LunaraColorToken(red: 0.153, green: 0.204, blue: 0.133, opacity: 1.0)
+            case .dark:
+                return LunaraColorToken(red: 0.960, green: 0.951, blue: 0.834, opacity: 1.0)
+            @unknown default:
+                return LunaraColorToken(red: 0.153, green: 0.204, blue: 0.133, opacity: 1.0)
+            }
         case .textSecondary:
-            return LunaraColorToken(red: 0.388, green: 0.365, blue: 0.318, opacity: 1.0)
+            switch scheme {
+            case .light:
+                return LunaraColorToken(red: 0.322, green: 0.384, blue: 0.251, opacity: 1.0)
+            case .dark:
+                return LunaraColorToken(red: 0.780, green: 0.773, blue: 0.639, opacity: 1.0)
+            @unknown default:
+                return LunaraColorToken(red: 0.322, green: 0.384, blue: 0.251, opacity: 1.0)
+            }
         case .accentPrimary:
-            return LunaraColorToken(red: 0.341, green: 0.235, blue: 0.165, opacity: 1.0)
+            switch scheme {
+            case .light:
+                return LunaraColorToken(red: 0.412, green: 0.557, blue: 0.239, opacity: 1.0)
+            case .dark:
+                return LunaraColorToken(red: 0.807, green: 0.702, blue: 0.322, opacity: 1.0)
+            @unknown default:
+                return LunaraColorToken(red: 0.412, green: 0.557, blue: 0.239, opacity: 1.0)
+            }
         case .accentOnAccent:
-            return LunaraColorToken(red: 0.996, green: 0.985, blue: 0.957, opacity: 1.0)
+            switch scheme {
+            case .light:
+                return LunaraColorToken(red: 0.989, green: 0.983, blue: 0.914, opacity: 1.0)
+            case .dark:
+                return LunaraColorToken(red: 0.129, green: 0.157, blue: 0.098, opacity: 1.0)
+            @unknown default:
+                return LunaraColorToken(red: 0.989, green: 0.983, blue: 0.914, opacity: 1.0)
+            }
         case .borderSubtle:
-            return LunaraColorToken(red: 0.712, green: 0.653, blue: 0.557, opacity: 0.58)
+            switch scheme {
+            case .light:
+                return LunaraColorToken(red: 0.573, green: 0.647, blue: 0.431, opacity: 0.52)
+            case .dark:
+                return LunaraColorToken(red: 0.686, green: 0.729, blue: 0.518, opacity: 0.58)
+            @unknown default:
+                return LunaraColorToken(red: 0.573, green: 0.647, blue: 0.431, opacity: 0.52)
+            }
         }
+    }
+
+    static func colorToken(for role: LunaraSemanticColorRole) -> LunaraColorToken {
+        colorToken(for: role, in: .light)
     }
 
     static func headingToken(for level: LunaraHeadingLevel, weight: LunaraHeadingWeight) -> LunaraHeadingToken {

@@ -5,17 +5,31 @@ import Testing
 
 struct LunaraVisualTokensTests {
     @Test
-    func colorToken_backgroundBase_matchesExpectedRGBA() {
-        let token = LunaraVisualTokens.colorToken(for: .backgroundBase)
+    func colorToken_backgroundBaseLight_matchesExpectedRGBA() {
+        let token = LunaraVisualTokens.colorToken(for: .backgroundBase, in: .light)
 
-        #expect(token == LunaraColorToken(red: 0.964, green: 0.941, blue: 0.886, opacity: 1.0))
+        #expect(token == LunaraColorToken(red: 0.960, green: 0.949, blue: 0.863, opacity: 1.0))
     }
 
     @Test
-    func colorToken_borderSubtle_hasPartialOpacity() {
-        let token = LunaraVisualTokens.colorToken(for: .borderSubtle)
+    func colorToken_backgroundBaseDark_matchesExpectedRGBA() {
+        let token = LunaraVisualTokens.colorToken(for: .backgroundBase, in: .dark)
 
-        #expect(token == LunaraColorToken(red: 0.712, green: 0.653, blue: 0.557, opacity: 0.58))
+        #expect(token == LunaraColorToken(red: 0.094, green: 0.114, blue: 0.086, opacity: 1.0))
+    }
+
+    @Test
+    func colorToken_accentPrimaryDark_matchesExpectedRGBA() {
+        let token = LunaraVisualTokens.colorToken(for: .accentPrimary, in: .dark)
+
+        #expect(token == LunaraColorToken(red: 0.807, green: 0.702, blue: 0.322, opacity: 1.0))
+    }
+
+    @Test
+    func colorToken_borderSubtleLight_hasPartialOpacity() {
+        let token = LunaraVisualTokens.colorToken(for: .borderSubtle, in: .light)
+
+        #expect(token == LunaraColorToken(red: 0.573, green: 0.647, blue: 0.431, opacity: 0.52))
     }
 
     @Test
