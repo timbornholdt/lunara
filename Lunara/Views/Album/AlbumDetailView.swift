@@ -9,42 +9,47 @@ struct AlbumDetailView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: AlbumDetailLayout.sectionSpacing) {
-                headerCard
-                trackList
-                metadataSections
+        ZStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: AlbumDetailLayout.sectionSpacing) {
+                    backButtonRow
+                    headerCard
+                    trackList
+                    metadataSections
+                }
+                .padding(.horizontal, AlbumDetailLayout.horizontalPadding)
+                .padding(.top, AlbumDetailLayout.topContentPadding)
+                .padding(.bottom, 12)
             }
-            .padding(.horizontal, AlbumDetailLayout.horizontalPadding)
-            .padding(.top, AlbumDetailLayout.topContentPadding)
-            .padding(.bottom, 12)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Color.lunara(.backgroundBase).ignoresSafeArea())
+        .lunaraLinenBackground()
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
-        .safeAreaInset(edge: .top) {
-            HStack {
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 24, weight: .medium))
-                        .foregroundStyle(Color.lunara(.textPrimary))
-                        .frame(width: 56, height: 56)
-                        .background(Color.lunara(.backgroundElevated), in: Circle())
-                }
-                .accessibilityLabel("Back")
-
-                Spacer()
-            }
-            .padding(.horizontal, AlbumDetailLayout.horizontalPadding)
-            .padding(.top, AlbumDetailLayout.backButtonInsetTop)
-            .padding(.bottom, AlbumDetailLayout.backButtonInsetBottom)
-        }
-        .lunaraLinenBackground()
         .lunaraErrorBanner(using: viewModel.errorBannerState)
         .task {
             await viewModel.loadIfNeeded()
         }
+    }
+
+    private var backButtonRow: some View {
+        HStack {
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 24, weight: .medium))
+                    .foregroundStyle(Color.lunara(.textPrimary))
+                    .frame(width: 56, height: 56)
+                    .background(Color.lunara(.backgroundElevated), in: Circle())
+            }
+            .accessibilityLabel("Back")
+
+            Spacer()
+        }
+        .padding(.top, AlbumDetailLayout.backButtonInsetTop)
+        .padding(.bottom, AlbumDetailLayout.backButtonInsetBottom)
     }
 
     private var headerCard: some View {
