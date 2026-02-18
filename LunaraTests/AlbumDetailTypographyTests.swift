@@ -24,7 +24,7 @@ struct AlbumDetailTypographyTests {
         #expect(numberToken.preferredFontName == "PlayfairDisplay-SemiBold")
         #expect(numberToken.usesMonospacedDigits == true)
         #expect(secondaryArtistToken.preferredFontName == "PlayfairDisplay-Regular")
-        #expect(secondaryArtistToken.size == 18)
+        #expect(secondaryArtistToken.size == 14)
         #expect(secondaryArtistToken.relativeTextStyle == .subheadline)
         #expect(durationToken.preferredFontName == "PlayfairDisplay-Regular")
         #expect(durationToken.usesMonospacedDigits == true)
