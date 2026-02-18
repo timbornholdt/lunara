@@ -42,7 +42,7 @@ enum AlbumDetailTypography {
             return AlbumDetailTextToken(
                 preferredFontName: "PlayfairDisplay-Regular",
                 fallbackWeight: .regular,
-                size: 20,
+                size: 18,
                 relativeTextStyle: .body,
                 usesMonospacedDigits: false
             )
@@ -50,7 +50,7 @@ enum AlbumDetailTypography {
             return AlbumDetailTextToken(
                 preferredFontName: "PlayfairDisplay-Regular",
                 fallbackWeight: .regular,
-                size: 18,
+                size: 14,
                 relativeTextStyle: .subheadline,
                 usesMonospacedDigits: false
             )
