@@ -13,6 +13,7 @@ struct DebugLibraryView: View {
     @State private var albums: [Album] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var errorBannerState = ErrorBannerState()
 
     var body: some View {
         NavigationStack {
@@ -38,12 +39,19 @@ struct DebugLibraryView: View {
                     .disabled(isLoading)
                 }
 
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Test Banner") {
+                        showTestBanner()
+                    }
+                }
+
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Sign Out") {
                         coordinator.signOut()
                     }
                 }
             }
+            .lunaraErrorBanner(using: errorBannerState)
             .task {
                 // Auto-fetch albums on first appearance
                 if albums.isEmpty && !isLoading {
@@ -273,6 +281,12 @@ struct DebugLibraryView: View {
                 logger.error("Play request failed for album '\(album.title, privacy: .public)' with unexpected error: \(error.localizedDescription, privacy: .public)")
             }
         }
+    }
+
+    private func showTestBanner() {
+        let message = "Debug banner test: tap again to retrigger."
+        logger.info("Showing debug error banner test message")
+        errorBannerState.show(message: message)
     }
 }
 

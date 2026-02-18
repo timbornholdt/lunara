@@ -47,4 +47,20 @@ final class ErrorBannerStateTests: XCTestCase {
         XCTAssertNil(state.message)
         XCTAssertFalse(state.isPresented)
     }
+
+    func test_show_sameMessageTwice_resetsAutoDismissTimer() async throws {
+        let state = ErrorBannerState()
+        state.show(message: "Repeat", autoDismissAfter: .milliseconds(80))
+
+        try await Task.sleep(for: .milliseconds(40))
+        state.show(message: "Repeat", autoDismissAfter: .milliseconds(80))
+
+        try await Task.sleep(for: .milliseconds(55))
+        XCTAssertEqual(state.message, "Repeat")
+        XCTAssertTrue(state.isPresented)
+
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertNil(state.message)
+        XCTAssertFalse(state.isPresented)
+    }
 }
