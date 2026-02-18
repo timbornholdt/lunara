@@ -92,6 +92,8 @@ Status: Completed on February 18, 2026.
 
 ## Stage 3: Repository Reconciliation Flow
 
+Status: Completed on February 18, 2026.
+
 ### Deliverables
 
 - Replace full replacement refresh path with reconciliation logic in `LibraryRepo`.
@@ -106,6 +108,17 @@ Status: Completed on February 18, 2026.
 
 - Keep artists/collections behavior aligned with current API availability.
 - Preserve dedupe behavior where it already exists.
+- Implemented in:
+  - `/Users/timbornholdt/Repos/Lunara/Lunara/Library/Repo/LibraryRepo.swift`
+  - `/Users/timbornholdt/Repos/Lunara/Lunara/Library/Repo/LibraryRepo+RefreshReconciliation.swift`
+  - `/Users/timbornholdt/Repos/Lunara/LunaraTests/LibraryRepoTests.swift`
+  - `/Users/timbornholdt/Repos/Lunara/LunaraTests/LibraryRepoTestDoubles.swift`
+- `LibraryRepo.refreshLibrary` now:
+  - fetches remote albums + tracks, dedupes with existing canonicalization rules,
+  - computes row-level `new/changed/unchanged/deleted` deltas for albums/tracks,
+  - persists delta counts as sync checkpoints,
+  - applies incremental store APIs (`begin`, `upsert`, `mark seen`, `prune`, `complete`),
+  - preserves existing stale-cache-on-failure behavior by only mutating cache after successful remote fetch and by propagating failures.
 
 ## Stage 4: Artwork Incremental Behavior
 
