@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct LunaraPillButtonStyle: ButtonStyle {
     let role: LunaraPillButtonRole
@@ -11,7 +12,7 @@ struct LunaraPillButtonStyle: ButtonStyle {
         let token = LunaraVisualTokens.pillButtonToken(for: role)
 
         return configuration.label
-            .font(.subheadline.weight(.semibold))
+            .font(buttonFont())
             .foregroundStyle(Color.lunara(token.foregroundRole))
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
@@ -28,5 +29,14 @@ struct LunaraPillButtonStyle: ButtonStyle {
             .opacity(configuration.isPressed ? 0.8 : 1)
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
             .animation(.easeOut(duration: 0.14), value: configuration.isPressed)
+    }
+
+    private func buttonFont() -> Font {
+        let size: CGFloat = 17
+        if UIFont(name: "PlayfairDisplay-SemiBold", size: size) != nil {
+            return .custom("PlayfairDisplay-SemiBold", size: size, relativeTo: .subheadline)
+        }
+
+        return .system(size: size, weight: .semibold, design: .serif)
     }
 }
