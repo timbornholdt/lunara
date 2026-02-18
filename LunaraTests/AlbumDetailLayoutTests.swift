@@ -14,5 +14,7 @@ struct AlbumDetailLayoutTests {
     func backButtonInsets_matchTopSafeAreaDesign() {
         #expect(AlbumDetailLayout.backButtonInsetTop == 6)
         #expect(AlbumDetailLayout.backButtonInsetBottom == 8)
+        #expect(AlbumDetailLayout.pillHorizontalSpacing == 10)
+        #expect(AlbumDetailLayout.pillVerticalSpacing == 10)
     }
 }

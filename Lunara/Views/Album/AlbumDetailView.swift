@@ -218,10 +218,15 @@ struct AlbumDetailView: View {
 
     private func tagSection(title: String, tags: [String]) -> some View {
         sectionCard(title: title) {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 88), spacing: 8)], alignment: .leading, spacing: 8) {
+            AlbumTagFlowLayout(
+                spacing: AlbumDetailLayout.pillHorizontalSpacing,
+                rowSpacing: AlbumDetailLayout.pillVerticalSpacing
+            ) {
                 ForEach(tags, id: \.self) { tag in
                     Text(tag)
                         .font(AlbumDetailTypography.font(for: .pill))
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                         .foregroundStyle(Color.lunara(.textPrimary))
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
