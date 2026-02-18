@@ -67,6 +67,8 @@ Status: Completed on February 18, 2026.
 
 ## Stage 2: Migrations + Incremental Store Engine
 
+Status: Completed on February 18, 2026.
+
 ### Deliverables
 
 - Add GRDB migration for sync bookkeeping fields/tables (for example: last-seen marker and sync metadata).
@@ -80,6 +82,13 @@ Status: Completed on February 18, 2026.
 
 - Transactions must ensure partial writes never leave the cache inconsistent.
 - Maintain existing ordering/query behavior for paging.
+- Implemented in:
+  - `/Users/timbornholdt/Repos/Lunara/Lunara/Library/Store/LibraryStoreMigrations.swift`
+  - `/Users/timbornholdt/Repos/Lunara/Lunara/Library/Store/LibraryStoreRecords.swift`
+  - `/Users/timbornholdt/Repos/Lunara/Lunara/Library/Store/LibraryStore.swift`
+  - `/Users/timbornholdt/Repos/Lunara/Lunara/Library/Store/LibraryStore+IncrementalSync.swift`
+  - `/Users/timbornholdt/Repos/Lunara/LunaraTests/LibraryStoreIncrementalSyncTests.swift`
+- Added migration `v3_incremental_sync_bookkeeping` with per-row seen markers and checkpoint table, then implemented transactional upsert/mark/prune/checkpoint/complete methods behind `LibraryStoreProtocol`.
 
 ## Stage 3: Repository Reconciliation Flow
 

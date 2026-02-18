@@ -203,3 +203,23 @@ struct LibraryMetadataRecord: Codable, FetchableRecord, PersistableRecord, Table
     let key: String
     let value: String
 }
+
+struct LibrarySyncCheckpointRecord: Codable, FetchableRecord, PersistableRecord, TableRecord {
+    static let databaseTableName = "library_sync_checkpoints"
+
+    let key: String
+    let value: String
+    let updatedAt: Date
+    let runID: String?
+
+    init(checkpoint: LibrarySyncCheckpoint, runID: String?) {
+        key = checkpoint.key
+        value = checkpoint.value
+        updatedAt = checkpoint.updatedAt
+        self.runID = runID
+    }
+
+    var model: LibrarySyncCheckpoint {
+        LibrarySyncCheckpoint(key: key, value: value, updatedAt: updatedAt)
+    }
+}

@@ -2,7 +2,7 @@ import Foundation
 import GRDB
 
 final class LibraryStore: LibraryStoreProtocol {
-    private let dbQueue: DatabaseQueue
+    let dbQueue: DatabaseQueue
 
     convenience init(databaseURL: URL) throws {
         try self.init(databasePath: databaseURL.path)
@@ -128,42 +128,6 @@ final class LibraryStore: LibraryStoreProtocol {
 
             return Date(timeIntervalSince1970: interval)
         }
-    }
-
-    func beginIncrementalSync(startedAt: Date) async throws -> LibrarySyncRun {
-        LibrarySyncRun(startedAt: startedAt)
-    }
-
-    func upsertAlbums(_ albums: [Album], in run: LibrarySyncRun) async throws {
-        throw LibraryError.operationFailed(reason: "Incremental album upsert is not implemented yet.")
-    }
-
-    func upsertTracks(_ tracks: [Track], in run: LibrarySyncRun) async throws {
-        throw LibraryError.operationFailed(reason: "Incremental track upsert is not implemented yet.")
-    }
-
-    func markAlbumsSeen(_ albumIDs: [String], in run: LibrarySyncRun) async throws {
-        throw LibraryError.operationFailed(reason: "Incremental seen-marker updates are not implemented yet.")
-    }
-
-    func markTracksSeen(_ trackIDs: [String], in run: LibrarySyncRun) async throws {
-        throw LibraryError.operationFailed(reason: "Incremental seen-marker updates are not implemented yet.")
-    }
-
-    func pruneRowsNotSeen(in run: LibrarySyncRun) async throws -> LibrarySyncPruneResult {
-        throw LibraryError.operationFailed(reason: "Incremental pruning is not implemented yet.")
-    }
-
-    func setSyncCheckpoint(_ checkpoint: LibrarySyncCheckpoint, in run: LibrarySyncRun?) async throws {
-        throw LibraryError.operationFailed(reason: "Incremental sync checkpoints are not implemented yet.")
-    }
-
-    func syncCheckpoint(forKey key: String) async throws -> LibrarySyncCheckpoint? {
-        throw LibraryError.operationFailed(reason: "Incremental sync checkpoints are not implemented yet.")
-    }
-
-    func completeIncrementalSync(_ run: LibrarySyncRun, refreshedAt: Date) async throws {
-        throw LibraryError.operationFailed(reason: "Incremental sync completion is not implemented yet.")
     }
 
     func artworkPath(for key: ArtworkKey) async throws -> String? {
