@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import os
 
 @MainActor
 protocol LibraryGridActionRouting: AnyObject {
@@ -21,6 +22,7 @@ final class LibraryGridViewModel {
     private let library: LibraryRepoProtocol
     private let artworkPipeline: ArtworkPipelineProtocol
     private let actions: LibraryGridActionRouting
+    private let logger = Logger(subsystem: "holdings.chinlock.lunara", category: "LibraryGridViewModel")
 
     private let pageSize: Int
     private let prefetchThreshold: Int
@@ -51,13 +53,16 @@ final class LibraryGridViewModel {
 
     func loadInitialIfNeeded() async {
         guard case .idle = loadingState else {
+            logger.debug("Skipping initial load because state is not idle")
             return
         }
 
+        logger.info("Loading initial album page with pageSize=\(self.pageSize, privacy: .public)")
         await loadFirstPage(clearExistingAlbums: false)
     }
 
     func refresh() async {
+        logger.info("Refreshing albums from first page")
         await loadFirstPage(clearExistingAlbums: true)
     }
 
@@ -70,11 +75,14 @@ final class LibraryGridViewModel {
     }
 
     func playAlbum(_ album: Album) async {
+        logger.info("Play tapped for album id=\(album.plexID, privacy: .public) title=\(album.title, privacy: .public)")
         do {
             try await actions.playAlbum(album)
         } catch let error as LunaraError {
+            logger.error("Play request failed for album id=\(album.plexID, privacy: .public): \(error.userMessage, privacy: .public)")
             errorBannerState.show(message: error.userMessage)
         } catch {
+            logger.error("Play request failed for album id=\(album.plexID, privacy: .public): \(error.localizedDescription, privacy: .public)")
             errorBannerState.show(message: error.localizedDescription)
         }
     }
@@ -85,14 +93,19 @@ final class LibraryGridViewModel {
 
     func loadThumbnailIfNeeded(for album: Album) {
         guard thumbnailURL(for: album.plexID) == nil else {
+            logger.debug("Skipping artwork load for album id=\(album.plexID, privacy: .public): cached thumbnail already present")
             return
         }
 
         guard pendingArtworkAlbumIDs.insert(album.plexID).inserted else {
+            logger.debug("Skipping artwork load for album id=\(album.plexID, privacy: .public): request already in flight")
             return
         }
 
         let sourceURL = artworkSourceURL(from: album.thumbURL)
+        logger.info(
+            "Requesting artwork thumbnail for album id=\(album.plexID, privacy: .public) rawThumb=\(album.thumbURL ?? "nil", privacy: .public) sourceURL=\(sourceURL?.absoluteString ?? "nil", privacy: .public)"
+        )
 
         Task { [weak self] in
             guard let self else {
@@ -106,9 +119,17 @@ final class LibraryGridViewModel {
                     sourceURL: sourceURL
                 ) {
                     self.artworkByAlbumID[album.plexID] = resolvedURL
+                    logger.info(
+                        "Artwork resolved for album id=\(album.plexID, privacy: .public) localURL=\(resolvedURL.absoluteString, privacy: .public)"
+                    )
+                } else {
+                    logger.debug("Artwork pipeline returned nil for album id=\(album.plexID, privacy: .public)")
                 }
             } catch {
                 // Artwork is non-blocking for this screen; leave placeholder visible when fetch fails.
+                logger.error(
+                    "Artwork load failed for album id=\(album.plexID, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                )
             }
 
             self.pendingArtworkAlbumIDs.remove(album.plexID)
@@ -116,6 +137,7 @@ final class LibraryGridViewModel {
     }
 
     private func loadFirstPage(clearExistingAlbums: Bool) async {
+        logger.info("Loading first page clearExistingAlbums=\(clearExistingAlbums, privacy: .public)")
         if clearExistingAlbums {
             albums = []
             artworkByAlbumID = [:]
@@ -131,16 +153,22 @@ final class LibraryGridViewModel {
             hasMorePages = firstPageAlbums.count == pageSize
             nextPageNumber = hasMorePages ? 2 : 1
             loadingState = .loaded
+            logger.info(
+                "Loaded first page albums=\(firstPageAlbums.count, privacy: .public) hasMorePages=\(self.hasMorePages, privacy: .public)"
+            )
         } catch {
+            logger.error("Failed loading first page: \(error.localizedDescription, privacy: .public)")
             loadingState = .error(userFacingMessage(for: error))
         }
     }
 
     private func loadNextPage() async {
         guard hasMorePages else {
+            logger.debug("Skipping next page load because hasMorePages is false")
             return
         }
 
+        logger.info("Loading next page number=\(self.nextPageNumber, privacy: .public)")
         isLoadingNextPage = true
         defer {
             isLoadingNextPage = false
@@ -153,7 +181,11 @@ final class LibraryGridViewModel {
             if hasMorePages {
                 nextPageNumber += 1
             }
+            logger.info(
+                "Loaded next page count=\(nextPageAlbums.count, privacy: .public) totalAlbums=\(self.albums.count, privacy: .public) hasMorePages=\(self.hasMorePages, privacy: .public)"
+            )
         } catch {
+            logger.error("Failed loading next page number=\(self.nextPageNumber, privacy: .public): \(error.localizedDescription, privacy: .public)")
             errorBannerState.show(message: userFacingMessage(for: error))
         }
     }
@@ -197,6 +229,11 @@ final class LibraryGridViewModel {
         guard let rawValue,
               let sourceURL = URL(string: rawValue),
               sourceURL.scheme != nil else {
+            if let rawValue {
+                logger.debug("Artwork raw thumb is not an absolute URL and will be passed as nil sourceURL: \(rawValue, privacy: .public)")
+            } else {
+                logger.debug("Artwork raw thumb is nil; sourceURL will be nil")
+            }
             return nil
         }
 
