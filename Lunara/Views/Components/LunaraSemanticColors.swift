@@ -1,14 +1,24 @@
 import SwiftUI
+import UIKit
 
 extension Color {
     static func lunara(_ role: LunaraSemanticColorRole) -> Color {
-        let token = LunaraVisualTokens.colorToken(for: role)
-        return Color(
-            .sRGB,
+        Color(
+            uiColor: UIColor { traits in
+                let scheme: ColorScheme = traits.userInterfaceStyle == .dark ? .dark : .light
+                return UIColor(token: LunaraVisualTokens.colorToken(for: role, in: scheme))
+            }
+        )
+    }
+}
+
+private extension UIColor {
+    convenience init(token: LunaraColorToken) {
+        self.init(
             red: token.red,
             green: token.green,
             blue: token.blue,
-            opacity: token.opacity
+            alpha: token.opacity
         )
     }
 }
