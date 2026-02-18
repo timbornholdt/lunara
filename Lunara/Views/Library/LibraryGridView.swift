@@ -81,7 +81,7 @@ struct LibraryGridView: View {
             artworkView(for: album)
 
             Text(album.title)
-                .font(.headline)
+                .lunaraHeading(.section, weight: .semibold)
                 .lineLimit(2)
                 .foregroundStyle(Color.lunara(.textPrimary))
 
