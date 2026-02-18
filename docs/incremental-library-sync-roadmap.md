@@ -196,6 +196,57 @@ Make the incremental cache the primary read path for the entire app so all scree
 - Stage 5 is complete when no user-facing screen relies on remote fetch as its primary metadata source during normal navigation.
 - App cold launch with existing cache should render key views without network.
 
+### Locked Decisions (February 18, 2026)
+
+- Architecture choice: store-backed query service (not a long-lived in-memory catalog source of truth).
+- Album search scope: `album.title` and `album.artistName` only.
+- Launch behavior: always render cached data first, then reconcile in background.
+- Missing metadata behavior: allow remote fallback fetch when local cache miss occurs.
+- Stage 5 scope for artists/collections: backend/query readiness only (no new artists/collections UI screens in this stage).
+- Artist/collection search scope:
+  - Artists: `artist.name` and `artist.sortName`.
+  - Collections: `collection.title`.
+- Query ordering: query APIs return fully sorted results (screens should not re-sort by default).
+- Queue consistency: if a track referenced by queue state no longer resolves in cache/remote metadata, remove it from queue.
+- Playback behavior for removed current item: skip to next valid queue item automatically.
+
+### Stage 5 Execution Plan (Approved)
+
+1. Stage 5A: Protocol contracts
+   - Extend `LibraryStoreProtocol` and `LibraryRepoProtocol` with query-first APIs:
+     - `searchAlbums(query:)`
+     - `searchArtists(query:)`
+     - `searchCollections(query:)`
+     - `track(id:)`
+     - `collection(id:)`
+   - Keep existing pagination APIs for rendering slices.
+   - Define sorted-output guarantees in protocol comments.
+
+2. Stage 5B: Store query engine
+   - Implement query/search APIs in `LibraryStore` (GRDB-backed).
+   - Add/adjust indexes as needed for title/artist/collection search performance.
+   - Ensure case/diacritic-insensitive matching behavior.
+   - Add direct `track(id:)` lookup path required for queue metadata reconciliation.
+
+3. Stage 5C: Repo read layer + remote fallback
+   - Wire new query APIs through `LibraryRepo`.
+   - Implement remote fallback for metadata misses (including `track(id:)`) and preserve cache-first semantics.
+   - Keep current stale-cache-on-failure guarantees.
+
+4. Stage 5D: Albums view migration
+   - Refactor `LibraryGridViewModel` search path to query full cached catalog instead of filtering loaded pages.
+   - Preserve page-based rendering behavior for scrolling performance.
+
+5. Stage 5E: Queue reconciliation for missing tracks
+   - Add queue reconciliation flow after refresh/startup to drop queue items whose `trackID` no longer resolves.
+   - When current item is removed, auto-advance to the next valid queue item.
+   - Keep orchestration in AppRouter/coordinator wiring to respect domain boundaries.
+
+6. Stage 5F: Regression hardening + status update
+   - Add tests for full-catalog search behavior and queue reconciliation behavior.
+   - Validate cache-first reads across existing surfaces (albums, album detail, debug/queue metadata paths).
+   - Update this roadmap Stage 5 status and completion notes when done.
+
 ## Stage 6: Conditional Request Feasibility Study
 
 ### Purpose
