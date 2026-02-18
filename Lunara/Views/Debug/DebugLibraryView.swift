@@ -13,6 +13,7 @@ struct DebugLibraryView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var errorBannerState = ErrorBannerState()
+    @State private var tracksByID: [String: Track] = [:]
 
     var body: some View {
         NavigationStack {
@@ -190,7 +191,7 @@ struct DebugLibraryView: View {
     }
 
     private var currentTrackLabel: String {
-        coordinator.queueManager.currentItem?.trackID ?? "none"
+        DebugCurrentTrackFormatter.label(for: coordinator.queueManager.currentItem?.trackID, tracksByID: tracksByID)
     }
 
     private func errorView(message: String) -> some View {
@@ -269,6 +270,12 @@ struct DebugLibraryView: View {
         logger.info("Play tapped for album '\(album.title, privacy: .public)' with plexID '\(album.plexID, privacy: .public)'")
         Task {
             do {
+                let tracks = try await coordinator.libraryRepo.tracks(forAlbum: album.plexID)
+                await MainActor.run {
+                    for track in tracks {
+                        tracksByID[track.plexID] = track
+                    }
+                }
                 try await coordinator.playAlbum(album)
                 logger.info("Play request succeeded for album '\(album.title, privacy: .public)'")
             } catch let error as LunaraError {
