@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AlbumDetailView: View {
     @State private var viewModel: AlbumDetailViewModel
+    @Environment(\.dismiss) private var dismiss
 
     init(viewModel: AlbumDetailViewModel) {
         _viewModel = State(initialValue: viewModel)
@@ -9,21 +10,35 @@ struct AlbumDetailView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: AlbumDetailLayout.sectionSpacing) {
                 headerCard
                 trackList
                 metadataSections
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.horizontal, AlbumDetailLayout.horizontalPadding)
+            .padding(.top, AlbumDetailLayout.topContentPadding)
+            .padding(.bottom, 12)
         }
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Text(viewModel.album.title)
-                    .lunaraHeading(.section, weight: .semibold)
-                    .lineLimit(1)
+        .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
+        .safeAreaInset(edge: .top) {
+            HStack {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundStyle(Color.lunara(.textPrimary))
+                        .frame(width: 56, height: 56)
+                        .background(Color.lunara(.backgroundElevated), in: Circle())
+                }
+                .accessibilityLabel("Back")
+
+                Spacer()
             }
+            .padding(.horizontal, AlbumDetailLayout.horizontalPadding)
+            .padding(.top, AlbumDetailLayout.backButtonInsetTop)
+            .padding(.bottom, AlbumDetailLayout.backButtonInsetBottom)
         }
         .lunaraLinenBackground()
         .lunaraErrorBanner(using: viewModel.errorBannerState)
