@@ -25,9 +25,9 @@ final class LibraryRepo: LibraryRepoProtocol {
     }
 
     let remote: LibraryRemoteDataSource
-    private let store: LibraryStoreProtocol
+    let store: LibraryStoreProtocol
     let artworkPipeline: ArtworkPipelineProtocol
-    private let nowProvider: () -> Date
+    let nowProvider: () -> Date
 
     init(
         remote: LibraryRemoteDataSource,
@@ -97,56 +97,6 @@ final class LibraryRepo: LibraryRepoProtocol {
 
     func artist(id: String) async throws -> Artist? {
         try await store.fetchArtist(id: id)
-    }
-
-    func refreshLibrary(reason: LibraryRefreshReason) async throws -> LibraryRefreshOutcome {
-        let refreshedAt = nowProvider()
-
-        do {
-            let remoteAlbums = try await remote.fetchAlbums()
-            var cachedTracks: [Track] = []
-            for album in remoteAlbums {
-                let albumTracks = try await store.fetchTracks(forAlbum: album.plexID)
-                if !albumTracks.isEmpty {
-                    cachedTracks.append(contentsOf: albumTracks)
-                }
-            }
-
-            let dedupedLibrary = dedupeLibrary(albums: remoteAlbums, tracks: cachedTracks)
-
-            // Artist/collection endpoints are not exposed by PlexAPIClient yet.
-            // Preserve cached values so refresh updates album/track data without erasing other cache slices.
-            let cachedArtists = try await store.fetchArtists()
-            let cachedCollections = try await store.fetchCollections()
-            let snapshot = LibrarySnapshot(
-                albums: dedupedLibrary.albums,
-                tracks: dedupedLibrary.tracks,
-                artists: cachedArtists,
-                collections: cachedCollections
-            )
-
-            try await store.replaceLibrary(with: snapshot, refreshedAt: refreshedAt)
-            let dedupedAlbums = dedupedLibrary.albums
-            Task { [weak self] in
-                guard let self else {
-                    return
-                }
-                await self.preloadThumbnailArtwork(for: dedupedAlbums)
-            }
-
-            return LibraryRefreshOutcome(
-                reason: reason,
-                refreshedAt: refreshedAt,
-                albumCount: dedupedLibrary.albums.count,
-                trackCount: cachedTracks.count,
-                artistCount: cachedArtists.count,
-                collectionCount: cachedCollections.count
-            )
-        } catch let error as LibraryError {
-            throw error
-        } catch {
-            throw LibraryError.operationFailed(reason: "Library refresh failed: \(error.localizedDescription)")
-        }
     }
 
     func lastRefreshDate() async throws -> Date? {
