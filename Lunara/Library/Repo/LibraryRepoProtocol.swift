@@ -36,6 +36,7 @@ protocol LibraryRepoProtocol: AnyObject {
     func lastRefreshDate() async throws -> Date?
 
     func streamURL(for track: Track) async throws -> URL
+    func authenticatedArtworkURL(for rawValue: String?) async throws -> URL?
 }
 
 extension LibraryRepoProtocol {
@@ -59,6 +60,16 @@ extension LibraryRepoProtocol {
         }
 
         return allAlbums
+    }
+
+    func authenticatedArtworkURL(for rawValue: String?) async throws -> URL? {
+        guard let rawValue,
+              let sourceURL = URL(string: rawValue),
+              sourceURL.scheme != nil else {
+            return nil
+        }
+
+        return sourceURL
     }
 }
 
@@ -105,4 +116,5 @@ extension PlexAPIClient: LibraryRepoProtocol {
     func streamURL(for track: Track) async throws -> URL {
         try await streamURL(forTrack: track)
     }
+
 }

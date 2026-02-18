@@ -102,17 +102,16 @@ final class LibraryGridViewModel {
             return
         }
 
-        let sourceURL = artworkSourceURL(from: album.thumbURL)
-        logger.info(
-            "Requesting artwork thumbnail for album id=\(album.plexID, privacy: .public) rawThumb=\(album.thumbURL ?? "nil", privacy: .public) sourceURL=\(sourceURL?.absoluteString ?? "nil", privacy: .public)"
-        )
-
         Task { [weak self] in
             guard let self else {
                 return
             }
 
             do {
+                let sourceURL = try await library.authenticatedArtworkURL(for: album.thumbURL)
+                logger.info(
+                    "Requesting artwork thumbnail for album id=\(album.plexID, privacy: .public) rawThumb=\(album.thumbURL ?? "nil", privacy: .public) sourceURL=\(sourceURL?.absoluteString ?? "nil", privacy: .public)"
+                )
                 if let resolvedURL = try await artworkPipeline.fetchThumbnail(
                     for: album.plexID,
                     ownerKind: .album,
@@ -225,18 +224,4 @@ final class LibraryGridViewModel {
         return error.localizedDescription
     }
 
-    private func artworkSourceURL(from rawValue: String?) -> URL? {
-        guard let rawValue,
-              let sourceURL = URL(string: rawValue),
-              sourceURL.scheme != nil else {
-            if let rawValue {
-                logger.debug("Artwork raw thumb is not an absolute URL and will be passed as nil sourceURL: \(rawValue, privacy: .public)")
-            } else {
-                logger.debug("Artwork raw thumb is nil; sourceURL will be nil")
-            }
-            return nil
-        }
-
-        return sourceURL
-    }
 }

@@ -123,6 +123,26 @@ struct LibraryGridViewModelTests {
         #expect(subject.viewModel.thumbnailURL(for: "album-art") == fileURL)
     }
 
+    @Test
+    func loadThumbnailIfNeeded_withRelativeThumb_usesLibraryResolvedAuthenticatedURL() async throws {
+        let subject = makeSubject()
+        let relativeThumb = "/library/metadata/94303/thumb/1770113059"
+        let authenticatedURL = try #require(URL(string: "http://localhost:32400/library/metadata/94303/thumb/1770113059?X-Plex-Token=test"))
+        let album = makeAlbum(id: "album-rel", thumbURL: relativeThumb)
+        let fileURL = try #require(URL(string: "file:///tmp/album-rel.jpg"))
+        subject.library.authenticatedArtworkURLByRawValue[relativeThumb] = authenticatedURL
+        subject.artwork.thumbnailResultByOwnerID[album.plexID] = fileURL
+
+        subject.viewModel.loadThumbnailIfNeeded(for: album)
+        await waitForArtworkResolution(on: subject.viewModel, albumID: album.plexID)
+
+        #expect(subject.library.authenticatedArtworkURLRequests == [relativeThumb])
+        #expect(subject.artwork.thumbnailRequests == [
+            ArtworkPipelineMock.FetchRequest(ownerID: "album-rel", ownerKind: .album, sourceURL: authenticatedURL)
+        ])
+        #expect(subject.viewModel.thumbnailURL(for: "album-rel") == fileURL)
+    }
+
     private func makeSubject(prefetchThreshold: Int = 2) -> (
         viewModel: LibraryGridViewModel,
         library: LibraryGridRepoMock,
@@ -173,6 +193,8 @@ private final class LibraryGridRepoMock: LibraryRepoProtocol {
     var albumsByPage: [Int: [Album]] = [:]
     var errorByPage: [Int: LibraryError] = [:]
     var albumPageRequests: [LibraryPage] = []
+    var authenticatedArtworkURLByRawValue: [String: URL] = [:]
+    var authenticatedArtworkURLRequests: [String?] = []
 
     func albums(page: LibraryPage) async throws -> [Album] {
         albumPageRequests.append(page)
@@ -219,6 +241,17 @@ private final class LibraryGridRepoMock: LibraryRepoProtocol {
 
     func streamURL(for track: Track) async throws -> URL {
         throw LibraryError.resourceNotFound(type: "track", id: track.plexID)
+    }
+
+    func authenticatedArtworkURL(for rawValue: String?) async throws -> URL? {
+        authenticatedArtworkURLRequests.append(rawValue)
+        guard let rawValue else {
+            return nil
+        }
+        if let mappedURL = authenticatedArtworkURLByRawValue[rawValue] {
+            return mappedURL
+        }
+        return URL(string: rawValue)
     }
 }
 
