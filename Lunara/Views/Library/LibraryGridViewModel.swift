@@ -83,7 +83,10 @@ final class LibraryGridViewModel {
             library: library,
             artworkPipeline: artworkPipeline,
             actions: actions,
-            genres: album.genre.map { [$0] } ?? []
+            review: album.review,
+            genres: album.genres.isEmpty ? nil : album.genres,
+            styles: album.styles,
+            moods: album.moods
         )
     }
 

@@ -14,6 +14,37 @@ struct LibraryRepoTests {
         #expect(subject.store.fetchAlbumsRequests == [page])
         #expect(subject.remote.fetchAlbumsCallCount == 0)
     }
+
+    @Test
+    func album_whenCachedMetadataIsSparse_fetchesRemoteAlbumAndMergesMetadata() async throws {
+        let subject = makeSubject()
+        let sparseAlbum = makeAlbum(id: "album-1")
+        subject.store.albumByID[sparseAlbum.plexID] = sparseAlbum
+        subject.remote.albumsByID[sparseAlbum.plexID] = Album(
+            plexID: sparseAlbum.plexID,
+            title: sparseAlbum.title,
+            artistName: sparseAlbum.artistName,
+            year: sparseAlbum.year,
+            thumbURL: sparseAlbum.thumbURL,
+            genre: "Pop/Rock",
+            rating: sparseAlbum.rating,
+            addedAt: sparseAlbum.addedAt,
+            trackCount: sparseAlbum.trackCount,
+            duration: sparseAlbum.duration,
+            review: "Detailed review",
+            genres: ["Pop/Rock"],
+            styles: ["Art Rock"],
+            moods: ["Brooding"]
+        )
+
+        let mergedAlbum = try await subject.repo.album(id: sparseAlbum.plexID)
+
+        #expect(subject.remote.fetchAlbumRequests == [sparseAlbum.plexID])
+        #expect(mergedAlbum?.review == "Detailed review")
+        #expect(mergedAlbum?.genres == ["Pop/Rock"])
+        #expect(mergedAlbum?.styles == ["Art Rock"])
+        #expect(mergedAlbum?.moods == ["Brooding"])
+    }
     @Test
     func refreshLibrary_fetchesRemoteAlbumsAndTracks_thenReplacesStoreSnapshot() async throws {
         let now = Date(timeIntervalSince1970: 12_345)

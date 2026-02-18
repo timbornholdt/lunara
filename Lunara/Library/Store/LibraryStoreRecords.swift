@@ -10,6 +10,10 @@ struct AlbumRecord: Codable, FetchableRecord, PersistableRecord, TableRecord {
     let year: Int?
     let thumbURL: String?
     let genre: String?
+    let review: String?
+    let genres: String
+    let styles: String
+    let moods: String
     let rating: Int?
     let addedAt: Date?
     let trackCount: Int
@@ -22,6 +26,10 @@ struct AlbumRecord: Codable, FetchableRecord, PersistableRecord, TableRecord {
         year = model.year
         thumbURL = model.thumbURL
         genre = model.genre
+        review = model.review
+        genres = Self.encodedTags(model.genres)
+        styles = Self.encodedTags(model.styles)
+        moods = Self.encodedTags(model.moods)
         rating = model.rating
         addedAt = model.addedAt
         trackCount = model.trackCount
@@ -39,8 +47,35 @@ struct AlbumRecord: Codable, FetchableRecord, PersistableRecord, TableRecord {
             rating: rating,
             addedAt: addedAt,
             trackCount: trackCount,
-            duration: duration
+            duration: duration,
+            review: review,
+            genres: Self.decodedTags(genres),
+            styles: Self.decodedTags(styles),
+            moods: Self.decodedTags(moods)
         )
+    }
+
+    private static func encodedTags(_ values: [String]) -> String {
+        do {
+            let data = try JSONEncoder().encode(values)
+            guard let string = String(data: data, encoding: .utf8) else {
+                return "[]"
+            }
+            return string
+        } catch {
+            return "[]"
+        }
+    }
+
+    private static func decodedTags(_ value: String) -> [String] {
+        guard let data = value.data(using: .utf8) else {
+            return []
+        }
+        do {
+            return try JSONDecoder().decode([String].self, from: data)
+        } catch {
+            return []
+        }
     }
 }
 

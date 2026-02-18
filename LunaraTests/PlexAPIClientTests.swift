@@ -92,6 +92,50 @@ final class PlexAPIClientTests: XCTestCase {
         XCTAssertEqual(albums[1].title, "Dark Side of the Moon")
     }
 
+    func test_fetchAlbums_parsesSummaryAndChildGenreTags() async throws {
+        try authManager.setToken("token")
+        mockSession.dataToReturn = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <MediaContainer>
+            <Directory key="/library/metadata/1001/children" ratingKey="1001" type="album" title="Test Album" parentTitle="Test Artist" summary="Album review text" leafCount="2" duration="120000">
+                <Genre tag="Pop/Rock" />
+                <Genre tag="Electronic" />
+            </Directory>
+        </MediaContainer>
+        """.data(using: .utf8)!
+
+        let albums = try await client.fetchAlbums()
+
+        XCTAssertEqual(albums.count, 1)
+        XCTAssertEqual(albums[0].review, "Album review text")
+        XCTAssertEqual(albums[0].genres, ["Pop/Rock", "Electronic"])
+        XCTAssertEqual(albums[0].genre, "Pop/Rock")
+    }
+
+    func test_fetchAlbum_parsesReviewGenresStylesAndMoodsFromMetadataEndpoint() async throws {
+        try authManager.setToken("token")
+        mockSession.dataToReturn = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <MediaContainer>
+            <Directory ratingKey="99438" key="/library/metadata/99438/children" type="album" title="Blackstar" parentTitle="David Bowie" summary="Detailed review" leafCount="7" duration="2461000">
+                <Genre tag="Pop/Rock" />
+                <Style tag="Experimental Rock" />
+                <Style tag="Art Rock" />
+                <Mood tag="Brooding" />
+                <Mood tag="Dramatic" />
+            </Directory>
+        </MediaContainer>
+        """.data(using: .utf8)!
+
+        let album = try await client.fetchAlbum(id: "99438")
+
+        XCTAssertEqual(album?.plexID, "99438")
+        XCTAssertEqual(album?.review, "Detailed review")
+        XCTAssertEqual(album?.genres, ["Pop/Rock"])
+        XCTAssertEqual(album?.styles, ["Experimental Rock", "Art Rock"])
+        XCTAssertEqual(album?.moods, ["Brooding", "Dramatic"])
+    }
+
     func test_fetchAlbums_withMissingRatingKey_throwsInvalidResponse() async throws {
         try authManager.setToken("token")
         mockSession.dataToReturn = """

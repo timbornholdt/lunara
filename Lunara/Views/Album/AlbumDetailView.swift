@@ -17,8 +17,14 @@ struct AlbumDetailView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
         }
-        .navigationTitle(viewModel.album.title)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text(viewModel.album.title)
+                    .lunaraHeading(.section, weight: .semibold)
+                    .lineLimit(1)
+            }
+        }
         .lunaraLinenBackground()
         .lunaraErrorBanner(using: viewModel.errorBannerState)
         .task {
@@ -33,8 +39,7 @@ struct AlbumDetailView: View {
                 .aspectRatio(1, contentMode: .fit)
 
             Text(viewModel.album.title)
-                .font(.title2.weight(.semibold))
-                .foregroundStyle(Color.lunara(.textPrimary))
+                .lunaraHeading(.title, weight: .semibold)
 
             Text(subtitleText)
                 .font(.subheadline)
@@ -87,8 +92,7 @@ struct AlbumDetailView: View {
     private var trackList: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Tracks")
-                .font(.headline)
-                .foregroundStyle(Color.lunara(.textPrimary))
+                .lunaraHeading(.section, weight: .semibold)
 
             switch viewModel.loadingState {
             case .idle, .loading:
@@ -185,8 +189,7 @@ struct AlbumDetailView: View {
     private func sectionCard<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(title)
-                .font(.headline)
-                .foregroundStyle(Color.lunara(.textPrimary))
+                .lunaraHeading(.section, weight: .semibold)
             content()
         }
         .padding(14)

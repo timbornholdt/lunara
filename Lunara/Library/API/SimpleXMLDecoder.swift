@@ -16,9 +16,17 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
         var partKey: String?
     }
 
+    private struct ParsedDirectoryItem {
+        let attributes: [String: String]
+        var genres: [String]
+        var styles: [String]
+        var moods: [String]
+    }
+
     private var metadataItems: [ParsedMetadataItem] = []
-    private var directoryItems: [[String: String]] = []
+    private var directoryItems: [ParsedDirectoryItem] = []
     private var currentMetadataIndex: Int?
+    private var currentDirectoryIndex: Int?
 
     func decode(_ data: Data) throws -> PlexMediaContainer {
         let parser = XMLParser(data: data)
@@ -26,6 +34,7 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
         metadataItems.removeAll()
         directoryItems.removeAll()
         currentMetadataIndex = nil
+        currentDirectoryIndex = nil
 
         guard parser.parse() else {
             throw XMLDecodingError.invalidXML
@@ -69,7 +78,8 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
         }
 
         // Convert parsed attributes to PlexDirectory objects
-        let directories = directoryItems.map { attrs -> PlexDirectory in
+        let directories = directoryItems.map { directoryItem -> PlexDirectory in
+            let attrs = directoryItem.attributes
             let year = attrs["year"].flatMap { Int($0) }
             let rating = attrs["rating"].flatMap { Double($0) }
             let addedAt = attrs["addedAt"].flatMap { Int($0) }
@@ -88,6 +98,9 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
                 year: year,
                 thumb: attrs["thumb"],
                 genre: attrs["genre"],
+                genres: directoryItem.genres,
+                styles: directoryItem.styles,
+                moods: directoryItem.moods,
                 rating: rating,
                 addedAt: addedAt,
                 leafCount: leafCount,
@@ -129,7 +142,30 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
             metadataItems[metadataIndex].partKey = partKey
         } else if elementName == "Directory" {
             // Store all attributes for this Directory element
-            directoryItems.append(attributeDict)
+            directoryItems.append(
+                ParsedDirectoryItem(
+                    attributes: attributeDict,
+                    genres: [],
+                    styles: [],
+                    moods: []
+                )
+            )
+            currentDirectoryIndex = directoryItems.count - 1
+        } else if elementName == "Genre",
+                  let directoryIndex = currentDirectoryIndex,
+                  let tag = attributeDict["tag"],
+                  !tag.isEmpty {
+            directoryItems[directoryIndex].genres.append(tag)
+        } else if elementName == "Style",
+                  let directoryIndex = currentDirectoryIndex,
+                  let tag = attributeDict["tag"],
+                  !tag.isEmpty {
+            directoryItems[directoryIndex].styles.append(tag)
+        } else if elementName == "Mood",
+                  let directoryIndex = currentDirectoryIndex,
+                  let tag = attributeDict["tag"],
+                  !tag.isEmpty {
+            directoryItems[directoryIndex].moods.append(tag)
         }
     }
 
@@ -141,6 +177,8 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
     ) {
         if elementName == "Track" || elementName == "Video" || elementName == "Metadata" {
             currentMetadataIndex = nil
+        } else if elementName == "Directory" {
+            currentDirectoryIndex = nil
         }
     }
 }

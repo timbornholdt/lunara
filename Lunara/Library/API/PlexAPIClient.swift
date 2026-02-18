@@ -1,18 +1,13 @@
 import Foundation
 import os
 
-// MARK: - PlexAPIClient
-
 /// HTTP client for Plex Media Server API
 /// Handles authentication, request building, and response parsing
 final class PlexAPIClient: PlexAuthAPIProtocol {
-
-    // MARK: - Properties
-
     private let baseURL: URL
     private let authManager: AuthManager
-    private let session: URLSessionProtocol
-    private let xmlDecoder: XMLDecoder
+    let session: URLSessionProtocol
+    let xmlDecoder: XMLDecoder
     private let jsonDecoder: JSONDecoder
     private let logger = Logger(subsystem: "holdings.chinlock.lunara", category: "PlexAPIClient")
 
@@ -20,8 +15,6 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
     private let clientIdentifier = "Lunara-iOS"
     private let productName = "Lunara"
     private let productVersion = "1.0"
-
-    // MARK: - Initialization
 
     /// Creates a PlexAPIClient
     /// - Parameters:
@@ -39,8 +32,6 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
         self.xmlDecoder = XMLDecoder()
         self.jsonDecoder = JSONDecoder()
     }
-
-    // MARK: - Library Methods
 
     /// Fetch all albums from the Plex library
     func fetchAlbums() async throws -> [Album] {
@@ -77,17 +68,23 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
             // Convert duration from milliseconds to seconds
             let durationSeconds = directory.duration.map { TimeInterval($0) / 1000.0 } ?? 0.0
 
+            let resolvedGenres = dedupedTags(directory.genres + [directory.genre].compactMap { $0 })
+
             albums.append(Album(
                 plexID: albumID,
                 title: directory.title,
                 artistName: directory.parentTitle ?? "Unknown Artist",
                 year: directory.year,
                 thumbURL: directory.thumb,
-                genre: directory.genre,
+                genre: resolvedGenres.first,
                 rating: directory.rating.map { Int($0) },
                 addedAt: addedAtDate,
                 trackCount: directory.leafCount ?? 0,
-                duration: durationSeconds
+                duration: durationSeconds,
+                review: directory.summary,
+                genres: resolvedGenres,
+                styles: dedupedTags(directory.styles),
+                moods: dedupedTags(directory.moods)
             ))
         }
 
@@ -185,8 +182,6 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
         return components.url
     }
 
-    // MARK: - PlexAuthAPIProtocol (OAuth Methods)
-
     /// Request a new PIN for user authorization
     func requestPin() async throws -> PlexPinResponse {
         let url = URL(string: "https://plex.tv/api/v2/pins")!
@@ -232,10 +227,8 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
         return authToken.isEmpty ? nil : authToken
     }
 
-    // MARK: - Private Helpers
-
     /// Build a URLRequest with proper headers and authentication
-    private func buildRequest(
+    func buildRequest(
         path: String,
         queryItems: [URLQueryItem] = [],
         requiresAuth: Bool
@@ -274,7 +267,7 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
     }
 
     /// Validate HTTP response and handle errors
-    private func validateResponse(_ response: URLResponse) throws {
+    func validateResponse(_ response: URLResponse) throws {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw LibraryError.invalidResponse
         }
@@ -295,4 +288,5 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
             throw LibraryError.apiError(statusCode: httpResponse.statusCode, message: message)
         }
     }
+
 }

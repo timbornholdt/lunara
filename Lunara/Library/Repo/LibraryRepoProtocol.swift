@@ -85,8 +85,7 @@ extension PlexAPIClient: LibraryRepoProtocol {
     }
 
     func album(id: String) async throws -> Album? {
-        let allAlbums = try await fetchAlbums()
-        return allAlbums.first { $0.plexID == id }
+        try await fetchAlbum(id: id)
     }
 
     func tracks(forAlbum albumID: String) async throws -> [Track] {

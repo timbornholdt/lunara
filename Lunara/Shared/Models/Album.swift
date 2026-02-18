@@ -21,6 +21,18 @@ struct Album: Identifiable, Codable, Equatable, Hashable, Sendable {
     /// Primary genre (if available)
     let genre: String?
 
+    /// Album review/summary text from metadata providers.
+    let review: String?
+
+    /// All reported genres for this album.
+    let genres: [String]
+
+    /// All reported styles for this album.
+    let styles: [String]
+
+    /// All reported moods for this album.
+    let moods: [String]
+
     /// User's star rating (0-10 scale, Plex standard)
     let rating: Int?
 
@@ -32,6 +44,38 @@ struct Album: Identifiable, Codable, Equatable, Hashable, Sendable {
 
     /// Total duration of all tracks in seconds
     let duration: TimeInterval
+
+    init(
+        plexID: String,
+        title: String,
+        artistName: String,
+        year: Int?,
+        thumbURL: String?,
+        genre: String?,
+        rating: Int?,
+        addedAt: Date?,
+        trackCount: Int,
+        duration: TimeInterval,
+        review: String? = nil,
+        genres: [String] = [],
+        styles: [String] = [],
+        moods: [String] = []
+    ) {
+        self.plexID = plexID
+        self.title = title
+        self.artistName = artistName
+        self.year = year
+        self.thumbURL = thumbURL
+        self.genre = genre
+        self.rating = rating
+        self.addedAt = addedAt
+        self.trackCount = trackCount
+        self.duration = duration
+        self.review = review
+        self.genres = genres
+        self.styles = styles
+        self.moods = moods
+    }
 
     // MARK: - Identifiable
 
