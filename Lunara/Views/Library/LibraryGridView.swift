@@ -18,15 +18,20 @@ struct LibraryGridView: View {
             content
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
-                .navigationTitle("Albums")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .principal) {
+                        Text("Albums")
+                            .lunaraHeading(.section, weight: .semibold)
+                            .lineLimit(1)
+                    }
+                }
+                .toolbarBackground(.hidden, for: .navigationBar)
                 .navigationDestination(item: $selectedAlbum) { album in
                     AlbumDetailView(viewModel: viewModel.makeAlbumDetailViewModel(for: album))
                 }
                 .lunaraLinenBackground()
                 .lunaraErrorBanner(using: viewModel.errorBannerState)
-                .onAppear {
-                    configureNavigationBarTypography()
-                }
                 .task {
                     await viewModel.loadInitialIfNeeded()
                 }
@@ -163,19 +168,5 @@ struct LibraryGridView: View {
         }
 
         return .system(size: size, weight: .regular, design: .serif)
-    }
-
-    private func configureNavigationBarTypography() {
-        let largeTitleSize: CGFloat = 56
-        let inlineTitleSize: CGFloat = 24
-
-        let largeTitleFont = UIFont(name: "PlayfairDisplay-SemiBold", size: largeTitleSize)
-            ?? UIFont.systemFont(ofSize: largeTitleSize, weight: .semibold)
-        let inlineTitleFont = UIFont(name: "PlayfairDisplay-SemiBold", size: inlineTitleSize)
-            ?? UIFont.systemFont(ofSize: inlineTitleSize, weight: .semibold)
-
-        let navBar = UINavigationBar.appearance()
-        navBar.largeTitleTextAttributes = [.font: largeTitleFont]
-        navBar.titleTextAttributes = [.font: inlineTitleFont]
     }
 }
