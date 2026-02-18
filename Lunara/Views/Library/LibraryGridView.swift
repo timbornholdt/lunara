@@ -149,6 +149,7 @@ struct LibraryGridView: View {
                     image
                         .resizable()
                         .scaledToFill()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } placeholder: {
                     ProgressView()
                 }
@@ -160,6 +161,7 @@ struct LibraryGridView: View {
         }
         .frame(maxWidth: .infinity)
         .aspectRatio(1, contentMode: .fit)
+        .clipped()
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .task {
             viewModel.loadThumbnailIfNeeded(for: album)
