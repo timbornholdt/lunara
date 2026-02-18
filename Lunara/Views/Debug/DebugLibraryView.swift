@@ -5,7 +5,6 @@ import os
 /// Shows basic album fetching to verify Plex connectivity
 /// Will be replaced with proper UI in Phase 4
 struct DebugLibraryView: View {
-
     let coordinator: AppCoordinator
     private let logger = Logger(subsystem: "holdings.chinlock.lunara", category: "DebugLibraryView")
     private let duplicateReporter = AlbumDuplicateDebugReporter()
@@ -18,6 +17,8 @@ struct DebugLibraryView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 20) {
+                LunaraStylePrimitivesShowcase()
+
                 playbackPanel
 
                 if isLoading {
@@ -30,6 +31,7 @@ struct DebugLibraryView: View {
                     albumList
                 }
             }
+            .lunaraLinenBackground()
             .navigationTitle("Debug Library")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
