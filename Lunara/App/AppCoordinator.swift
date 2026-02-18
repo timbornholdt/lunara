@@ -98,6 +98,26 @@ final class AppCoordinator {
         try await appRouter.playAlbum(album)
     }
 
+    func queueAlbumNext(_ album: Album) async throws {
+        try await appRouter.queueAlbumNext(album)
+    }
+
+    func queueAlbumLater(_ album: Album) async throws {
+        try await appRouter.queueAlbumLater(album)
+    }
+
+    func playTrackNow(_ track: Track) async throws {
+        try await appRouter.playTrackNow(track)
+    }
+
+    func queueTrackNext(_ track: Track) async throws {
+        try await appRouter.queueTrackNext(track)
+    }
+
+    func queueTrackLater(_ track: Track) async throws {
+        try await appRouter.queueTrackLater(track)
+    }
+
     func pausePlayback() {
         appRouter.pausePlayback()
     }
