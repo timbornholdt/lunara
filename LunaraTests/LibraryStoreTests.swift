@@ -127,6 +127,44 @@ struct LibraryStoreTests {
         #expect(!tracks.isEmpty)
     }
 
+    @Test
+    func incrementalSyncContracts_beforeStageTwo_throwOperationFailed() async throws {
+        let store = try LibraryStore.inMemory()
+        let run = try await store.beginIncrementalSync(startedAt: Date(timeIntervalSince1970: 5000))
+
+        await expectOperationFailed {
+            try await store.upsertAlbums([makeAlbum(id: "album-1", title: "Album 1", artist: "Artist")], in: run)
+        }
+        await expectOperationFailed {
+            try await store.upsertTracks([makeTrack(id: "track-1", albumID: "album-1", trackNumber: 1)], in: run)
+        }
+        await expectOperationFailed {
+            try await store.markAlbumsSeen(["album-1"], in: run)
+        }
+        await expectOperationFailed {
+            try await store.markTracksSeen(["track-1"], in: run)
+        }
+        await expectOperationFailed {
+            _ = try await store.pruneRowsNotSeen(in: run)
+        }
+        await expectOperationFailed {
+            try await store.setSyncCheckpoint(
+                LibrarySyncCheckpoint(
+                    key: "albums.cursor",
+                    value: "cursor-1",
+                    updatedAt: Date(timeIntervalSince1970: 5001)
+                ),
+                in: run
+            )
+        }
+        await expectOperationFailed {
+            _ = try await store.syncCheckpoint(forKey: "albums.cursor")
+        }
+        await expectOperationFailed {
+            try await store.completeIncrementalSync(run, refreshedAt: Date(timeIntervalSince1970: 5002))
+        }
+    }
+
     private func fixtureSnapshot() throws -> LibrarySnapshot {
         let decoder = XMLDecoder()
 
@@ -257,5 +295,21 @@ struct LibraryStoreTests {
             albumCount: 1,
             updatedAt: nil
         )
+    }
+
+    private func expectOperationFailed(
+        _ operation: @escaping () async throws -> Void
+    ) async {
+        do {
+            try await operation()
+            Issue.record("Expected LibraryError.operationFailed")
+        } catch let error as LibraryError {
+            if case .operationFailed = error {
+                return
+            }
+            Issue.record("Expected LibraryError.operationFailed, got \(error)")
+        } catch {
+            Issue.record("Expected LibraryError.operationFailed, got \(error)")
+        }
     }
 }

@@ -314,6 +314,17 @@ private final class ArtworkStoreMock: LibraryStoreProtocol {
     func fetchCollections() async throws -> [Collection] { [] }
     func replaceLibrary(with snapshot: LibrarySnapshot, refreshedAt: Date) async throws { }
     func lastRefreshDate() async throws -> Date? { nil }
+    func beginIncrementalSync(startedAt: Date) async throws -> LibrarySyncRun {
+        LibrarySyncRun(id: "artwork-store-sync", startedAt: startedAt)
+    }
+    func upsertAlbums(_ albums: [Album], in run: LibrarySyncRun) async throws { }
+    func upsertTracks(_ tracks: [Track], in run: LibrarySyncRun) async throws { }
+    func markAlbumsSeen(_ albumIDs: [String], in run: LibrarySyncRun) async throws { }
+    func markTracksSeen(_ trackIDs: [String], in run: LibrarySyncRun) async throws { }
+    func pruneRowsNotSeen(in run: LibrarySyncRun) async throws -> LibrarySyncPruneResult { .empty }
+    func setSyncCheckpoint(_ checkpoint: LibrarySyncCheckpoint, in run: LibrarySyncRun?) async throws { }
+    func syncCheckpoint(forKey key: String) async throws -> LibrarySyncCheckpoint? { nil }
+    func completeIncrementalSync(_ run: LibrarySyncRun, refreshedAt: Date) async throws { }
 
     func artworkPath(for key: ArtworkKey) async throws -> String? {
         artworkPathByKey[key]
