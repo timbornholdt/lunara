@@ -24,10 +24,10 @@ final class AlbumDetailViewModel {
     }
 
     let album: Album
-    let review: String?
-    let genres: [String]
-    let styles: [String]
-    let moods: [String]
+    var review: String?
+    var genres: [String]
+    var styles: [String]
+    var moods: [String]
 
     var tracks: [Track] = []
     var loadingState: LoadingState = .idle
@@ -52,10 +52,10 @@ final class AlbumDetailViewModel {
         self.library = library
         self.artworkPipeline = artworkPipeline
         self.actions = actions
-        self.review = review?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
-        self.genres = Self.normalizedTags(genres ?? (album.genre.map { [$0] } ?? []))
-        self.styles = Self.normalizedTags(styles)
-        self.moods = Self.normalizedTags(moods)
+        self.review = (review ?? album.review)?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        self.genres = Self.normalizedTags(genres ?? (!album.genres.isEmpty ? album.genres : (album.genre.map { [$0] } ?? [])))
+        self.styles = Self.normalizedTags(styles.isEmpty ? album.styles : styles)
+        self.moods = Self.normalizedTags(moods.isEmpty ? album.moods : moods)
     }
 
     func loadIfNeeded() async {
@@ -64,6 +64,7 @@ final class AlbumDetailViewModel {
         }
 
         loadingState = .loading
+        await loadAlbumMetadata()
         await loadTracks()
         await loadArtwork()
     }
@@ -123,6 +124,37 @@ final class AlbumDetailViewModel {
             )
         } catch {
             // Artwork is non-blocking for detail presentation.
+        }
+    }
+
+    private func loadAlbumMetadata() async {
+        do {
+            guard let refreshedAlbum = try await library.album(id: album.plexID) else {
+                return
+            }
+
+            if let refreshedReview = refreshedAlbum.review?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty {
+                review = refreshedReview
+            }
+
+            let refreshedGenres = Self.normalizedTags(refreshedAlbum.genres)
+            if !refreshedGenres.isEmpty {
+                genres = refreshedGenres
+            } else if genres.isEmpty, let genre = refreshedAlbum.genre {
+                genres = Self.normalizedTags([genre])
+            }
+
+            let refreshedStyles = Self.normalizedTags(refreshedAlbum.styles)
+            if !refreshedStyles.isEmpty {
+                styles = refreshedStyles
+            }
+
+            let refreshedMoods = Self.normalizedTags(refreshedAlbum.moods)
+            if !refreshedMoods.isEmpty {
+                moods = refreshedMoods
+            }
+        } catch {
+            // Metadata enrichment is best-effort; leave existing values when fetch fails.
         }
     }
 

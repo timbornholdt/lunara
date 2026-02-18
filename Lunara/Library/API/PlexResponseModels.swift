@@ -28,6 +28,9 @@ struct PlexDirectory: Codable {
     let year: Int?
     let thumb: String?              // Thumbnail path
     let genre: String?
+    let genres: [String]
+    let styles: [String]
+    let moods: [String]
     let rating: Double?
     let addedAt: Int?               // Unix timestamp
     let leafCount: Int?             // Track count

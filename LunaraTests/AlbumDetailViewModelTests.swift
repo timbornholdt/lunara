@@ -20,6 +20,35 @@ struct AlbumDetailViewModelTests {
     }
 
     @Test
+    func loadIfNeeded_fetchesAndAppliesAlbumMetadataFromLibrary() async {
+        let subject = makeSubject(review: nil, genres: nil, styles: [], moods: [])
+        subject.library.albumByID[subject.album.plexID] = Album(
+            plexID: subject.album.plexID,
+            title: subject.album.title,
+            artistName: subject.album.artistName,
+            year: subject.album.year,
+            thumbURL: subject.album.thumbURL,
+            genre: "Pop/Rock",
+            rating: subject.album.rating,
+            addedAt: subject.album.addedAt,
+            trackCount: subject.album.trackCount,
+            duration: subject.album.duration,
+            review: "Imported review",
+            genres: ["Pop/Rock"],
+            styles: ["Contemporary Pop/Rock"],
+            moods: ["Brooding"]
+        )
+
+        await subject.viewModel.loadIfNeeded()
+
+        #expect(subject.library.albumRequests == [subject.album.plexID])
+        #expect(subject.viewModel.review == "Imported review")
+        #expect(subject.viewModel.genres == ["Pop/Rock"])
+        #expect(subject.viewModel.styles == ["Contemporary Pop/Rock"])
+        #expect(subject.viewModel.moods == ["Brooding"])
+    }
+
+    @Test
     func playAlbum_routesIntentToActions() async {
         let subject = makeSubject()
 
@@ -76,7 +105,12 @@ struct AlbumDetailViewModelTests {
         #expect(subject.actions.queueTrackLaterRequests == [track.plexID])
     }
 
-    private func makeSubject() -> (
+    private func makeSubject(
+        review: String? = "A detailed review",
+        genres: [String]? = ["Ambient", "Electronic"],
+        styles: [String] = ["Downtempo"],
+        moods: [String] = ["Calm"]
+    ) -> (
         viewModel: AlbumDetailViewModel,
         album: Album,
         library: AlbumDetailLibraryRepoMock,
@@ -92,10 +126,10 @@ struct AlbumDetailViewModelTests {
             library: library,
             artworkPipeline: artwork,
             actions: actions,
-            review: "A detailed review",
-            genres: ["Ambient", "Electronic"],
-            styles: ["Downtempo"],
-            moods: ["Calm"]
+            review: review,
+            genres: genres,
+            styles: styles,
+            moods: moods
         )
         return (viewModel, album, library, artwork, actions)
     }
@@ -131,11 +165,16 @@ struct AlbumDetailViewModelTests {
 
 @MainActor
 private final class AlbumDetailLibraryRepoMock: LibraryRepoProtocol {
+    var albumByID: [String: Album] = [:]
+    var albumRequests: [String] = []
     var tracksByAlbumID: [String: [Track]] = [:]
     var trackRequests: [String] = []
 
     func albums(page: LibraryPage) async throws -> [Album] { [] }
-    func album(id: String) async throws -> Album? { nil }
+    func album(id: String) async throws -> Album? {
+        albumRequests.append(id)
+        return albumByID[id]
+    }
 
     func tracks(forAlbum albumID: String) async throws -> [Track] {
         trackRequests.append(albumID)

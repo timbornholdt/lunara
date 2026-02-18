@@ -4,11 +4,13 @@ import Foundation
 @MainActor
 final class LibraryRemoteMock: LibraryRemoteDataSource {
     var albums: [Album] = []
+    var albumsByID: [String: Album] = [:]
     var tracksByAlbumID: [String: [Track]] = [:]
     var streamURLByTrackID: [String: URL] = [:]
     var artworkURLByRawValue: [String: URL] = [:]
 
     var fetchAlbumsCallCount = 0
+    var fetchAlbumRequests: [String] = []
     var fetchTracksRequests: [String] = []
     var streamURLRequests: [String] = []
     var artworkURLRequests: [String?] = []
@@ -24,6 +26,11 @@ final class LibraryRemoteMock: LibraryRemoteDataSource {
             throw fetchAlbumsError
         }
         return albums
+    }
+
+    func fetchAlbum(id albumID: String) async throws -> Album? {
+        fetchAlbumRequests.append(albumID)
+        return albumsByID[albumID]
     }
 
     func fetchTracks(forAlbum albumID: String) async throws -> [Track] {

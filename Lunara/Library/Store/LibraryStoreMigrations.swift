@@ -73,6 +73,15 @@ enum LibraryStoreMigrations {
             }
         }
 
+        migrator.registerMigration("v2_album_metadata_fields") { db in
+            try db.alter(table: "albums") { table in
+                table.add(column: "review", .text)
+                table.add(column: "genres", .text).notNull().defaults(to: "[]")
+                table.add(column: "styles", .text).notNull().defaults(to: "[]")
+                table.add(column: "moods", .text).notNull().defaults(to: "[]")
+            }
+        }
+
         return migrator
     }
 }
