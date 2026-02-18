@@ -39,6 +39,9 @@ The user works in quick bursts throughout the day. Sessions are short. Respect t
 
 These are the critical rules from the README. Burn these in.
 
+### Typography
+- **All label-like UI text must use Playfair Display.** This includes headings, metadata labels, button titles, pill text, and similar display labels.
+
 ### Domain Boundaries
 - **Library Domain** and **Music Domain** never import each other.
 - Only **AppRouter** and **Shared Types** cross the domain boundary.
