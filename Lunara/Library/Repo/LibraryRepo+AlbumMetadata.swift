@@ -160,4 +160,86 @@ extension LibraryRepo {
             }
         }
     }
+
+    func reconcileThumbnailArtwork(
+        cachedAlbumsByID: [String: Album],
+        refreshedAlbums: [Album],
+        deletedAlbumIDs: [String]
+    ) async {
+        var invalidatedAlbumIDs = Set<String>()
+
+        for albumID in deletedAlbumIDs {
+            do {
+                try await artworkPipeline.invalidateCache(for: albumID, ownerKind: .album)
+                invalidatedAlbumIDs.insert(albumID)
+            } catch {
+                continue
+            }
+        }
+
+        for album in refreshedAlbums {
+            let previousAlbum = cachedAlbumsByID[album.plexID]
+            let thumbnailChanged: Bool
+            if let previousAlbum {
+                thumbnailChanged = normalizedArtworkReference(previousAlbum.thumbURL) != normalizedArtworkReference(album.thumbURL)
+            } else {
+                thumbnailChanged = false
+            }
+
+            if thumbnailChanged && !invalidatedAlbumIDs.contains(album.plexID) {
+                do {
+                    try await artworkPipeline.invalidateCache(for: album.plexID, ownerKind: .album)
+                    invalidatedAlbumIDs.insert(album.plexID)
+                } catch {
+                    continue
+                }
+            }
+
+            do {
+                if try await shouldWarmThumbnail(
+                    for: album.plexID,
+                    thumbURL: album.thumbURL,
+                    forceWarm: thumbnailChanged || previousAlbum == nil
+                ) {
+                    let sourceURL = try await remote.authenticatedArtworkURL(for: album.thumbURL)
+                    _ = try await artworkPipeline.fetchThumbnail(
+                        for: album.plexID,
+                        ownerKind: .album,
+                        sourceURL: sourceURL
+                    )
+                }
+            } catch {
+                continue
+            }
+        }
+    }
+
+    private func shouldWarmThumbnail(for albumID: String, thumbURL: String?, forceWarm: Bool) async throws -> Bool {
+        guard let normalizedThumb = normalizedArtworkReference(thumbURL), !normalizedThumb.isEmpty else {
+            return false
+        }
+
+        if forceWarm {
+            return true
+        }
+
+        let key = ArtworkKey(ownerID: albumID, ownerType: .album, variant: .thumbnail)
+        guard let cachedPath = try await store.artworkPath(for: key) else {
+            return true
+        }
+
+        return !FileManager.default.fileExists(atPath: cachedPath)
+    }
+
+    private func normalizedArtworkReference(_ value: String?) -> String? {
+        guard let value else {
+            return nil
+        }
+
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed
+    }
 }

@@ -89,6 +89,9 @@ final class LibraryStoreMock: LibraryStoreProtocol {
     var completeIncrementalSyncCalls: [(LibrarySyncRun, Date)] = []
     var syncCheckpointByKey: [String: LibrarySyncCheckpoint] = [:]
     var pruneResult: LibrarySyncPruneResult = .empty
+    var artworkPathByKey: [ArtworkKey: String] = [:]
+    var setArtworkPathCalls: [(ArtworkKey, String)] = []
+    var deletedArtworkPathKeys: [ArtworkKey] = []
 
     var replaceLibraryError: LibraryError?
     var beginIncrementalSyncError: LibraryError?
@@ -216,9 +219,16 @@ final class LibraryStoreMock: LibraryStoreProtocol {
     }
 
     func artworkPath(for key: ArtworkKey) async throws -> String? {
-        nil
+        artworkPathByKey[key]
     }
 
-    func setArtworkPath(_ path: String, for key: ArtworkKey) async throws { }
-    func deleteArtworkPath(for key: ArtworkKey) async throws { }
+    func setArtworkPath(_ path: String, for key: ArtworkKey) async throws {
+        artworkPathByKey[key] = path
+        setArtworkPathCalls.append((key, path))
+    }
+
+    func deleteArtworkPath(for key: ArtworkKey) async throws {
+        artworkPathByKey[key] = nil
+        deletedArtworkPathKeys.append(key)
+    }
 }
