@@ -276,6 +276,25 @@ final class PlexAPIClientTests: XCTestCase {
         XCTAssertEqual(tracks[0].key, "/library/parts/2/123/file.mp3")
     }
 
+    func test_fetchTracks_prefersOriginalTitle_forCompilationTrackArtist() async throws {
+        try authManager.setToken("token")
+        mockSession.dataToReturn = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <MediaContainer>
+            <Track ratingKey="2001" type="track" title="Monster Song" index="1" originalTitle="Warrant" grandparentTitle="Various Artists" key="/library/metadata/2001">
+                <Media id="1" duration="259000">
+                    <Part id="2" key="/library/parts/2/123/file.mp3" />
+                </Media>
+            </Track>
+        </MediaContainer>
+        """.data(using: .utf8)!
+
+        let tracks = try await client.fetchTracks(forAlbum: "12345")
+
+        XCTAssertEqual(tracks.count, 1)
+        XCTAssertEqual(tracks[0].artistName, "Warrant")
+    }
+
     func test_fetchTracks_whenTrackLacksPlayablePartKey_throwsInvalidResponse() async throws {
         try authManager.setToken("token")
         mockSession.dataToReturn = """

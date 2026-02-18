@@ -31,4 +31,18 @@ struct AlbumTrackPresentationTests {
 
         #expect(value == nil)
     }
+
+    @Test
+    func albumDuration_formatsWithoutHours_forShortDurations() {
+        let value = AlbumTrackPresentation.albumDuration(2_143)
+
+        #expect(value == "35:43")
+    }
+
+    @Test
+    func albumDuration_formatsWithHours_forLongDurations() {
+        let value = AlbumTrackPresentation.albumDuration(9_336)
+
+        #expect(value == "2:35:36")
+    }
 }

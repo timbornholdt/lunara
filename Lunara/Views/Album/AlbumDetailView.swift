@@ -261,7 +261,7 @@ struct AlbumDetailView: View {
             parts.append(String(year))
         }
         parts.append("\(viewModel.album.trackCount) tracks")
-        parts.append(viewModel.album.formattedDuration)
+        parts.append(AlbumTrackPresentation.albumDuration(viewModel.album.duration))
         return parts.joined(separator: " • ")
     }
 }
