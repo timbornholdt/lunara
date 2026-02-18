@@ -18,10 +18,14 @@ struct AlbumDetailTypographyTests {
     @Test
     func token_trackRows_usePlayfairAndMonospacedDigitsForNumbers() {
         let numberToken = AlbumDetailTypography.token(for: .trackNumber)
+        let secondaryArtistToken = AlbumDetailTypography.token(for: .trackSecondaryArtist)
         let durationToken = AlbumDetailTypography.token(for: .trackDuration)
 
         #expect(numberToken.preferredFontName == "PlayfairDisplay-SemiBold")
         #expect(numberToken.usesMonospacedDigits == true)
+        #expect(secondaryArtistToken.preferredFontName == "PlayfairDisplay-Regular")
+        #expect(secondaryArtistToken.size == 18)
+        #expect(secondaryArtistToken.relativeTextStyle == .subheadline)
         #expect(durationToken.preferredFontName == "PlayfairDisplay-Regular")
         #expect(durationToken.usesMonospacedDigits == true)
     }

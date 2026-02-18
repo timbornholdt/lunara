@@ -5,6 +5,7 @@ enum AlbumDetailTextRole {
     case subtitleMetadata
     case trackNumber
     case trackTitle
+    case trackSecondaryArtist
     case trackDuration
     case reviewBody
     case pill
@@ -43,6 +44,14 @@ enum AlbumDetailTypography {
                 fallbackWeight: .regular,
                 size: 20,
                 relativeTextStyle: .body,
+                usesMonospacedDigits: false
+            )
+        case .trackSecondaryArtist:
+            return AlbumDetailTextToken(
+                preferredFontName: "PlayfairDisplay-Regular",
+                fallbackWeight: .regular,
+                size: 18,
+                relativeTextStyle: .subheadline,
                 usesMonospacedDigits: false
             )
         case .trackDuration:

@@ -166,7 +166,7 @@ struct AlbumDetailView: View {
 
                     if let secondaryArtist {
                         Text(secondaryArtist)
-                            .font(.subheadline)
+                            .font(AlbumDetailTypography.font(for: .trackSecondaryArtist))
                             .foregroundStyle(Color.lunara(.textSecondary))
                             .fixedSize(horizontal: false, vertical: true)
                     }
