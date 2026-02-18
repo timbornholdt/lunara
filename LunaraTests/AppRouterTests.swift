@@ -135,6 +135,70 @@ struct AppRouterTests {
         #expect(subject.queue.clearCallCount == 1)
     }
 
+    @Test
+    func queueAlbumNext_fetchesTracksResolvesURLsAndQueuesPlayNext() async throws {
+        let subject = makeSubject()
+        let album = makeAlbum(id: "album-next")
+        let track = makeTrack(id: "track-next", albumID: album.plexID)
+        subject.library.tracksByAlbumID[album.plexID] = [track]
+        let streamURL = try #require(URL(string: "https://example.com/stream/track-next.mp3"))
+        subject.library.streamURLByTrackID[track.plexID] = streamURL
+
+        try await subject.router.queueAlbumNext(album)
+
+        #expect(subject.queue.playNextCalls == [[QueueItem(trackID: track.plexID, url: streamURL)]])
+    }
+
+    @Test
+    func queueAlbumLater_fetchesTracksResolvesURLsAndQueuesPlayLater() async throws {
+        let subject = makeSubject()
+        let album = makeAlbum(id: "album-later")
+        let track = makeTrack(id: "track-later", albumID: album.plexID)
+        subject.library.tracksByAlbumID[album.plexID] = [track]
+        let streamURL = try #require(URL(string: "https://example.com/stream/track-later.mp3"))
+        subject.library.streamURLByTrackID[track.plexID] = streamURL
+
+        try await subject.router.queueAlbumLater(album)
+
+        #expect(subject.queue.playLaterCalls == [[QueueItem(trackID: track.plexID, url: streamURL)]])
+    }
+
+    @Test
+    func playTrackNow_resolvesURLAndQueuesSingleItemPlayNow() async throws {
+        let subject = makeSubject()
+        let track = makeTrack(id: "track-now")
+        let streamURL = try #require(URL(string: "https://example.com/stream/track-now.mp3"))
+        subject.library.streamURLByTrackID[track.plexID] = streamURL
+
+        try await subject.router.playTrackNow(track)
+
+        #expect(subject.queue.playNowCalls == [[QueueItem(trackID: track.plexID, url: streamURL)]])
+    }
+
+    @Test
+    func queueTrackNext_resolvesURLAndQueuesSingleItemPlayNext() async throws {
+        let subject = makeSubject()
+        let track = makeTrack(id: "track-next-single")
+        let streamURL = try #require(URL(string: "https://example.com/stream/track-next-single.mp3"))
+        subject.library.streamURLByTrackID[track.plexID] = streamURL
+
+        try await subject.router.queueTrackNext(track)
+
+        #expect(subject.queue.playNextCalls == [[QueueItem(trackID: track.plexID, url: streamURL)]])
+    }
+
+    @Test
+    func queueTrackLater_resolvesURLAndQueuesSingleItemPlayLater() async throws {
+        let subject = makeSubject()
+        let track = makeTrack(id: "track-later-single")
+        let streamURL = try #require(URL(string: "https://example.com/stream/track-later-single.mp3"))
+        subject.library.streamURLByTrackID[track.plexID] = streamURL
+
+        try await subject.router.queueTrackLater(track)
+
+        #expect(subject.queue.playLaterCalls == [[QueueItem(trackID: track.plexID, url: streamURL)]])
+    }
+
     private func makeSubject() -> (
         router: AppRouter,
         library: LibraryRepoMock,
@@ -259,6 +323,8 @@ private final class QueueManagerMock: QueueManagerProtocol {
     private(set) var lastError: MusicError?
 
     private(set) var playNowCalls: [[QueueItem]] = []
+    private(set) var playNextCalls: [[QueueItem]] = []
+    private(set) var playLaterCalls: [[QueueItem]] = []
     private(set) var pauseCallCount = 0
     private(set) var resumeCallCount = 0
     private(set) var skipToNextCallCount = 0
@@ -271,8 +337,12 @@ private final class QueueManagerMock: QueueManagerProtocol {
         currentItem = items.first
     }
 
-    func playNext(_ items: [QueueItem]) { }
-    func playLater(_ items: [QueueItem]) { }
+    func playNext(_ items: [QueueItem]) {
+        playNextCalls.append(items)
+    }
+    func playLater(_ items: [QueueItem]) {
+        playLaterCalls.append(items)
+    }
     func play() { }
     func pause() {
         pauseCallCount += 1
