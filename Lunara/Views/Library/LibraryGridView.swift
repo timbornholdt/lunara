@@ -3,6 +3,7 @@ import UIKit
 
 struct LibraryGridView: View {
     @State private var viewModel: LibraryGridViewModel
+    @State private var selectedAlbum: Album?
 
     private let columns = [
         GridItem(.adaptive(minimum: 140, maximum: 220), spacing: 16)
@@ -18,6 +19,9 @@ struct LibraryGridView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
                 .navigationTitle("Albums")
+                .navigationDestination(item: $selectedAlbum) { album in
+                    AlbumDetailView(viewModel: viewModel.makeAlbumDetailViewModel(for: album))
+                }
                 .lunaraLinenBackground()
                 .lunaraErrorBanner(using: viewModel.errorBannerState)
                 .onAppear {
@@ -82,17 +86,25 @@ struct LibraryGridView: View {
 
     private func albumCard(for album: Album) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            artworkView(for: album)
+            Button {
+                selectedAlbum = album
+            } label: {
+                VStack(alignment: .leading, spacing: 10) {
+                    artworkView(for: album)
 
-            Text(album.title)
-                .font(albumTitleFont)
-                .lineLimit(2)
-                .foregroundStyle(Color.lunara(.textPrimary))
+                    Text(album.title)
+                        .font(albumTitleFont)
+                        .lineLimit(2)
+                        .foregroundStyle(Color.lunara(.textPrimary))
 
-            Text(album.subtitle)
-                .font(albumSubtitleFont)
-                .lineLimit(2)
-                .foregroundStyle(Color.lunara(.textSecondary))
+                    Text(album.subtitle)
+                        .font(albumSubtitleFont)
+                        .lineLimit(2)
+                        .foregroundStyle(Color.lunara(.textSecondary))
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
 
             Button("Play") {
                 Task {

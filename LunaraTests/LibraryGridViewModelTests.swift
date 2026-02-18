@@ -143,6 +143,32 @@ struct LibraryGridViewModelTests {
         #expect(subject.viewModel.thumbnailURL(for: "album-rel") == fileURL)
     }
 
+    @Test
+    func makeAlbumDetailViewModel_mapsAlbumAndGenreForNavigationDestination() {
+        let subject = makeSubject()
+        let album = makeAlbum(id: "album-detail")
+        let albumWithGenre = Album(
+            plexID: album.plexID,
+            title: album.title,
+            artistName: album.artistName,
+            year: album.year,
+            thumbURL: album.thumbURL,
+            genre: "Trip-Hop",
+            rating: album.rating,
+            addedAt: album.addedAt,
+            trackCount: album.trackCount,
+            duration: album.duration
+        )
+
+        let detailViewModel = subject.viewModel.makeAlbumDetailViewModel(for: albumWithGenre)
+
+        #expect(detailViewModel.album.plexID == albumWithGenre.plexID)
+        #expect(detailViewModel.genres == ["Trip-Hop"])
+        #expect(detailViewModel.review == nil)
+        #expect(detailViewModel.styles.isEmpty)
+        #expect(detailViewModel.moods.isEmpty)
+    }
+
     private func makeSubject(prefetchThreshold: Int = 2) -> (
         viewModel: LibraryGridViewModel,
         library: LibraryGridRepoMock,
@@ -266,4 +292,10 @@ private final class LibraryGridActionsMock: LibraryGridActionRouting {
             throw playAlbumError
         }
     }
+
+    func queueAlbumNext(_ album: Album) async throws { }
+    func queueAlbumLater(_ album: Album) async throws { }
+    func playTrackNow(_ track: Track) async throws { }
+    func queueTrackNext(_ track: Track) async throws { }
+    func queueTrackLater(_ track: Track) async throws { }
 }

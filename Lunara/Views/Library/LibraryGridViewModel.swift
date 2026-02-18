@@ -2,9 +2,7 @@ import Foundation
 import Observation
 
 @MainActor
-protocol LibraryGridActionRouting: AnyObject {
-    func playAlbum(_ album: Album) async throws
-}
+protocol LibraryGridActionRouting: AlbumDetailActionRouting, AnyObject { }
 
 extension AppCoordinator: LibraryGridActionRouting { }
 
@@ -77,6 +75,16 @@ final class LibraryGridViewModel {
         } catch {
             errorBannerState.show(message: error.localizedDescription)
         }
+    }
+
+    func makeAlbumDetailViewModel(for album: Album) -> AlbumDetailViewModel {
+        AlbumDetailViewModel(
+            album: album,
+            library: library,
+            artworkPipeline: artworkPipeline,
+            actions: actions,
+            genres: album.genre.map { [$0] } ?? []
+        )
     }
 
     func thumbnailURL(for albumID: String) -> URL? {
