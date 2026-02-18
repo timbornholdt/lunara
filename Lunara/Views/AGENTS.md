@@ -17,7 +17,7 @@ You are working on SwiftUI views. Read the root `AGENTS.md` and `README.md` if y
 - Don't use `alert()` dialogs for errors — they block interaction.
 
 ## Design Language
-- Playfair Display for headings/display text. San Francisco (system) for body/controls.
+- Playfair Display for all label-like UI text (headings, metadata labels, button text, pill text, and similar).
 - Linen background texture (programmatic, not static asset).
 - Pill-shaped buttons. Card-style inputs.
 - Transitions: slides, fades, springs. No jarring cuts. Minimal animation during active listening.
