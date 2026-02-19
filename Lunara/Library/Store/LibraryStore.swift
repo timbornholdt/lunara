@@ -111,31 +111,7 @@ final class LibraryStore: LibraryStoreProtocol {
     }
 
     func searchAlbums(query: String) async throws -> [Album] {
-        let normalizedQuery = LibraryStoreSearchNormalizer.normalize(query)
-        guard !normalizedQuery.isEmpty else {
-            return try await dbQueue.read { db in
-                let records = try AlbumRecord
-                    .order(Column("artistName").asc, Column("title").asc)
-                    .fetchAll(db)
-                return records.map(\.model)
-            }
-        }
-
-        let pattern = LibraryStoreSearchNormalizer.likeContainsPattern(for: normalizedQuery)
-        return try await dbQueue.read { db in
-            let records = try AlbumRecord.fetchAll(
-                db,
-                sql: """
-                SELECT *
-                FROM albums
-                WHERE titleSearch LIKE ? ESCAPE '\\'
-                   OR artistNameSearch LIKE ? ESCAPE '\\'
-                ORDER BY artistName ASC, title ASC
-                """,
-                arguments: [pattern, pattern]
-            )
-            return records.map(\.model)
-        }
+        try await queryAlbums(filter: AlbumQueryFilter(textQuery: query))
     }
 
     func searchArtists(query: String) async throws -> [Artist] {
