@@ -23,7 +23,10 @@ struct LibraryRootTabView: View {
                     library: coordinator.libraryRepo,
                     artworkPipeline: coordinator.artworkPipeline,
                     actions: coordinator
-                )
+                ),
+                backgroundRefreshSuccessToken: coordinator.backgroundRefreshSuccessToken,
+                backgroundRefreshFailureToken: coordinator.backgroundRefreshFailureToken,
+                backgroundRefreshErrorMessage: coordinator.lastBackgroundRefreshErrorMessage
             )
             .tabItem {
                 Label("Albums", systemImage: "square.grid.2x2")
