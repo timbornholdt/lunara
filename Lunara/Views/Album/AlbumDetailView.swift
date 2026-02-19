@@ -2,7 +2,6 @@ import SwiftUI
 
 struct AlbumDetailView: View {
     @State private var viewModel: AlbumDetailViewModel
-    @Environment(\.dismiss) private var dismiss
 
     init(viewModel: AlbumDetailViewModel) {
         _viewModel = State(initialValue: viewModel)
@@ -12,7 +11,6 @@ struct AlbumDetailView: View {
         ZStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: AlbumDetailLayout.sectionSpacing) {
-                    backButtonRow
                     headerCard
                     trackList
                     metadataSections
@@ -25,31 +23,18 @@ struct AlbumDetailView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.lunara(.backgroundBase).ignoresSafeArea())
         .lunaraLinenBackground()
-        .navigationBarBackButtonHidden(true)
-        .toolbar(.hidden, for: .navigationBar)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text(viewModel.album.title)
+                    .lunaraHeading(.section, weight: .semibold)
+                    .lineLimit(1)
+            }
+        }
         .lunaraErrorBanner(using: viewModel.errorBannerState)
         .task {
             await viewModel.loadIfNeeded()
         }
-    }
-
-    private var backButtonRow: some View {
-        HStack {
-            Button {
-                dismiss()
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 24, weight: .medium))
-                    .foregroundStyle(Color.lunara(.textPrimary))
-                    .frame(width: 56, height: 56)
-                    .background(Color.lunara(.backgroundElevated), in: Circle())
-            }
-            .accessibilityLabel("Back")
-
-            Spacer()
-        }
-        .padding(.top, AlbumDetailLayout.backButtonInsetTop)
-        .padding(.bottom, AlbumDetailLayout.backButtonInsetBottom)
     }
 
     private var headerCard: some View {
