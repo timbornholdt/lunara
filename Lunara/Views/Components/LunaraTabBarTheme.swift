@@ -19,9 +19,12 @@ struct LunaraTabBarTheme: Equatable {
 enum LunaraTabBarStyler {
     static func apply(theme: LunaraTabBarTheme) {
         let appearance = UITabBarAppearance()
-        appearance.configureWithOpaqueBackground()
-        appearance.backgroundColor = UIColor.lunara(theme.backgroundRole)
-        appearance.shadowColor = UIColor.lunara(theme.borderRole)
+        // Use the system default (Liquid Glass on iOS 26) rather than forcing
+        // an opaque background. configureWithOpaqueBackground() overrides the
+        // glass material with a flat white surface; configureWithDefaultBackground()
+        // lets the OS render its native translucent pill, which will pick up
+        // the linen window background colour set in LibraryRootTabView.
+        appearance.configureWithDefaultBackground()
 
         let font = tabLabelFont()
         applyAttributes(
