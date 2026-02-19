@@ -37,7 +37,8 @@ struct LibraryGridView: View {
                             .lineLimit(1)
                     }
                 }
-                .toolbarBackground(.hidden, for: .navigationBar)
+                .toolbarBackground(Color.lunara(.backgroundBase), for: .navigationBar)
+                .toolbarBackground(.visible, for: .navigationBar)
                 .searchable(text: $viewModel.searchQuery, placement: .navigationBarDrawer(displayMode: .automatic), prompt: Text("Search albums or artists"))
                 .navigationDestination(item: $selectedAlbum) { album in
                     AlbumDetailView(viewModel: viewModel.makeAlbumDetailViewModel(for: album))

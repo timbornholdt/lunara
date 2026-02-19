@@ -49,6 +49,10 @@ struct LibraryRootTabView: View {
         .tint(Color.lunara(tabBarTheme.selectedTintRole))
         .toolbarBackground(Color.lunara(tabBarTheme.backgroundRole), for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
+        // Fill the area around and below the floating pill tab bar (iOS 18)
+        // with the Lunara background. Without this, the window's default white
+        // shows through in both light and dark mode.
+        .background(Color.lunara(.backgroundBase).ignoresSafeArea())
         .safeAreaInset(edge: .bottom, spacing: 0) {
             NowPlayingBar(viewModel: nowPlayingBarViewModel)
         }
