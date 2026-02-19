@@ -97,6 +97,7 @@ struct LibraryStoreProtocolTests {
             updatedAt: nil
         )
         store.searchedAlbumsByQuery["blue"] = [makeAlbum(id: "album-1")]
+        store.queriedAlbumsByFilter[AlbumQueryFilter(textQuery: "blue")] = [makeAlbum(id: "album-1")]
         store.searchedArtistsByQuery["davis"] = [Artist(
             plexID: "artist-1",
             name: "Miles Davis",
@@ -113,15 +114,18 @@ struct LibraryStoreProtocolTests {
         let albums = try await store.searchAlbums(query: "blue")
         let artists = try await store.searchArtists(query: "davis")
         let collections = try await store.searchCollections(query: "jazz")
+        let filteredAlbums = try await store.queryAlbums(filter: AlbumQueryFilter(textQuery: "blue"))
         let track = try await store.track(id: "track-1")
         let collection = try await store.collection(id: "collection-1")
 
         #expect(store.searchAlbumQueries == ["blue"])
         #expect(store.searchArtistQueries == ["davis"])
         #expect(store.searchCollectionQueries == ["jazz"])
+        #expect(store.albumQueryFilters == [AlbumQueryFilter(textQuery: "blue")])
         #expect(store.trackLookupRequests == ["track-1"])
         #expect(store.collectionLookupRequests == ["collection-1"])
         #expect(albums.map(\.plexID) == ["album-1"])
+        #expect(filteredAlbums.map(\.plexID) == ["album-1"])
         #expect(artists.map(\.plexID) == ["artist-1"])
         #expect(collections.map(\.plexID) == ["collection-1"])
         #expect(track?.plexID == "track-1")
@@ -160,11 +164,13 @@ struct LibraryStoreProtocolTests {
 @MainActor
 private final class ProtocolStoreMock: LibraryStoreProtocol {
     var searchedAlbumsByQuery: [String: [Album]] = [:]
+    var queriedAlbumsByFilter: [AlbumQueryFilter: [Album]] = [:]
     var searchedArtistsByQuery: [String: [Artist]] = [:]
     var searchedCollectionsByQuery: [String: [Collection]] = [:]
     var trackByID: [String: Track] = [:]
     var collectionByID: [String: Collection] = [:]
     var searchAlbumQueries: [String] = []
+    var albumQueryFilters: [AlbumQueryFilter] = []
     var searchArtistQueries: [String] = []
     var searchCollectionQueries: [String] = []
     var trackLookupRequests: [String] = []
@@ -189,6 +195,10 @@ private final class ProtocolStoreMock: LibraryStoreProtocol {
     func searchAlbums(query: String) async throws -> [Album] {
         searchAlbumQueries.append(query)
         return searchedAlbumsByQuery[query] ?? []
+    }
+    func queryAlbums(filter: AlbumQueryFilter) async throws -> [Album] {
+        albumQueryFilters.append(filter)
+        return queriedAlbumsByFilter[filter] ?? []
     }
     func searchArtists(query: String) async throws -> [Artist] {
         searchArtistQueries.append(query)

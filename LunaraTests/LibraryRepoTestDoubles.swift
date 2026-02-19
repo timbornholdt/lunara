@@ -134,6 +134,7 @@ final class LibraryStoreMock: LibraryStoreProtocol {
     var cachedArtists: [Artist] = []
     var cachedCollections: [Collection] = []
     var searchedAlbumsByQuery: [String: [Album]] = [:]
+    var queriedAlbumsByFilter: [AlbumQueryFilter: [Album]] = [:]
     var searchedArtistsByQuery: [String: [Artist]] = [:]
     var searchedCollectionsByQuery: [String: [Collection]] = [:]
     var lastRefresh: Date?
@@ -143,6 +144,7 @@ final class LibraryStoreMock: LibraryStoreProtocol {
     var trackLookupRequests: [String] = []
     var collectionLookupRequests: [String] = []
     var searchedAlbumQueries: [String] = []
+    var albumQueryFilters: [AlbumQueryFilter] = []
     var searchedArtistQueries: [String] = []
     var searchedCollectionQueries: [String] = []
     var replaceLibraryCallCount = 0
@@ -255,6 +257,11 @@ final class LibraryStoreMock: LibraryStoreProtocol {
     func searchAlbums(query: String) async throws -> [Album] {
         searchedAlbumQueries.append(query)
         return searchedAlbumsByQuery[query] ?? []
+    }
+
+    func queryAlbums(filter: AlbumQueryFilter) async throws -> [Album] {
+        albumQueryFilters.append(filter)
+        return queriedAlbumsByFilter[filter] ?? []
     }
 
     func searchArtists(query: String) async throws -> [Artist] {

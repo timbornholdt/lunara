@@ -92,6 +92,36 @@ enum ArtworkVariant: String, Equatable, Sendable {
     case full
 }
 
+struct AlbumQueryFilter: Equatable, Hashable, Sendable {
+    let textQuery: String?
+    let yearRange: ClosedRange<Int>?
+    let genreTags: [String]
+    let styleTags: [String]
+    let moodTags: [String]
+    let artistIDs: [String]
+    let collectionIDs: [String]
+
+    init(
+        textQuery: String? = nil,
+        yearRange: ClosedRange<Int>? = nil,
+        genreTags: [String] = [],
+        styleTags: [String] = [],
+        moodTags: [String] = [],
+        artistIDs: [String] = [],
+        collectionIDs: [String] = []
+    ) {
+        self.textQuery = textQuery
+        self.yearRange = yearRange
+        self.genreTags = genreTags
+        self.styleTags = styleTags
+        self.moodTags = moodTags
+        self.artistIDs = artistIDs
+        self.collectionIDs = collectionIDs
+    }
+
+    static let all = AlbumQueryFilter()
+}
+
 struct ArtworkKey: Equatable, Hashable, Sendable {
     let ownerID: String
     let ownerType: ArtworkOwnerType
@@ -118,6 +148,17 @@ protocol LibraryStoreProtocol: AnyObject {
     /// Queries the full cached album catalog by album title and artist name.
     /// - Sorting guarantee: results are fully sorted by source ordering (`artistName`, then `title`).
     func searchAlbums(query: String) async throws -> [Album]
+
+    /// Queries the full cached album catalog with flexible relational filtering.
+    ///
+    /// Filter semantics:
+    /// - `textQuery`: case/diacritic-insensitive substring match across album title and artist name.
+    /// - `yearRange`: inclusive bounds; albums with unknown year are excluded when bounds are present.
+    /// - `genreTags`/`styleTags`/`moodTags`: ALL semantics within each kind (album must match every provided tag in that kind).
+    /// - `artistIDs`/`collectionIDs`: ALL semantics within each list (album must match every provided relation ID).
+    ///
+    /// - Sorting guarantee: deterministic source ordering (`artistName`, then `title`, then `plexID`).
+    func queryAlbums(filter: AlbumQueryFilter) async throws -> [Album]
 
     /// Queries the full cached artist catalog by artist name and sort name.
     /// - Sorting guarantee: results are fully sorted by source ordering (`sortName`, then `name`).
