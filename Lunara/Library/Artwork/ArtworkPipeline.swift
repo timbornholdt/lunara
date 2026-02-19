@@ -85,10 +85,15 @@ final class ArtworkPipeline: ArtworkPipelineProtocol {
             try validate(response: response, data: data, key: key)
 
             try ensureCacheDirectoryExists()
-            let destinationURL = cacheDirectoryURL.appendingPathComponent(fileName(for: key, sourceURL: sourceURL))
+            let name = fileName(for: key, sourceURL: sourceURL)
+            let destinationURL = cacheDirectoryURL.appendingPathComponent(name)
             try data.write(to: destinationURL, options: .atomic)
-            try await store.setArtworkPath(destinationURL.path, for: key.storeKey)
-            logger.info("artwork STORED    \(tag, privacy: .public) → \(destinationURL.lastPathComponent, privacy: .public) (\(data.count / 1024, privacy: .public) KB)")
+            // Store only the filename, not the absolute path. The app container
+            // path (which contains a UUID on simulator) changes on every fresh
+            // install, making absolute paths stale. Reconstructing from the
+            // current cacheDirectoryURL at read time keeps the cache valid.
+            try await store.setArtworkPath(name, for: key.storeKey)
+            logger.info("artwork STORED    \(tag, privacy: .public) → \(name, privacy: .public) (\(data.count / 1024, privacy: .public) KB)")
             try enforceCacheLimit()
             return destinationURL
         } catch {
@@ -99,16 +104,18 @@ final class ArtworkPipeline: ArtworkPipelineProtocol {
 
     private func cachedFileURL(for key: ArtworkCacheKey) async throws -> URL? {
         let storeKey = key.storeKey
-        guard let path = try await store.artworkPath(for: storeKey) else {
+        // The store holds just the filename (not an absolute path) so the
+        // cache survives app container relocations (simulator reinstalls, etc.)
+        guard let name = try await store.artworkPath(for: storeKey) else {
             return nil
         }
 
-        guard fileManager.fileExists(atPath: path) else {
+        let url = cacheDirectoryURL.appendingPathComponent(name)
+        guard fileManager.fileExists(atPath: url.path) else {
             try await store.deleteArtworkPath(for: storeKey)
             return nil
         }
 
-        let url = URL(fileURLWithPath: path)
         try touchFile(at: url)
         return url
     }
