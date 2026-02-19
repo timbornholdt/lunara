@@ -148,6 +148,8 @@ struct LibraryRepoTests {
         let albumA = makeAlbum(id: "album-a", trackCount: 2)
         let albumB = makeAlbum(id: "album-b", trackCount: 1)
         subject.remote.albums = [albumA, albumB]
+        subject.remote.artists = [makeArtist(id: "artist-a"), makeArtist(id: "artist-b")]
+        subject.remote.collections = [makeCollection(id: "collection-a")]
         subject.remote.tracksByAlbumID[albumA.plexID] = [
             makeTrack(id: "track-a1", albumID: albumA.plexID, number: 1)
         ]
@@ -158,24 +160,30 @@ struct LibraryRepoTests {
         subject.store.cachedCollections = [makeCollection(id: "collection-1")]
         let outcome = try await subject.repo.refreshLibrary(reason: .userInitiated)
         #expect(subject.remote.fetchAlbumsCallCount == 1)
+        #expect(subject.remote.fetchArtistsCallCount == 1)
+        #expect(subject.remote.fetchCollectionsCallCount == 1)
         #expect(subject.remote.fetchTracksRequests == ["album-a", "album-b"])
         #expect(subject.store.replaceLibraryCallCount == 0)
         #expect(subject.store.begunSyncRuns.count == 1)
         #expect(subject.store.upsertAlbumsCalls.count == 1)
         #expect(subject.store.upsertTracksCalls.count == 1)
+        #expect(subject.store.replaceArtistsCalls.count == 1)
+        #expect(subject.store.replaceCollectionsCalls.count == 1)
         #expect(subject.store.markAlbumsSeenCalls.count == 1)
         #expect(subject.store.markTracksSeenCalls.count == 1)
         #expect(subject.store.pruneRowsNotSeenCalls.count == 1)
         #expect(subject.store.completeIncrementalSyncCalls.count == 1)
         #expect(subject.store.upsertAlbumsCalls.first?.0.map(\.plexID) == ["album-a", "album-b"])
         #expect(subject.store.upsertTracksCalls.first?.0.map(\.plexID) == ["track-a1", "track-b1"])
+        #expect(subject.store.replaceArtistsCalls.first?.0.map(\.plexID) == ["artist-a", "artist-b"])
+        #expect(subject.store.replaceCollectionsCalls.first?.0.map(\.plexID) == ["collection-a"])
         #expect(subject.store.completeIncrementalSyncCalls.first?.1 == now)
         #expect(outcome == LibraryRefreshOutcome(
             reason: .userInitiated,
             refreshedAt: now,
             albumCount: 2,
             trackCount: 2,
-            artistCount: 1,
+            artistCount: 2,
             collectionCount: 1
         ))
         await waitForArtworkRequests(on: subject.artworkPipeline, expectedOwnerIDs: [])
@@ -265,10 +273,31 @@ struct LibraryRepoTests {
     func refreshLibrary_whenStoreFails_propagatesErrorAndPreservesOriginalTypeWhenAvailable() async {
         let subject = makeSubject()
         subject.remote.albums = [makeAlbum(id: "album-1", trackCount: 1)]
+        subject.remote.artists = [makeArtist(id: "artist-1")]
+        subject.remote.collections = [makeCollection(id: "collection-1")]
         subject.remote.tracksByAlbumID["album-1"] = [makeTrack(id: "track-1", albumID: "album-1", number: 1)]
         subject.store.upsertAlbumsError = .databaseCorrupted
         do {
             _ = try await subject.repo.refreshLibrary(reason: .appLaunch)
+            Issue.record("Expected refreshLibrary to throw")
+        } catch let error as LibraryError {
+            #expect(error == .databaseCorrupted)
+        } catch {
+            Issue.record("Expected LibraryError, got: \(error)")
+        }
+    }
+
+    @Test
+    func refreshLibrary_whenArtistReplacementFails_propagatesError() async {
+        let subject = makeSubject()
+        subject.remote.albums = [makeAlbum(id: "album-1", trackCount: 1)]
+        subject.remote.tracksByAlbumID["album-1"] = [makeTrack(id: "track-1", albumID: "album-1", number: 1)]
+        subject.remote.artists = [makeArtist(id: "artist-1")]
+        subject.remote.collections = [makeCollection(id: "collection-1")]
+        subject.store.replaceArtistsError = .databaseCorrupted
+
+        do {
+            _ = try await subject.repo.refreshLibrary(reason: .userInitiated)
             Issue.record("Expected refreshLibrary to throw")
         } catch let error as LibraryError {
             #expect(error == .databaseCorrupted)

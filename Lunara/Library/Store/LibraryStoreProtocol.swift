@@ -124,6 +124,14 @@ protocol LibraryStoreProtocol: AnyObject {
     /// - Transaction guarantee: all provided tracks are written atomically or no track rows are changed.
     func upsertTracks(_ tracks: [Track], in run: LibrarySyncRun) async throws
 
+    /// Replaces the full cached artist catalog for the provided sync run.
+    /// - Transaction guarantee: delete + insert completes atomically so callers never observe a partial artist catalog.
+    func replaceArtists(_ artists: [Artist], in run: LibrarySyncRun) async throws
+
+    /// Replaces the full cached collection catalog for the provided sync run.
+    /// - Transaction guarantee: delete + insert completes atomically so callers never observe a partial collection catalog.
+    func replaceCollections(_ collections: [Collection], in run: LibrarySyncRun) async throws
+
     /// Marks album rows as observed in the active sync run.
     /// - Transaction guarantee: all album IDs in this call are marked together or none are marked.
     func markAlbumsSeen(_ albumIDs: [String], in run: LibrarySyncRun) async throws

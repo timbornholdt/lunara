@@ -36,6 +36,8 @@ struct PlexDirectory: Codable {
     let leafCount: Int?             // Track count
     let duration: Int?              // Total duration in milliseconds
     let summary: String?
+    let titleSort: String?
+    let updatedAt: Int?
     let parentRatingKey: String?
     let ratingKey: String?
 }
@@ -59,8 +61,10 @@ struct PlexMetadata: Codable {
     let addedAt: Int?
     let trackCount: Int?
     let albumCount: Int?
+    let leafCount: Int?
     let summary: String?
     let titleSort: String?
+    let updatedAt: Int?
     let key: String?
 
     enum CodingKeys: String, CodingKey {
@@ -81,8 +85,10 @@ struct PlexMetadata: Codable {
         case addedAt
         case trackCount
         case albumCount
+        case leafCount
         case summary
         case titleSort
+        case updatedAt
         case key
     }
 }

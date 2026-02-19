@@ -355,6 +355,79 @@ final class PlexAPIClientTests: XCTestCase {
         XCTAssertNil(track)
     }
 
+    // MARK: - Catalog Metadata Tests
+
+    func test_fetchArtists_parsesArtistDirectories() async throws {
+        try authManager.setToken("token")
+        mockSession.dataToReturn = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <MediaContainer>
+            <Directory key="100" ratingKey="100" type="artist" title="The Beatles" titleSort="Beatles, The" thumb="/library/metadata/100/thumb" genre="Rock" summary="Liverpool" leafCount="12" />
+            <Directory key="200" ratingKey="200" type="artist" title="Miles Davis" leafCount="8" />
+        </MediaContainer>
+        """.data(using: .utf8)!
+
+        let artists = try await client.fetchArtists()
+
+        XCTAssertEqual(artists.map(\.plexID), ["100", "200"])
+        XCTAssertEqual(artists.first?.name, "The Beatles")
+        XCTAssertEqual(artists.first?.sortName, "Beatles, The")
+        XCTAssertEqual(artists.first?.albumCount, 12)
+    }
+
+    func test_fetchCollections_parsesCollectionDirectories() async throws {
+        try authManager.setToken("token")
+        mockSession.dataToReturn = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <MediaContainer>
+            <Directory key="300" ratingKey="300" type="collection" title="Current Vibes" thumb="/library/metadata/300/thumb" summary="Mood set" leafCount="5" updatedAt="1700001000" />
+        </MediaContainer>
+        """.data(using: .utf8)!
+
+        let collections = try await client.fetchCollections()
+
+        XCTAssertEqual(collections.count, 1)
+        XCTAssertEqual(collections.first?.plexID, "300")
+        XCTAssertEqual(collections.first?.title, "Current Vibes")
+        XCTAssertEqual(collections.first?.albumCount, 5)
+        XCTAssertEqual(collections.first?.updatedAt, Date(timeIntervalSince1970: 1700001000))
+    }
+
+    func test_fetchPlaylists_parsesPlaylistMetadata() async throws {
+        try authManager.setToken("token")
+        mockSession.dataToReturn = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <MediaContainer>
+            <Playlist ratingKey="playlist-1" type="playlist" title="Morning Mix" leafCount="4" updatedAt="1700002000" />
+        </MediaContainer>
+        """.data(using: .utf8)!
+
+        let playlists = try await client.fetchPlaylists()
+
+        XCTAssertEqual(playlists.count, 1)
+        XCTAssertEqual(playlists.first?.plexID, "playlist-1")
+        XCTAssertEqual(playlists.first?.title, "Morning Mix")
+        XCTAssertEqual(playlists.first?.trackCount, 4)
+    }
+
+    func test_fetchPlaylistItems_preservesReturnedOrder() async throws {
+        try authManager.setToken("token")
+        mockSession.dataToReturn = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <MediaContainer>
+            <Track ratingKey="track-2" type="track" title="Second" />
+            <Track ratingKey="track-1" type="track" title="First" />
+        </MediaContainer>
+        """.data(using: .utf8)!
+
+        let items = try await client.fetchPlaylistItems(playlistID: "playlist-1")
+
+        XCTAssertEqual(items, [
+            LibraryRemotePlaylistItem(trackID: "track-2", position: 0),
+            LibraryRemotePlaylistItem(trackID: "track-1", position: 1)
+        ])
+    }
+
     // MARK: - streamURL() Tests
 
     func test_streamURL_returnsValidURL_withToken() async throws {

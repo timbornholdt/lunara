@@ -53,6 +53,7 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
             let addedAt = attrs["addedAt"].flatMap { Int($0) }
             let trackCount = attrs["leafCount"].flatMap { Int($0) }
             let albumCount = attrs["childCount"].flatMap { Int($0) }
+            let updatedAt = attrs["updatedAt"].flatMap { Int($0) }
 
             return PlexMetadata(
                 ratingKey: ratingKey,
@@ -72,8 +73,10 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
                 addedAt: addedAt,
                 trackCount: trackCount,
                 albumCount: albumCount,
+                leafCount: trackCount,
                 summary: attrs["summary"],
                 titleSort: attrs["titleSort"],
+                updatedAt: updatedAt,
                 key: parsedItem.partKey ?? attrs["key"]
             )
         }
@@ -86,6 +89,7 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
             let addedAt = attrs["addedAt"].flatMap { Int($0) }
             let leafCount = attrs["leafCount"].flatMap { Int($0) }
             let duration = attrs["duration"].flatMap { Int($0) }
+            let updatedAt = attrs["updatedAt"].flatMap { Int($0) }
 
             return PlexDirectory(
                 key: attrs["key"] ?? "",
@@ -107,6 +111,8 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
                 leafCount: leafCount,
                 duration: duration,
                 summary: attrs["summary"],
+                titleSort: attrs["titleSort"],
+                updatedAt: updatedAt,
                 parentRatingKey: attrs["parentRatingKey"],
                 ratingKey: attrs["ratingKey"]
             )
@@ -131,7 +137,7 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
             // Store all attributes for this Metadata element
             metadataItems.append(ParsedMetadataItem(attributes: attributeDict, partKey: nil))
             currentMetadataIndex = metadataItems.count - 1
-        } else if elementName == "Track" || elementName == "Video" {
+        } else if elementName == "Track" || elementName == "Video" || elementName == "Playlist" {
             // Plex track listing endpoints commonly use <Track> elements instead of <Metadata>
             metadataItems.append(ParsedMetadataItem(attributes: attributeDict, partKey: nil))
             currentMetadataIndex = metadataItems.count - 1
@@ -176,7 +182,7 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
         namespaceURI: String?,
         qualifiedName qName: String?
     ) {
-        if elementName == "Track" || elementName == "Video" || elementName == "Metadata" {
+        if elementName == "Track" || elementName == "Video" || elementName == "Playlist" || elementName == "Metadata" {
             currentMetadataIndex = nil
         } else if elementName == "Directory" {
             currentDirectoryIndex = nil

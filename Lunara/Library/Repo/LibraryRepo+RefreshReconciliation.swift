@@ -18,8 +18,12 @@ extension LibraryRepo {
         let logger = Logger(subsystem: "holdings.chinlock.lunara", category: "LibraryRefresh")
 
         do {
+            async let remoteArtistsTask = remote.fetchArtists()
+            async let remoteCollectionsTask = remote.fetchCollections()
             let remoteAlbums = try await remote.fetchAlbums()
             let remoteTracks = try await fetchRemoteTracks(for: remoteAlbums)
+            let remoteArtists = try await remoteArtistsTask
+            let remoteCollections = try await remoteCollectionsTask
             let dedupedLibrary = dedupeLibrary(albums: remoteAlbums, tracks: remoteTracks)
 
             let cachedAlbums = try await fetchAllCachedAlbums()
@@ -28,7 +32,11 @@ extension LibraryRepo {
                 "refresh start reason=\(String(describing: reason), privacy: .public) cachedAlbums=\(cachedAlbums.count) cachedTracks=\(cachedTracks.count)"
             )
             logger.info(
-                "refresh remote reason=\(String(describing: reason), privacy: .public) remoteAlbums=\(remoteAlbums.count) remoteTracks=\(remoteTracks.count) dedupedAlbums=\(dedupedLibrary.albums.count) dedupedTracks=\(dedupedLibrary.tracks.count)"
+                """
+                refresh remote reason=\(String(describing: reason), privacy: .public) \
+                remoteAlbums=\(remoteAlbums.count) remoteTracks=\(remoteTracks.count) remoteArtists=\(remoteArtists.count) remoteCollections=\(remoteCollections.count) \
+                dedupedAlbums=\(dedupedLibrary.albums.count) dedupedTracks=\(dedupedLibrary.tracks.count)
+                """
             )
             let delta = buildReconciliationDelta(
                 cachedAlbums: cachedAlbums,
@@ -48,6 +56,8 @@ extension LibraryRepo {
             try await persistReconciliationDelta(delta, in: run, refreshedAt: refreshedAt)
             try await store.upsertAlbums(dedupedLibrary.albums, in: run)
             try await store.upsertTracks(dedupedLibrary.tracks, in: run)
+            try await store.replaceArtists(remoteArtists, in: run)
+            try await store.replaceCollections(remoteCollections, in: run)
             try await store.markAlbumsSeen(dedupedLibrary.albums.map(\.plexID), in: run)
             try await store.markTracksSeen(dedupedLibrary.tracks.map(\.plexID), in: run)
             let pruneResult = try await store.pruneRowsNotSeen(in: run)
