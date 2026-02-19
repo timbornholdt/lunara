@@ -5,15 +5,16 @@ import Testing
 @MainActor
 struct AppCoordinatorTests {
     @Test
-    func loadLibraryOnLaunch_refreshesWithAppLaunchReasonAndReturnsUpdatedAlbums() async throws {
+    func loadLibraryOnLaunch_returnsCachedAlbumsImmediately_andRefreshesInBackground() async throws {
         let subject = makeSubject()
         subject.library.albumsByPage[1] = [makeAlbum(id: "cached-1")]
         subject.library.refreshHook = {
             subject.library.albumsByPage[1] = [makeAlbum(id: "fresh-1"), makeAlbum(id: "fresh-2")]
         }
         let albums = try await subject.coordinator.loadLibraryOnLaunch()
-        #expect(subject.library.refreshReasons == [.appLaunch])
-        #expect(albums.map(\.plexID) == ["fresh-1", "fresh-2"])
+        #expect(albums.map(\.plexID) == ["cached-1"])
+        await waitForRefreshReasons(on: subject.library, expected: [.appLaunch])
+        #expect(subject.library.albumsByPage[1]?.map(\.plexID) == ["fresh-1", "fresh-2"])
     }
     @Test
     func loadLibraryOnLaunch_whenRefreshFails_returnsCachedAlbums() async throws {
@@ -21,8 +22,8 @@ struct AppCoordinatorTests {
         subject.library.albumsByPage[1] = [makeAlbum(id: "cached-1")]
         subject.library.refreshError = LibraryError.timeout
         let albums = try await subject.coordinator.loadLibraryOnLaunch()
-        #expect(subject.library.refreshReasons == [.appLaunch])
         #expect(albums.map(\.plexID) == ["cached-1"])
+        await waitForRefreshReasons(on: subject.library, expected: [.appLaunch])
     }
     @Test
     func loadLibraryOnLaunch_whenRefreshFailsAndCacheEmpty_throwsRefreshError() async {
@@ -38,15 +39,16 @@ struct AppCoordinatorTests {
         }
     }
     @Test
-    func fetchAlbums_refreshesThenReturnsUpdatedAlbums() async throws {
+    func fetchAlbums_returnsCachedAlbumsImmediately_andRefreshesInBackground() async throws {
         let subject = makeSubject()
         subject.library.albumsByPage[1] = [makeAlbum(id: "cached-1")]
         subject.library.refreshHook = {
             subject.library.albumsByPage[1] = [makeAlbum(id: "fresh-1"), makeAlbum(id: "fresh-2")]
         }
         let albums = try await subject.coordinator.fetchAlbums()
-        #expect(subject.library.refreshReasons == [.userInitiated])
-        #expect(albums.map(\.plexID) == ["fresh-1", "fresh-2"])
+        #expect(albums.map(\.plexID) == ["cached-1"])
+        await waitForRefreshReasons(on: subject.library, expected: [.userInitiated])
+        #expect(subject.library.albumsByPage[1]?.map(\.plexID) == ["fresh-1", "fresh-2"])
     }
     @Test
     func fetchAlbums_whenRefreshFails_returnsCachedAlbums() async throws {
@@ -54,8 +56,8 @@ struct AppCoordinatorTests {
         subject.library.albumsByPage[1] = [makeAlbum(id: "cached-1")]
         subject.library.refreshError = LibraryError.timeout
         let albums = try await subject.coordinator.fetchAlbums()
-        #expect(subject.library.refreshReasons == [.userInitiated])
         #expect(albums.map(\.plexID) == ["cached-1"])
+        await waitForRefreshReasons(on: subject.library, expected: [.userInitiated])
     }
     @Test
     func fetchAlbums_whenRefreshFailsAndCacheEmpty_throwsRefreshError() async {
@@ -183,6 +185,18 @@ struct AppCoordinatorTests {
     ) async {
         for _ in 0..<50 {
             if pipeline.thumbnailRequests.map(\.ownerID) == expectedOwnerIDs {
+                return
+            }
+            await Task.yield()
+        }
+    }
+
+    private func waitForRefreshReasons(
+        on repo: CoordinatorLibraryRepoMock,
+        expected: [LibraryRefreshReason]
+    ) async {
+        for _ in 0..<80 {
+            if repo.refreshReasons == expected {
                 return
             }
             await Task.yield()
