@@ -65,6 +65,10 @@ final class LibraryRepo: LibraryRepoProtocol {
         return mergeAlbumMetadata(primary: remoteAlbum, fallback: cachedAlbum)
     }
 
+    func searchAlbums(query: String) async throws -> [Album] {
+        try await store.searchAlbums(query: query)
+    }
+
     func tracks(forAlbum albumID: String) async throws -> [Track] {
         let cachedTracks = try await store.fetchTracks(forAlbum: albumID)
 
@@ -87,8 +91,20 @@ final class LibraryRepo: LibraryRepoProtocol {
         }
     }
 
+    func track(id: String) async throws -> Track? {
+        try await store.track(id: id)
+    }
+
     func collections() async throws -> [Collection] {
         try await store.fetchCollections()
+    }
+
+    func collection(id: String) async throws -> Collection? {
+        try await store.collection(id: id)
+    }
+
+    func searchCollections(query: String) async throws -> [Collection] {
+        try await store.searchCollections(query: query)
     }
 
     func artists() async throws -> [Artist] {
@@ -97,6 +113,10 @@ final class LibraryRepo: LibraryRepoProtocol {
 
     func artist(id: String) async throws -> Artist? {
         try await store.fetchArtist(id: id)
+    }
+
+    func searchArtists(query: String) async throws -> [Artist] {
+        try await store.searchArtists(query: query)
     }
 
     func lastRefreshDate() async throws -> Date? {

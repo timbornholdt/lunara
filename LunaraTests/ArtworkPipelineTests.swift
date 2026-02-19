@@ -309,9 +309,14 @@ private final class ArtworkStoreMock: LibraryStoreProtocol {
     func fetchAlbums(page: LibraryPage) async throws -> [Album] { [] }
     func fetchAlbum(id: String) async throws -> Album? { nil }
     func fetchTracks(forAlbum albumID: String) async throws -> [Track] { [] }
+    func track(id: String) async throws -> Track? { nil }
     func fetchArtists() async throws -> [Artist] { [] }
     func fetchArtist(id: String) async throws -> Artist? { nil }
     func fetchCollections() async throws -> [Collection] { [] }
+    func collection(id: String) async throws -> Collection? { nil }
+    func searchAlbums(query: String) async throws -> [Album] { [] }
+    func searchArtists(query: String) async throws -> [Artist] { [] }
+    func searchCollections(query: String) async throws -> [Collection] { [] }
     func replaceLibrary(with snapshot: LibrarySnapshot, refreshedAt: Date) async throws { }
     func lastRefreshDate() async throws -> Date? { nil }
     func beginIncrementalSync(startedAt: Date) async throws -> LibrarySyncRun {

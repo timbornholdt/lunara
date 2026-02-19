@@ -45,6 +45,64 @@ struct LibraryRepoTests {
         #expect(mergedAlbum?.styles == ["Art Rock"])
         #expect(mergedAlbum?.moods == ["Brooding"])
     }
+
+    @Test
+    func searchAlbums_delegatesToStoreQueryService() async throws {
+        let subject = makeSubject()
+        subject.store.searchedAlbumsByQuery["miles"] = [makeAlbum(id: "album-1")]
+
+        let albums = try await subject.repo.searchAlbums(query: "miles")
+
+        #expect(subject.store.searchedAlbumQueries == ["miles"])
+        #expect(albums.map(\.plexID) == ["album-1"])
+    }
+
+    @Test
+    func searchArtists_delegatesToStoreQueryService() async throws {
+        let subject = makeSubject()
+        subject.store.searchedArtistsByQuery["coltrane"] = [makeArtist(id: "artist-1")]
+
+        let artists = try await subject.repo.searchArtists(query: "coltrane")
+
+        #expect(subject.store.searchedArtistQueries == ["coltrane"])
+        #expect(artists.map(\.plexID) == ["artist-1"])
+    }
+
+    @Test
+    func searchCollections_delegatesToStoreQueryService() async throws {
+        let subject = makeSubject()
+        subject.store.searchedCollectionsByQuery["jazz"] = [makeCollection(id: "collection-1")]
+
+        let collections = try await subject.repo.searchCollections(query: "jazz")
+
+        #expect(subject.store.searchedCollectionQueries == ["jazz"])
+        #expect(collections.map(\.plexID) == ["collection-1"])
+    }
+
+    @Test
+    func track_delegatesToStoreLookup() async throws {
+        let subject = makeSubject()
+        let track = makeTrack(id: "track-1", albumID: "album-1", number: 1)
+        subject.store.tracksByID[track.plexID] = track
+
+        let loadedTrack = try await subject.repo.track(id: "track-1")
+
+        #expect(subject.store.trackLookupRequests == ["track-1"])
+        #expect(loadedTrack?.plexID == "track-1")
+    }
+
+    @Test
+    func collection_delegatesToStoreLookup() async throws {
+        let subject = makeSubject()
+        let collection = makeCollection(id: "collection-1")
+        subject.store.collectionsByID[collection.plexID] = collection
+
+        let loadedCollection = try await subject.repo.collection(id: "collection-1")
+
+        #expect(subject.store.collectionLookupRequests == ["collection-1"])
+        #expect(loadedCollection?.plexID == "collection-1")
+    }
+
     @Test
     func refreshLibrary_fetchesRemoteAlbumsAndTracks_thenPersistsIncrementalSync() async throws {
         let now = Date(timeIntervalSince1970: 12_345)

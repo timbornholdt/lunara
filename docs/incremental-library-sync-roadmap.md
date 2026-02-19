@@ -155,7 +155,7 @@ Status: Completed on February 18, 2026.
 
 ## Stage 5: App-Wide Cached Catalog Adoption (Up Next)
 
-Status: Up next.
+Status: In progress (Stage 5A completed on February 18, 2026; 5B+ pending).
 
 ### Purpose
 
@@ -221,6 +221,16 @@ Make the incremental cache the primary read path for the entire app so all scree
      - `collection(id:)`
    - Keep existing pagination APIs for rendering slices.
    - Define sorted-output guarantees in protocol comments.
+
+Stage 5A status (completed February 18, 2026):
+- Added Stage 5A query-service contracts to:
+  - `/Users/timbornholdt/Repos/Lunara/Lunara/Library/Store/LibraryStoreProtocol.swift`
+  - `/Users/timbornholdt/Repos/Lunara/Lunara/Library/Repo/LibraryRepoProtocol.swift`
+- Added non-5B placeholder conformances in:
+  - `/Users/timbornholdt/Repos/Lunara/Lunara/Library/Store/LibraryStore.swift`
+  - `/Users/timbornholdt/Repos/Lunara/Lunara/Library/Repo/LibraryRepo.swift`
+- Updated protocol test doubles and protocol/repo tests to compile against and cover new APIs.
+- Stage 5B store query engine work intentionally not started in this session.
 
 2. Stage 5B: Store query engine
    - Implement query/search APIs in `LibraryStore` (GRDB-backed).

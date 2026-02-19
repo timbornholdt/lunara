@@ -71,12 +71,21 @@ final class LibraryStoreMock: LibraryStoreProtocol {
     var tracksByAlbumID: [String: [Track]] = [:]
     var artistsByID: [String: Artist] = [:]
     var collectionsByID: [String: Collection] = [:]
+    var tracksByID: [String: Track] = [:]
     var cachedArtists: [Artist] = []
     var cachedCollections: [Collection] = []
+    var searchedAlbumsByQuery: [String: [Album]] = [:]
+    var searchedArtistsByQuery: [String: [Artist]] = [:]
+    var searchedCollectionsByQuery: [String: [Collection]] = [:]
     var lastRefresh: Date?
 
     var fetchAlbumsRequests: [LibraryPage] = []
     var fetchTrackRequests: [String] = []
+    var trackLookupRequests: [String] = []
+    var collectionLookupRequests: [String] = []
+    var searchedAlbumQueries: [String] = []
+    var searchedArtistQueries: [String] = []
+    var searchedCollectionQueries: [String] = []
     var replaceLibraryCallCount = 0
     var replacedSnapshot: LibrarySnapshot?
     var replacedRefreshedAt: Date?
@@ -117,6 +126,11 @@ final class LibraryStoreMock: LibraryStoreProtocol {
         return tracksByAlbumID[albumID] ?? []
     }
 
+    func track(id: String) async throws -> Track? {
+        trackLookupRequests.append(id)
+        return tracksByID[id]
+    }
+
     func fetchArtists() async throws -> [Artist] {
         if !cachedArtists.isEmpty {
             return cachedArtists
@@ -133,6 +147,26 @@ final class LibraryStoreMock: LibraryStoreProtocol {
             return cachedCollections
         }
         return collectionsByID.values.sorted { $0.title < $1.title }
+    }
+
+    func collection(id: String) async throws -> Collection? {
+        collectionLookupRequests.append(id)
+        return collectionsByID[id]
+    }
+
+    func searchAlbums(query: String) async throws -> [Album] {
+        searchedAlbumQueries.append(query)
+        return searchedAlbumsByQuery[query] ?? []
+    }
+
+    func searchArtists(query: String) async throws -> [Artist] {
+        searchedArtistQueries.append(query)
+        return searchedArtistsByQuery[query] ?? []
+    }
+
+    func searchCollections(query: String) async throws -> [Collection] {
+        searchedCollectionQueries.append(query)
+        return searchedCollectionsByQuery[query] ?? []
     }
 
     func replaceLibrary(with snapshot: LibrarySnapshot, refreshedAt: Date) async throws {
@@ -168,6 +202,20 @@ final class LibraryStoreMock: LibraryStoreProtocol {
             throw upsertAlbumsError
         }
         upsertAlbumsCalls.append((albums, run))
+        for album in albums {
+            albumByID[album.plexID] = album
+        }
+        albumsByPage = [
+            1: albumByID.values.sorted {
+                if $0.artistName != $1.artistName {
+                    return $0.artistName < $1.artistName
+                }
+                if $0.title != $1.title {
+                    return $0.title < $1.title
+                }
+                return $0.plexID < $1.plexID
+            }
+        ]
     }
 
     func upsertTracks(_ tracks: [Track], in run: LibrarySyncRun) async throws {
@@ -175,6 +223,10 @@ final class LibraryStoreMock: LibraryStoreProtocol {
             throw upsertTracksError
         }
         upsertTracksCalls.append((tracks, run))
+        for track in tracks {
+            tracksByID[track.plexID] = track
+        }
+        tracksByAlbumID = Dictionary(grouping: tracksByID.values, by: \.albumID)
     }
 
     func markAlbumsSeen(_ albumIDs: [String], in run: LibrarySyncRun) async throws {
@@ -196,6 +248,25 @@ final class LibraryStoreMock: LibraryStoreProtocol {
             throw pruneRowsNotSeenError
         }
         pruneRowsNotSeenCalls.append(run)
+        for albumID in pruneResult.prunedAlbumIDs {
+            albumByID.removeValue(forKey: albumID)
+            tracksByAlbumID.removeValue(forKey: albumID)
+        }
+        for trackID in pruneResult.prunedTrackIDs {
+            tracksByID.removeValue(forKey: trackID)
+        }
+        tracksByAlbumID = Dictionary(grouping: tracksByID.values, by: \.albumID)
+        albumsByPage = [
+            1: albumByID.values.sorted {
+                if $0.artistName != $1.artistName {
+                    return $0.artistName < $1.artistName
+                }
+                if $0.title != $1.title {
+                    return $0.title < $1.title
+                }
+                return $0.plexID < $1.plexID
+            }
+        ]
         return pruneResult
     }
 

@@ -53,6 +53,12 @@ final class LibraryStore: LibraryStoreProtocol {
         }
     }
 
+    func track(id: String) async throws -> Track? {
+        throw LibraryError.operationFailed(
+            reason: "Stage 5B pending: LibraryStore.track(id:) query path is not implemented yet."
+        )
+    }
+
     func fetchArtists() async throws -> [Artist] {
         try await dbQueue.read { db in
             let records = try ArtistRecord
@@ -75,6 +81,33 @@ final class LibraryStore: LibraryStoreProtocol {
                 .fetchAll(db)
             return records.map(\.model)
         }
+    }
+
+    func collection(id: String) async throws -> Collection? {
+        throw LibraryError.operationFailed(
+            reason: "Stage 5B pending: LibraryStore.collection(id:) query path is not implemented yet."
+        )
+    }
+
+    func searchAlbums(query: String) async throws -> [Album] {
+        let _ = query
+        throw LibraryError.operationFailed(
+            reason: "Stage 5B pending: LibraryStore.searchAlbums(query:) is not implemented yet."
+        )
+    }
+
+    func searchArtists(query: String) async throws -> [Artist] {
+        let _ = query
+        throw LibraryError.operationFailed(
+            reason: "Stage 5B pending: LibraryStore.searchArtists(query:) is not implemented yet."
+        )
+    }
+
+    func searchCollections(query: String) async throws -> [Collection] {
+        let _ = query
+        throw LibraryError.operationFailed(
+            reason: "Stage 5B pending: LibraryStore.searchCollections(query:) is not implemented yet."
+        )
     }
 
     func replaceLibrary(with snapshot: LibrarySnapshot, refreshedAt: Date) async throws {
