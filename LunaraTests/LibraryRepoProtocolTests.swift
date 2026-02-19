@@ -76,6 +76,7 @@ struct LibraryRepoProtocolTests {
             updatedAt: nil
         )
         repo.searchedAlbumsByQuery["miles"] = [makeAlbum(id: "album-1")]
+        repo.queriedAlbumsByFilter[AlbumQueryFilter(textQuery: "miles")] = [makeAlbum(id: "album-2")]
         repo.searchedArtistsByQuery["coltrane"] = [Artist(
             plexID: "artist-1",
             name: "John Coltrane",
@@ -90,17 +91,20 @@ struct LibraryRepoProtocolTests {
         repo.collectionByID[expectedCollection.plexID] = expectedCollection
 
         let albums = try await repo.searchAlbums(query: "miles")
+        let filteredAlbums = try await repo.queryAlbums(filter: AlbumQueryFilter(textQuery: "miles"))
         let artists = try await repo.searchArtists(query: "coltrane")
         let collections = try await repo.searchCollections(query: "jazz")
         let track = try await repo.track(id: "track-1")
         let collection = try await repo.collection(id: "collection-1")
 
         #expect(repo.searchAlbumQueries == ["miles"])
+        #expect(repo.albumQueryFilters == [AlbumQueryFilter(textQuery: "miles")])
         #expect(repo.searchArtistQueries == ["coltrane"])
         #expect(repo.searchCollectionQueries == ["jazz"])
         #expect(repo.trackRequests == ["track-1"])
         #expect(repo.collectionRequests == ["collection-1"])
         #expect(albums.map(\.plexID) == ["album-1"])
+        #expect(filteredAlbums.map(\.plexID) == ["album-2"])
         #expect(artists.map(\.plexID) == ["artist-1"])
         #expect(collections.map(\.plexID) == ["collection-1"])
         #expect(track?.plexID == "track-1")
@@ -129,11 +133,13 @@ private final class ProtocolRepoMock: LibraryRepoProtocol {
     var albumsErrorByPage: [Int: LibraryError] = [:]
     var albumPageRequests: [LibraryPage] = []
     var searchedAlbumsByQuery: [String: [Album]] = [:]
+    var queriedAlbumsByFilter: [AlbumQueryFilter: [Album]] = [:]
     var searchedArtistsByQuery: [String: [Artist]] = [:]
     var searchedCollectionsByQuery: [String: [Collection]] = [:]
     var trackByID: [String: Track] = [:]
     var collectionByID: [String: Collection] = [:]
     var searchAlbumQueries: [String] = []
+    var albumQueryFilters: [AlbumQueryFilter] = []
     var searchArtistQueries: [String] = []
     var searchCollectionQueries: [String] = []
     var trackRequests: [String] = []
@@ -154,6 +160,11 @@ private final class ProtocolRepoMock: LibraryRepoProtocol {
     func searchAlbums(query: String) async throws -> [Album] {
         searchAlbumQueries.append(query)
         return searchedAlbumsByQuery[query] ?? []
+    }
+
+    func queryAlbums(filter: AlbumQueryFilter) async throws -> [Album] {
+        albumQueryFilters.append(filter)
+        return queriedAlbumsByFilter[filter] ?? []
     }
 
     func tracks(forAlbum albumID: String) async throws -> [Track] {

@@ -32,6 +32,9 @@ protocol LibraryRepoProtocol: AnyObject {
     /// Queries cached albums by `album.title` and `album.artistName`.
     /// - Sorting guarantee: results are fully sorted by source ordering (`artistName`, then `title`).
     func searchAlbums(query: String) async throws -> [Album]
+    /// Queries the full cached album catalog with flexible relational filtering.
+    /// - Sorting guarantee: results are fully sorted by source ordering (`artistName`, then `title`, then `plexID`).
+    func queryAlbums(filter: AlbumQueryFilter) async throws -> [Album]
 
     func tracks(forAlbum albumID: String) async throws -> [Track]
     func track(id: String) async throws -> Track?
@@ -107,6 +110,10 @@ extension PlexAPIClient: LibraryRepoProtocol {
 
     func searchAlbums(query: String) async throws -> [Album] {
         throw LibraryError.operationFailed(reason: "Album search is not implemented on PlexAPIClient-backed LibraryRepo yet.")
+    }
+
+    func queryAlbums(filter: AlbumQueryFilter) async throws -> [Album] {
+        throw LibraryError.operationFailed(reason: "Album filtering is not implemented on PlexAPIClient-backed LibraryRepo yet.")
     }
 
     func tracks(forAlbum albumID: String) async throws -> [Track] {

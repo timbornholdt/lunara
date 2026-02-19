@@ -7,11 +7,11 @@ struct LibraryGridViewModelTests {
     @Test
     func loadInitialIfNeeded_loadsFullCachedCatalogAndMarksLoaded() async throws {
         let subject = makeSubject()
-        subject.library.albumsByPage[1] = [makeAlbum(id: "album-1"), makeAlbum(id: "album-2")]
+        subject.library.queriedAlbumsByFilter[.all] = [makeAlbum(id: "album-1"), makeAlbum(id: "album-2")]
 
         await subject.viewModel.loadInitialIfNeeded()
 
-        #expect(subject.library.albumPageRequests == [LibraryPage(number: 1, size: 200)])
+        #expect(subject.library.albumQueryFilters == [.all])
         #expect(subject.viewModel.albums.map(\.plexID) == ["album-1", "album-2"])
         #expect(subject.viewModel.loadingState == .loaded)
     }
@@ -19,7 +19,7 @@ struct LibraryGridViewModelTests {
     @Test
     func loadInitialIfNeeded_whenFirstPageFails_setsErrorState() async {
         let subject = makeSubject()
-        subject.library.errorByPage[1] = .timeout
+        subject.library.queryErrorByFilter[.all] = .timeout
 
         await subject.viewModel.loadInitialIfNeeded()
 
@@ -34,7 +34,7 @@ struct LibraryGridViewModelTests {
     @Test
     func loadNextPageIfNeeded_isNoOpWhenFullCatalogIsAlreadyLoaded() async {
         let subject = makeSubject()
-        subject.library.albumsByPage[1] = [
+        subject.library.queriedAlbumsByFilter[.all] = [
             makeAlbum(id: "album-1"),
             makeAlbum(id: "album-2")
         ]
@@ -42,14 +42,14 @@ struct LibraryGridViewModelTests {
         await subject.viewModel.loadInitialIfNeeded()
         await subject.viewModel.loadNextPageIfNeeded(currentAlbumID: "album-2")
 
-        #expect(subject.library.albumPageRequests == [LibraryPage(number: 1, size: 200)])
+        #expect(subject.library.albumQueryFilters == [.all])
         #expect(subject.viewModel.albums.map(\.plexID) == ["album-1", "album-2"])
     }
 
     @Test
     func loadNextPageIfNeeded_whenNotNearEnd_doesNotFetchAdditionalPages() async {
         let subject = makeSubject(prefetchThreshold: 1)
-        subject.library.albumsByPage[1] = [
+        subject.library.queriedAlbumsByFilter[.all] = [
             makeAlbum(id: "album-1"),
             makeAlbum(id: "album-2"),
             makeAlbum(id: "album-3")
@@ -58,26 +58,23 @@ struct LibraryGridViewModelTests {
         await subject.viewModel.loadInitialIfNeeded()
         await subject.viewModel.loadNextPageIfNeeded(currentAlbumID: "album-1")
 
-        #expect(subject.library.albumPageRequests == [LibraryPage(number: 1, size: 200)])
+        #expect(subject.library.albumQueryFilters == [.all])
     }
 
     @Test
     func refresh_forcesLibraryRefreshAndReloadsCachedCatalog() async {
         let subject = makeSubject()
-        subject.library.albumsByPage[1] = [makeAlbum(id: "stale")]
+        subject.library.queriedAlbumsByFilter[.all] = [makeAlbum(id: "stale")]
 
         await subject.viewModel.loadInitialIfNeeded()
 
         subject.library.refreshHook = {
-            subject.library.albumsByPage[1] = [makeAlbum(id: "fresh")]
+            subject.library.queriedAlbumsByFilter[.all] = [makeAlbum(id: "fresh")]
         }
         await subject.viewModel.refresh()
 
         #expect(subject.library.refreshReasons == [.userInitiated])
-        #expect(subject.library.albumPageRequests == [
-            LibraryPage(number: 1, size: 200),
-            LibraryPage(number: 1, size: 200)
-        ])
+        #expect(subject.library.albumQueryFilters == [.all, .all])
         #expect(subject.viewModel.albums.map(\.plexID) == ["fresh"])
         #expect(subject.viewModel.loadingState == .loaded)
     }
@@ -85,38 +82,36 @@ struct LibraryGridViewModelTests {
     @Test
     func applyBackgroundRefreshUpdateIfNeeded_reloadsVisibleCachedPages() async {
         let subject = makeSubject()
-        subject.library.albumsByPage[1] = [makeAlbum(id: "album-1"), makeAlbum(id: "album-2")]
+        subject.library.queriedAlbumsByFilter[.all] = [makeAlbum(id: "album-1"), makeAlbum(id: "album-2")]
 
         await subject.viewModel.loadInitialIfNeeded()
 
-        subject.library.albumsByPage[1] = [makeAlbum(id: "fresh-1"), makeAlbum(id: "fresh-2")]
+        subject.library.queriedAlbumsByFilter[.all] = [makeAlbum(id: "fresh-1"), makeAlbum(id: "fresh-2")]
 
         await subject.viewModel.applyBackgroundRefreshUpdateIfNeeded(successToken: 1)
 
         #expect(subject.viewModel.albums.map(\.plexID) == ["fresh-1", "fresh-2"])
-        #expect(subject.library.albumPageRequests == [
-            LibraryPage(number: 1, size: 200),
-            LibraryPage(number: 1, size: 200)
-        ])
+        #expect(subject.library.albumQueryFilters == [.all, .all])
     }
 
     @Test
     func applyBackgroundRefreshUpdateIfNeeded_withActiveSearch_reloadsSearchResultsFromCatalog() async {
         let subject = makeSubject()
-        subject.library.albumsByPage[1] = [makeAlbum(id: "album-1"), makeAlbum(id: "album-2")]
-        subject.library.searchedAlbumsByQuery["blue"] = [makeAlbum(id: "old-result", title: "Old Blue")]
+        subject.library.queriedAlbumsByFilter[.all] = [makeAlbum(id: "album-1"), makeAlbum(id: "album-2")]
+        let blueFilter = AlbumQueryFilter(textQuery: "blue")
+        subject.library.queriedAlbumsByFilter[blueFilter] = [makeAlbum(id: "old-result", title: "Old Blue")]
 
         await subject.viewModel.loadInitialIfNeeded()
         subject.viewModel.searchQuery = "blue"
-        await waitForCatalogSearchRequest(on: subject.library, expectedCount: 1)
+        await waitForCatalogQueryRequest(on: subject.library, expectedCount: 2)
         #expect(subject.viewModel.filteredAlbums.map(\.plexID) == ["old-result"])
 
-        subject.library.albumsByPage[1] = [makeAlbum(id: "album-3"), makeAlbum(id: "album-4")]
-        subject.library.searchedAlbumsByQuery["blue"] = [makeAlbum(id: "new-result", title: "New Blue")]
+        subject.library.queriedAlbumsByFilter[.all] = [makeAlbum(id: "album-3"), makeAlbum(id: "album-4")]
+        subject.library.queriedAlbumsByFilter[blueFilter] = [makeAlbum(id: "new-result", title: "New Blue")]
 
         await subject.viewModel.applyBackgroundRefreshUpdateIfNeeded(successToken: 1)
 
-        #expect(subject.library.searchAlbumQueries == ["blue", "blue"])
+        #expect(subject.library.albumQueryFilters == [.all, blueFilter, .all, blueFilter])
         #expect(subject.viewModel.filteredAlbums.map(\.plexID) == ["new-result"])
     }
 
@@ -219,45 +214,47 @@ struct LibraryGridViewModelTests {
     @Test
     func filteredAlbums_whenSearchQueryMatchesTitle_usesCatalogSearchResults() async {
         let subject = makeSubject()
-        subject.library.albumsByPage[1] = [
+        subject.library.queriedAlbumsByFilter[.all] = [
             makeAlbum(id: "album-1", title: "Blue Train", artistName: "John Coltrane"),
             makeAlbum(id: "album-2", title: "Giant Steps", artistName: "John Coltrane")
         ]
-        subject.library.searchedAlbumsByQuery["blue"] = [
+        let blueFilter = AlbumQueryFilter(textQuery: "blue")
+        subject.library.queriedAlbumsByFilter[blueFilter] = [
             makeAlbum(id: "album-9", title: "Blue", artistName: "Joni Mitchell")
         ]
         await subject.viewModel.loadInitialIfNeeded()
 
         subject.viewModel.searchQuery = "blue"
-        await waitForCatalogSearchRequest(on: subject.library, expectedCount: 1)
+        await waitForCatalogQueryRequest(on: subject.library, expectedCount: 2)
 
-        #expect(subject.library.searchAlbumQueries == ["blue"])
+        #expect(subject.library.albumQueryFilters == [.all, blueFilter])
         #expect(subject.viewModel.filteredAlbums.map(\.plexID) == ["album-9"])
     }
 
     @Test
     func filteredAlbums_whenSearchQueryMatchesArtist_usesCatalogSearchResults() async {
         let subject = makeSubject()
-        subject.library.albumsByPage[1] = [
+        subject.library.queriedAlbumsByFilter[.all] = [
             makeAlbum(id: "album-1", title: "Kind of Blue", artistName: "Miles Davis"),
             makeAlbum(id: "album-2", title: "A Love Supreme", artistName: "John Coltrane")
         ]
-        subject.library.searchedAlbumsByQuery["coltrane"] = [
+        let coltraneFilter = AlbumQueryFilter(textQuery: "coltrane")
+        subject.library.queriedAlbumsByFilter[coltraneFilter] = [
             makeAlbum(id: "album-4", title: "Crescent", artistName: "John Coltrane")
         ]
         await subject.viewModel.loadInitialIfNeeded()
 
         subject.viewModel.searchQuery = "coltrane"
-        await waitForCatalogSearchRequest(on: subject.library, expectedCount: 1)
+        await waitForCatalogQueryRequest(on: subject.library, expectedCount: 2)
 
-        #expect(subject.library.searchAlbumQueries == ["coltrane"])
+        #expect(subject.library.albumQueryFilters == [.all, coltraneFilter])
         #expect(subject.viewModel.filteredAlbums.map(\.plexID) == ["album-4"])
     }
 
     @Test
     func filteredAlbums_whenSearchQueryIsWhitespace_returnsAllAlbums() async {
         let subject = makeSubject()
-        subject.library.albumsByPage[1] = [
+        subject.library.queriedAlbumsByFilter[.all] = [
             makeAlbum(id: "album-1"),
             makeAlbum(id: "album-2")
         ]
@@ -265,19 +262,20 @@ struct LibraryGridViewModelTests {
 
         subject.viewModel.searchQuery = "   "
 
-        #expect(subject.library.searchAlbumQueries.isEmpty)
+        #expect(subject.library.albumQueryFilters == [.all])
         #expect(subject.viewModel.filteredAlbums.map(\.plexID) == ["album-1", "album-2"])
     }
 
     @Test
     func filteredAlbums_whenCatalogSearchFails_showsErrorBannerAndReturnsNoMatches() async {
         let subject = makeSubject()
-        subject.library.albumsByPage[1] = [makeAlbum(id: "album-1", title: "Blue Train")]
-        subject.library.searchErrorByQuery["blue"] = .timeout
+        subject.library.queriedAlbumsByFilter[.all] = [makeAlbum(id: "album-1", title: "Blue Train")]
+        let blueFilter = AlbumQueryFilter(textQuery: "blue")
+        subject.library.queryErrorByFilter[blueFilter] = .timeout
         await subject.viewModel.loadInitialIfNeeded()
 
         subject.viewModel.searchQuery = "blue"
-        await waitForCatalogSearchRequest(on: subject.library, expectedCount: 1)
+        await waitForCatalogQueryRequest(on: subject.library, expectedCount: 2)
 
         #expect(subject.viewModel.filteredAlbums.isEmpty)
         #expect(subject.viewModel.errorBannerState.message == LibraryError.timeout.userMessage)
@@ -286,16 +284,16 @@ struct LibraryGridViewModelTests {
     @Test
     func loadNextPageIfNeeded_whenSearchActive_doesNotFetchNextPage() async {
         let subject = makeSubject()
-        subject.library.albumsByPage[1] = [makeAlbum(id: "album-1"), makeAlbum(id: "album-2")]
-        subject.library.albumsByPage[2] = [makeAlbum(id: "album-3")]
-        subject.library.searchedAlbumsByQuery["album"] = [makeAlbum(id: "album-search")]
+        subject.library.queriedAlbumsByFilter[.all] = [makeAlbum(id: "album-1"), makeAlbum(id: "album-2")]
+        let albumFilter = AlbumQueryFilter(textQuery: "album")
+        subject.library.queriedAlbumsByFilter[albumFilter] = [makeAlbum(id: "album-search")]
 
         await subject.viewModel.loadInitialIfNeeded()
         subject.viewModel.searchQuery = "album"
-        await waitForCatalogSearchRequest(on: subject.library, expectedCount: 1)
+        await waitForCatalogQueryRequest(on: subject.library, expectedCount: 2)
         await subject.viewModel.loadNextPageIfNeeded(currentAlbumID: "album-search")
 
-        #expect(subject.library.albumPageRequests == [LibraryPage(number: 1, size: 200)])
+        #expect(subject.library.albumQueryFilters == [.all, albumFilter])
     }
 
     private func makeSubject(prefetchThreshold: Int = 2) -> (
@@ -347,9 +345,9 @@ struct LibraryGridViewModelTests {
         }
     }
 
-    private func waitForCatalogSearchRequest(on library: LibraryGridRepoMock, expectedCount: Int) async {
+    private func waitForCatalogQueryRequest(on library: LibraryGridRepoMock, expectedCount: Int) async {
         for _ in 0..<80 {
-            if library.searchAlbumQueries.count >= expectedCount {
+            if library.albumQueryFilters.count >= expectedCount {
                 return
             }
             await Task.yield()
@@ -359,25 +357,18 @@ struct LibraryGridViewModelTests {
 
 @MainActor
 private final class LibraryGridRepoMock: LibraryRepoProtocol {
-    var albumsByPage: [Int: [Album]] = [:]
-    var errorByPage: [Int: LibraryError] = [:]
-    var albumPageRequests: [LibraryPage] = []
+    var queriedAlbumsByFilter: [AlbumQueryFilter: [Album]] = [:]
+    var queryErrorByFilter: [AlbumQueryFilter: LibraryError] = [:]
+    var albumQueryFilters: [AlbumQueryFilter] = []
     var authenticatedArtworkURLByRawValue: [String: URL] = [:]
     var authenticatedArtworkURLRequests: [String?] = []
-    var searchedAlbumsByQuery: [String: [Album]] = [:]
-    var searchErrorByQuery: [String: LibraryError] = [:]
-    var searchAlbumQueries: [String] = []
     var tracksByAlbumID: [String: [Track]] = [:]
     var refreshReasons: [LibraryRefreshReason] = []
     var refreshHook: (() -> Void)?
     var refreshError: LibraryError?
 
     func albums(page: LibraryPage) async throws -> [Album] {
-        albumPageRequests.append(page)
-        if let error = errorByPage[page.number] {
-            throw error
-        }
-        return albumsByPage[page.number] ?? []
+        []
     }
 
     func album(id: String) async throws -> Album? {
@@ -385,11 +376,20 @@ private final class LibraryGridRepoMock: LibraryRepoProtocol {
     }
 
     func searchAlbums(query: String) async throws -> [Album] {
-        searchAlbumQueries.append(query)
-        if let error = searchErrorByQuery[query] {
+        let filter = AlbumQueryFilter(textQuery: query)
+        albumQueryFilters.append(filter)
+        if let error = queryErrorByFilter[filter] {
             throw error
         }
-        return searchedAlbumsByQuery[query] ?? []
+        return queriedAlbumsByFilter[filter] ?? []
+    }
+
+    func queryAlbums(filter: AlbumQueryFilter) async throws -> [Album] {
+        albumQueryFilters.append(filter)
+        if let error = queryErrorByFilter[filter] {
+            throw error
+        }
+        return queriedAlbumsByFilter[filter] ?? []
     }
 
     func tracks(forAlbum albumID: String) async throws -> [Track] {
@@ -401,7 +401,7 @@ private final class LibraryGridRepoMock: LibraryRepoProtocol {
     }
 
     func refreshAlbumDetail(albumID: String) async throws -> AlbumDetailRefreshOutcome {
-        let album = albumsByPage.values.flatMap { $0 }.first { $0.plexID == albumID }
+        let album = queriedAlbumsByFilter.values.flatMap { $0 }.first { $0.plexID == albumID }
         return AlbumDetailRefreshOutcome(album: album, tracks: tracksByAlbumID[albumID] ?? [])
     }
 

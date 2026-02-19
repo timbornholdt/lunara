@@ -27,7 +27,7 @@ extension LibraryGridViewModel {
 
     private func reloadCachedCatalogForBackgroundUpdate() async {
         do {
-            albums = try await library.fetchAlbums()
+            albums = try await library.queryAlbums(filter: .all)
             await refreshSearchResultsIfNeeded()
             loadingState = .loaded
         } catch {

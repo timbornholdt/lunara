@@ -52,6 +52,18 @@ struct LibraryRepoTests {
     }
 
     @Test
+    func queryAlbums_delegatesToStoreFlexibleQueryService() async throws {
+        let subject = makeSubject()
+        let filter = AlbumQueryFilter(textQuery: "miles", genreTags: ["Jazz"])
+        subject.store.queriedAlbumsByFilter[filter] = [makeAlbum(id: "album-2")]
+
+        let albums = try await subject.repo.queryAlbums(filter: filter)
+
+        #expect(subject.store.albumQueryFilters == [filter])
+        #expect(albums.map(\.plexID) == ["album-2"])
+    }
+
+    @Test
     func searchArtists_delegatesToStoreQueryService() async throws {
         let subject = makeSubject()
         subject.store.searchedArtistsByQuery["coltrane"] = [makeArtist(id: "artist-1")]

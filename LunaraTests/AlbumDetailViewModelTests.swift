@@ -213,6 +213,7 @@ private final class AlbumDetailLibraryRepoMock: LibraryRepoProtocol {
         return albumByID[id]
     }
     func searchAlbums(query: String) async throws -> [Album] { [] }
+    func queryAlbums(filter: AlbumQueryFilter) async throws -> [Album] { [] }
 
     func tracks(forAlbum albumID: String) async throws -> [Track] {
         trackRequests.append(albumID)

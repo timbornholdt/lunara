@@ -30,7 +30,7 @@ final class LibraryGridViewModel {
             scheduleSearch()
         }
     }
-    var searchedAlbums: [Album] = []
+    var queriedAlbums: [Album] = []
     var loadingState: LoadingState = .idle
     var isLoadingNextPage = false
     var artworkByAlbumID: [String: URL] = [:]
@@ -41,7 +41,7 @@ final class LibraryGridViewModel {
             return albums
         }
 
-        return searchedAlbums
+        return queriedAlbums
     }
 
     init(
@@ -151,7 +151,7 @@ final class LibraryGridViewModel {
 
         let normalizedQuery = normalizedSearchQuery(searchQuery)
         guard !normalizedQuery.isEmpty else {
-            searchedAlbums = []
+            queriedAlbums = []
             return
         }
 
@@ -162,7 +162,10 @@ final class LibraryGridViewModel {
                 return
             }
 
-            await self.searchAlbumsInCatalog(query: normalizedQuery, requestID: requestID)
+            await self.queryFilteredAlbumsInCatalog(
+                filter: AlbumQueryFilter(textQuery: normalizedQuery),
+                requestID: requestID
+            )
         }
     }
 
@@ -173,21 +176,24 @@ final class LibraryGridViewModel {
 
         searchTask?.cancel()
         searchRequestID += 1
-        await searchAlbumsInCatalog(query: normalizedSearchQuery(searchQuery), requestID: searchRequestID)
+        await queryFilteredAlbumsInCatalog(
+            filter: AlbumQueryFilter(textQuery: normalizedSearchQuery(searchQuery)),
+            requestID: searchRequestID
+        )
     }
 
-    private func searchAlbumsInCatalog(query: String, requestID: Int) async {
+    private func queryFilteredAlbumsInCatalog(filter: AlbumQueryFilter, requestID: Int) async {
         do {
-            let results = try await library.searchAlbums(query: query)
+            let results = try await library.queryAlbums(filter: filter)
             guard requestID == searchRequestID else {
                 return
             }
-            searchedAlbums = results
+            queriedAlbums = results
         } catch {
             guard requestID == searchRequestID else {
                 return
             }
-            searchedAlbums = []
+            queriedAlbums = []
             errorBannerState.show(message: userFacingMessage(for: error))
         }
     }
@@ -195,7 +201,7 @@ final class LibraryGridViewModel {
     private func reloadCachedCatalog() async {
         loadingState = .loading
         do {
-            albums = try await library.fetchAlbums()
+            albums = try await library.queryAlbums(filter: .all)
             await refreshSearchResultsIfNeeded()
             loadingState = .loaded
         } catch {
