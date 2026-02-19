@@ -101,6 +101,26 @@ struct LibraryGridViewModelTests {
     }
 
     @Test
+    func applyBackgroundRefreshUpdateIfNeeded_withActiveSearch_reloadsSearchResultsFromCatalog() async {
+        let subject = makeSubject()
+        subject.library.albumsByPage[1] = [makeAlbum(id: "album-1"), makeAlbum(id: "album-2")]
+        subject.library.searchedAlbumsByQuery["blue"] = [makeAlbum(id: "old-result", title: "Old Blue")]
+
+        await subject.viewModel.loadInitialIfNeeded()
+        subject.viewModel.searchQuery = "blue"
+        await waitForCatalogSearchRequest(on: subject.library, expectedCount: 1)
+        #expect(subject.viewModel.filteredAlbums.map(\.plexID) == ["old-result"])
+
+        subject.library.albumsByPage[1] = [makeAlbum(id: "album-3"), makeAlbum(id: "album-4")]
+        subject.library.searchedAlbumsByQuery["blue"] = [makeAlbum(id: "new-result", title: "New Blue")]
+
+        await subject.viewModel.applyBackgroundRefreshUpdateIfNeeded(successToken: 1)
+
+        #expect(subject.library.searchAlbumQueries == ["blue", "blue"])
+        #expect(subject.viewModel.filteredAlbums.map(\.plexID) == ["new-result"])
+    }
+
+    @Test
     func applyBackgroundRefreshFailureIfNeeded_showsErrorBannerMessage() {
         let subject = makeSubject()
 

@@ -1,6 +1,6 @@
 # Incremental Library + Artwork Sync Roadmap
 
-Updated: February 18, 2026
+Updated: February 19, 2026
 
 ## Goal
 
@@ -43,6 +43,8 @@ This roadmap is written for future implementation bots and should be executed in
 - Screens query/filter/sort against cached data (or cached slices), not remote fetches.
 - Refresh updates cache in place and publishes read-model updates without forcing full UI reload semantics.
 - If Plex supports conditional validation headers, unchanged refreshes can skip parse/write work.
+- Relational metadata queries are first-class in cache (for example tags, artists, collections, and playlists with stable IDs and join tables).
+- Album exploration queries such as "all ambient albums with calm mood released between January 1, 1980 and December 31, 1994" are resolved locally without remote dependency during normal navigation.
 
 ## Delivery Plan
 
@@ -155,7 +157,7 @@ Status: Completed on February 18, 2026.
 
 ## Stage 5: App-Wide Cached Catalog Adoption (Up Next)
 
-Status: In progress (Stages 5A-5B completed as of February 19, 2026; 5C+ pending).
+Status: In progress (Stages 5A-5F completed as of February 19, 2026; 5G+ pending).
 
 ### Purpose
 
@@ -210,6 +212,25 @@ Make the incremental cache the primary read path for the entire app so all scree
 - Queue consistency: if a track referenced by queue state no longer resolves in cache/remote metadata, remove it from queue.
 - Playback behavior for removed current item: skip to next valid queue item automatically.
 
+### Locked Decisions (February 19, 2026)
+
+These decisions extend Stage 5 toward a normalized relational cache model and are approved for future implementation sessions.
+
+- **Normalization direction:** evolve `LibraryStore` to an entity + join-table graph for long-term stability, even if this requires deleting or replacing some current code.
+- **Migration policy:** this app is single-user; strict backward compatibility migration safety is not required. Prefer simple, deterministic schema evolution over preserving every legacy shape.
+- **Tag model:** tags are stored and queried separately by kind (`genre`, `style`, `mood`) and normalized for case/diacritic-insensitive behavior.
+- **Tag combinator semantics:** default to `ALL` semantics within each filter bucket (for example mood must include every requested mood tag).
+- **Text search semantics:** substring search.
+- **Year-range semantics:** inclusive bounds. Example: `1980...1994` means January 1, 1980 through December 31, 1994.
+- **Missing year behavior:** albums without year are excluded from year-bounded queries.
+- **Artist identity:** use Plex artist ID as canonical identity; album `artistName` remains display text.
+- **Album artist roles:** defer role-specific modeling (primary/featured/etc.) for now.
+- **Collection membership scope:** Plex collections only.
+- **Tag scope for now:** album-level tags only (not track-level tags yet).
+- **Track year fallback:** when track-level year filtering is added later, use album year unless Plex provides explicit track year.
+- **Playlist readiness:** add playlist-capable relational schema now; preserve Plex ordering and duplicate items exactly as returned.
+- **Query API shape:** one flexible filter API (not a growing set of one-off query methods).
+
 ### Stage 5 Execution Plan (Approved)
 
 1. Stage 5A: Protocol contracts
@@ -253,19 +274,120 @@ Stage 5B status (completed February 19, 2026):
    - Implement remote fallback for metadata misses (including `track(id:)`) and preserve cache-first semantics.
    - Keep current stale-cache-on-failure guarantees.
 
+Stage 5C status (completed February 19, 2026):
+- Wired query-service reads through `LibraryRepo` with cache-first behavior and remote fallback only on cache miss for:
+  - `/Users/timbornholdt/Repos/Lunara/Lunara/Library/Repo/LibraryRepo.swift`
+- Added album-detail targeted refresh API to refresh one album + tracks without forcing global refetch:
+  - `/Users/timbornholdt/Repos/Lunara/Lunara/Library/Repo/LibraryRepoProtocol.swift`
+- Added/updated cache-first + fallback coverage in:
+  - `/Users/timbornholdt/Repos/Lunara/LunaraTests/LibraryRepoTests.swift`
+  - `/Users/timbornholdt/Repos/Lunara/LunaraTests/LibraryRepoProtocolTests.swift`
+
 4. Stage 5D: Albums view migration
    - Refactor `LibraryGridViewModel` search path to query full cached catalog instead of filtering loaded pages.
    - Preserve page-based rendering behavior for scrolling performance.
+
+Stage 5D status (completed February 19, 2026):
+- Migrated albums grid to full cached catalog reads on initial load and background refresh update:
+  - `/Users/timbornholdt/Repos/Lunara/Lunara/Views/Library/LibraryGridViewModel.swift`
+  - `/Users/timbornholdt/Repos/Lunara/Lunara/Views/Library/LibraryGridViewModel+BackgroundRefresh.swift`
+- Preserved explicit user-initiated refresh semantics (`pull-to-refresh` forces refresh then reloads cache).
+- Added full-catalog search/read-path coverage in:
+  - `/Users/timbornholdt/Repos/Lunara/LunaraTests/LibraryGridViewModelTests.swift`
 
 5. Stage 5E: Queue reconciliation for missing tracks
    - Add queue reconciliation flow after refresh/startup to drop queue items whose `trackID` no longer resolves.
    - When current item is removed, auto-advance to the next valid queue item.
    - Keep orchestration in AppRouter/coordinator wiring to respect domain boundaries.
 
+Stage 5E status (completed February 19, 2026):
+- Added queue reconciliation orchestration in:
+  - `/Users/timbornholdt/Repos/Lunara/Lunara/Router/AppRouter.swift`
+  - `/Users/timbornholdt/Repos/Lunara/Lunara/App/AppCoordinator.swift`
+- Added queue-level reconcile behavior in:
+  - `/Users/timbornholdt/Repos/Lunara/Lunara/Music/Queue/QueueManagerProtocol.swift`
+  - `/Users/timbornholdt/Repos/Lunara/Lunara/Music/Queue/QueueManager.swift`
+  - `/Users/timbornholdt/Repos/Lunara/Lunara/Music/Queue/QueueManager+Reconciliation.swift`
+- Added queue reconciliation behavior tests in:
+  - `/Users/timbornholdt/Repos/Lunara/LunaraTests/AppRouterTests.swift`
+  - `/Users/timbornholdt/Repos/Lunara/LunaraTests/AppCoordinatorTests.swift`
+  - `/Users/timbornholdt/Repos/Lunara/LunaraTests/QueueManagerTests.swift`
+
 6. Stage 5F: Regression hardening + status update
    - Add tests for full-catalog search behavior and queue reconciliation behavior.
    - Validate cache-first reads across existing surfaces (albums, album detail, debug/queue metadata paths).
    - Update this roadmap Stage 5 status and completion notes when done.
+
+Stage 5F status (completed February 19, 2026):
+- Added targeted regression coverage for:
+  - full-catalog search refresh behavior after background catalog updates,
+  - queue reconciliation duplicate-ID lookup behavior,
+  - queue reconciliation edge case when current item is removed and no next valid item exists,
+  - startup cache-first coordinator path with empty queue metadata reconciliation no-op.
+- Coverage added/updated in:
+  - `/Users/timbornholdt/Repos/Lunara/LunaraTests/LibraryGridViewModelTests.swift`
+  - `/Users/timbornholdt/Repos/Lunara/LunaraTests/AppRouterTests.swift`
+  - `/Users/timbornholdt/Repos/Lunara/LunaraTests/QueueManagerTests.swift`
+  - `/Users/timbornholdt/Repos/Lunara/LunaraTests/AppCoordinatorTests.swift`
+- Stage 5 remains in progress pending Stage 5G+ relational/ingest milestones.
+
+7. Stage 5G: Remote ingest parity for full metadata catalogs
+   - Extend `LibraryRemoteDataSource` + `PlexAPIClient` with:
+     - `fetchArtists()`
+     - `fetchCollections()`
+     - playlist fetch APIs (shape determined by Plex response payloads when implemented)
+   - Update `LibraryRepo.refreshLibrary` orchestration so refresh can populate and persist artists/collections (and later playlists) in the same reconciliation run.
+   - Keep launch/debug refresh behavior cache-first and stale-cache-safe.
+   - Add integration tests proving debug-triggered/full refresh populates full metadata catalogs, not albums/tracks only.
+
+8. Stage 5H: Relational schema foundation (Store)
+   - Add normalized entity/join tables in `LibraryStore` migration(s), likely including:
+     - `tags` (`id`, `kind`, `name`, `normalizedName`)
+     - `album_tags` (`albumID`, `tagID`)
+     - `album_artists` (`albumID`, `artistID`)
+     - `album_collections` (`albumID`, `collectionID`)
+     - `playlists` and `playlist_items` (`playlistID`, `trackID`, `position`, preserving duplicates/order)
+   - Add indexes for filter-heavy paths:
+     - `tags(kind, normalizedName)`
+     - `album_tags(tagID, albumID)`
+     - `album_artists(artistID, albumID)`
+     - `album_collections(collectionID, albumID)`
+     - `playlists(plexID)` and `playlist_items(playlistID, position)`
+   - Keep existing tables temporarily where needed; remove deprecated paths after parity tests pass.
+
+9. Stage 5I: Reconciliation engine for relationships
+   - Extend incremental sync bookkeeping to relationship rows so joins are upserted + pruned deterministically per run.
+   - Ensure row + relationship pruning never leaves orphaned joins.
+   - Canonicalize tags during ingest:
+     - fold case/diacritics,
+     - merge collisions into one canonical tag row per (`kind`, normalized value).
+   - Treat artist/collection/playlists by Plex IDs as canonical keys.
+
+10. Stage 5J: Flexible query API + query planner implementation
+   - Add protocol-first filter contract(s) for album querying (for example `AlbumFilter`):
+     - `textQuery` (substring),
+     - `yearRange`,
+     - `genreTagIDs`/`styleTagIDs`/`moodTagIDs` (ALL semantics),
+     - optional artist/collection constraints for future reuse.
+   - Implement GRDB-backed query planner in `LibraryStore` using joins + grouped/having semantics where required for ALL-tag matching.
+   - Explicitly encode sort guarantees in protocol comments and tests.
+   - Add test vectors for exact user-facing scenarios, including:
+     - `genre = ambient AND mood = calm AND year 1980...1994`.
+
+11. Stage 5K: UI/read-path adoption for relational filtering
+   - Move album-screen filtering from view-local array filtering to store-backed flexible query APIs.
+   - Keep pagination for rendering performance; derive pages from filtered query result sets, not from ad hoc in-memory post-filtering.
+   - Ensure no normal navigation path requires remote metadata fetch when cache is present.
+
+12. Stage 5L: Playlist relational readiness pass
+   - Persist playlist metadata and ordered items from Plex payloads.
+   - Validate that order and duplicate entries are preserved exactly.
+   - Expose protocol-first read APIs for future playlist screens (no UI required in this stage unless explicitly scoped).
+
+13. Stage 5M: Cleanup + hardening
+   - Remove superseded non-relational query code and obsolete schema paths.
+   - Expand regression suite for relationship pruning, canonical tag merges, playlist ordering, and offline query correctness.
+   - Update roadmap status and residual risks.
 
 ## Stage 6: Conditional Request Feasibility Study
 
@@ -329,6 +451,14 @@ This reduces unnecessary network work even before conditional requests are prove
   - search scans full cached catalog, not just rendered page slices
   - detail/up-next/now-playing views resolve metadata from cache without remote dependency
   - incremental refresh publishes updates without forcing full cache reset semantics
+- Relational query behavior:
+  - tag filters apply by kind (`genre`, `style`, `mood`) with ALL semantics within each kind
+  - year-range filtering is inclusive and excludes unknown-year rows
+  - canonicalized tag collisions merge to single normalized entities deterministically
+  - no orphan join rows after prune
+- Playlist relational behavior:
+  - playlist item ordering is preserved exactly
+  - duplicate playlist entries remain intact
 - Conditional path (if implemented):
   - `304` path skips writes
   - `200` path updates data and validator metadata
@@ -351,12 +481,15 @@ This reduces unnecessary network work even before conditional requests are prove
 
 ## Suggested Session Slicing for Future Bots
 
-1. Stage 5a: catalog read-model contracts and bootstrap wiring.
-2. Stage 5b: album grid/search migration to full-cache-backed reads.
-3. Stage 5c: album detail, collection detail, up-next, and now-playing metadata migration.
-4. Stage 5d: regression tests + offline QA pass for app-wide cache-first behavior.
-5. Stage 6: conditional feasibility instrumentation + diagnostics.
-6. Stage 7: conditional integration (only if viability confirmed).
+1. Stage 5G: remote ingest parity for artists/collections (+ playlist API hooks).
+2. Stage 5H: relational schema and indexes.
+3. Stage 5I: relationship reconciliation + canonicalization/prune correctness.
+4. Stage 5J: flexible filter API and GRDB query planner.
+5. Stage 5K: UI adoption of relational filtering.
+6. Stage 5L: playlist relational persistence/read APIs.
+7. Stage 5M: cleanup + hardening.
+8. Stage 6: conditional feasibility instrumentation + diagnostics.
+9. Stage 7: conditional integration (only if viability confirmed).
 
 Each session should stay within one module and end with passing tests plus a short QA checklist.
 

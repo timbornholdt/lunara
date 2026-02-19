@@ -261,6 +261,29 @@ struct QueueManagerTests {
         #expect(subject.engine.playCalls.count == playCallCountBeforeReconcile)
     }
 
+    @Test
+    func reconcile_whenCurrentTrackRemovedAndNoNextValid_stopsPlaybackAndClearsCurrentSelection() async throws {
+        let subject = makeSubject()
+        let queueItems = [
+            QueueItem(trackID: "track-0", url: try #require(URL(string: "https://example.com/track-0.mp3"))),
+            QueueItem(trackID: "track-1", url: try #require(URL(string: "https://example.com/track-1.mp3"))),
+            QueueItem(trackID: "track-2", url: try #require(URL(string: "https://example.com/track-2.mp3")))
+        ]
+
+        subject.manager.playNow(queueItems)
+        subject.manager.skipToNext()
+        subject.manager.skipToNext()
+        await settleObservation()
+
+        subject.manager.reconcile(removingTrackIDs: ["track-2"])
+        await settleObservation()
+
+        #expect(subject.manager.items.map(\.trackID) == ["track-0", "track-1"])
+        #expect(subject.manager.currentIndex == nil)
+        #expect(subject.manager.currentItem == nil)
+        #expect(subject.engine.stopCallCount == 1)
+    }
+
     private func makeSubject() -> (
         manager: QueueManager,
         engine: PlaybackEngineMock,
