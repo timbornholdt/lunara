@@ -6,8 +6,7 @@ extension PlexAPIClient {
         let endpoint = "/library/metadata/\(albumID)"
         let request = try await buildRequest(path: endpoint, requiresAuth: true)
 
-        let (data, response) = try await session.data(for: request)
-        try validateResponse(response)
+        let (data, _) = try await executeLoggedRequest(request, operation: "fetchAlbum[\(albumID)]")
 
         let container = try xmlDecoder.decode(PlexMediaContainer.self, from: data)
         guard let directory = container.directories?.first(where: { $0.type == "album" }) else {
