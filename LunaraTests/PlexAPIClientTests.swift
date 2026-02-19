@@ -318,6 +318,43 @@ final class PlexAPIClientTests: XCTestCase {
         }
     }
 
+    // MARK: - fetchTrack() Tests
+
+    func test_fetchTrack_parsesTrackMetadataResponse_returnsTrack() async throws {
+        try authManager.setToken("token")
+        mockSession.dataToReturn = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <MediaContainer>
+            <Track ratingKey="2001" parentRatingKey="1001" type="track" title="Come Together" index="1" grandparentTitle="The Beatles" duration="259000" key="/library/metadata/2001">
+                <Media id="1" duration="259000">
+                    <Part id="11" key="/library/parts/11/123/file.mp3" />
+                </Media>
+            </Track>
+        </MediaContainer>
+        """.data(using: .utf8)!
+
+        let track = try await client.fetchTrack(id: "2001")
+
+        XCTAssertEqual(track?.plexID, "2001")
+        XCTAssertEqual(track?.albumID, "1001")
+        XCTAssertEqual(track?.title, "Come Together")
+        XCTAssertEqual(track?.trackNumber, 1)
+        XCTAssertEqual(track?.artistName, "The Beatles")
+        XCTAssertEqual(track?.key, "/library/parts/11/123/file.mp3")
+    }
+
+    func test_fetchTrack_whenResponseHasNoTrack_returnsNil() async throws {
+        try authManager.setToken("token")
+        mockSession.dataToReturn = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <MediaContainer />
+        """.data(using: .utf8)!
+
+        let track = try await client.fetchTrack(id: "missing")
+
+        XCTAssertNil(track)
+    }
+
     // MARK: - streamURL() Tests
 
     func test_streamURL_returnsValidURL_withToken() async throws {

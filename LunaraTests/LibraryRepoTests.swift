@@ -88,7 +88,51 @@ struct LibraryRepoTests {
         let loadedTrack = try await subject.repo.track(id: "track-1")
 
         #expect(subject.store.trackLookupRequests == ["track-1"])
+        #expect(subject.remote.fetchTrackRequests.isEmpty)
         #expect(loadedTrack?.plexID == "track-1")
+    }
+
+    @Test
+    func track_whenCacheMiss_fetchesFromRemote() async throws {
+        let subject = makeSubject()
+        let remoteTrack = makeTrack(id: "track-remote", albumID: "album-remote", number: 1)
+        subject.remote.tracksByID[remoteTrack.plexID] = remoteTrack
+
+        let loadedTrack = try await subject.repo.track(id: remoteTrack.plexID)
+
+        #expect(subject.store.trackLookupRequests == [remoteTrack.plexID])
+        #expect(subject.remote.fetchTrackRequests == [remoteTrack.plexID])
+        #expect(loadedTrack?.plexID == remoteTrack.plexID)
+        #expect(loadedTrack?.albumID == remoteTrack.albumID)
+    }
+
+    @Test
+    func track_whenCacheMissAndRemoteReturnsNil_returnsNil() async throws {
+        let subject = makeSubject()
+
+        let loadedTrack = try await subject.repo.track(id: "missing-track")
+
+        #expect(subject.store.trackLookupRequests == ["missing-track"])
+        #expect(subject.remote.fetchTrackRequests == ["missing-track"])
+        #expect(loadedTrack == nil)
+    }
+
+    @Test
+    func track_whenCacheMissAndRemoteThrows_propagatesError() async {
+        let subject = makeSubject()
+        subject.remote.fetchTrackErrorByID["track-error"] = .timeout
+
+        do {
+            _ = try await subject.repo.track(id: "track-error")
+            Issue.record("Expected track(id:) to throw")
+        } catch let error as LibraryError {
+            #expect(error == .timeout)
+        } catch {
+            Issue.record("Expected LibraryError, got: \(error)")
+        }
+
+        #expect(subject.store.trackLookupRequests == ["track-error"])
+        #expect(subject.remote.fetchTrackRequests == ["track-error"])
     }
 
     @Test

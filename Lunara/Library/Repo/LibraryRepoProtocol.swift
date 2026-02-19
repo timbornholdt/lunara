@@ -108,7 +108,7 @@ extension PlexAPIClient: LibraryRepoProtocol {
     }
 
     func track(id: String) async throws -> Track? {
-        throw LibraryError.operationFailed(reason: "Track lookup is not implemented on PlexAPIClient-backed LibraryRepo yet.")
+        try await fetchTrack(id: id)
     }
 
     func collections() async throws -> [Collection] {
