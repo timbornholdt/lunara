@@ -42,8 +42,7 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
             requiresAuth: true
         )
 
-        let (data, response) = try await session.data(for: request)
-        try validateResponse(response)
+        let (data, _) = try await executeLoggedRequest(request, operation: "fetchAlbums")
 
         let container = try xmlDecoder.decode(PlexMediaContainer.self, from: data)
         guard let directories = container.directories else {
@@ -97,8 +96,7 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
         let endpoint = "/library/metadata/\(albumID)/children"
         let request = try await buildRequest(path: endpoint, requiresAuth: true)
 
-        let (data, response) = try await session.data(for: request)
-        try validateResponse(response)
+        let (data, _) = try await executeLoggedRequest(request, operation: "fetchTracks[\(albumID)]")
 
         let container = try xmlDecoder.decode(PlexMediaContainer.self, from: data)
         guard let metadata = container.metadata else {
@@ -189,8 +187,7 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
         request.httpMethod = "POST"
         addClientHeaders(to: &request)
 
-        let (data, response) = try await session.data(for: request)
-        try validateResponse(response)
+        let (data, _) = try await executeLoggedRequest(request, operation: "requestPin")
 
         // Parse XML response
         let parser = PlexPinXMLParser()
@@ -213,8 +210,7 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
         request.httpMethod = "GET"
         addClientHeaders(to: &request)
 
-        let (data, response) = try await session.data(for: request)
-        try validateResponse(response)
+        let (data, _) = try await executeLoggedRequest(request, operation: "checkPin[\(pinID)]")
 
         // Parse XML response
         let parser = PlexPinXMLParser()
@@ -286,6 +282,40 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
         default:
             let message = HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode)
             throw LibraryError.apiError(statusCode: httpResponse.statusCode, message: message)
+        }
+    }
+
+    func executeLoggedRequest(
+        _ request: URLRequest,
+        operation: String
+    ) async throws -> (Data, URLResponse) {
+        let startedAt = Date()
+        let method = request.httpMethod ?? "GET"
+        let path = request.url?.path ?? "unknown"
+        logger.info("network start op=\(operation, privacy: .public) method=\(method, privacy: .public) path=\(path, privacy: .public)")
+
+        do {
+            let (data, response) = try await session.data(for: request)
+            let elapsedMS = Int(Date().timeIntervalSince(startedAt) * 1000)
+            if let httpResponse = response as? HTTPURLResponse {
+                logger.info(
+                    "network response op=\(operation, privacy: .public) status=\(httpResponse.statusCode) bytes=\(data.count) durationMS=\(elapsedMS)"
+                )
+            } else {
+                logger.info(
+                    "network response op=\(operation, privacy: .public) nonHTTP=true bytes=\(data.count) durationMS=\(elapsedMS)"
+                )
+            }
+
+            try validateResponse(response)
+            logger.info("network success op=\(operation, privacy: .public)")
+            return (data, response)
+        } catch {
+            let elapsedMS = Int(Date().timeIntervalSince(startedAt) * 1000)
+            logger.error(
+                "network failure op=\(operation, privacy: .public) method=\(method, privacy: .public) path=\(path, privacy: .public) durationMS=\(elapsedMS) error=\(error.localizedDescription, privacy: .public)"
+            )
+            throw error
         }
     }
 

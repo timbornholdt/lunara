@@ -6,8 +6,7 @@ extension PlexAPIClient {
         let endpoint = "/library/metadata/\(trackID)"
         let request = try await buildRequest(path: endpoint, requiresAuth: true)
 
-        let (data, response) = try await session.data(for: request)
-        try validateResponse(response)
+        let (data, _) = try await executeLoggedRequest(request, operation: "fetchTrack[\(trackID)]")
 
         guard let metadata = try xmlDecoder
             .decode(PlexMediaContainer.self, from: data)
