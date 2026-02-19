@@ -13,7 +13,10 @@ final class NowPlayingBarViewModel {
     private(set) var playbackState: PlaybackState = .idle
 
     var isVisible: Bool {
-        queueManager.currentItem != nil
+        // Only show the bar when something is actively playing or paused.
+        // A restored queue on launch leaves the engine in .idle — we don't
+        // want the bar to appear before the user has explicitly started playback.
+        queueManager.currentItem != nil && playbackState != .idle
     }
 
     // MARK: - Dependencies
@@ -43,6 +46,13 @@ final class NowPlayingBarViewModel {
 
         observeQueue()
         observeEngine()
+
+        // Eagerly resolve state in case the VM is initialized while the queue
+        // already has a current item (e.g. relaunched mid-session, or parent
+        // view re-rendered). The observation only fires on *change*, so without
+        // this we'd show a blank bar until the next track transition.
+        playbackState = engine.playbackState
+        handleCurrentItemChange()
     }
 
     // MARK: - Actions
@@ -108,17 +118,30 @@ final class NowPlayingBarViewModel {
     }
 
     private func resolveMetadata(for trackID: String) async {
-        guard let track = try? await library.track(id: trackID) else { return }
+        let track: Track?
+        do {
+            track = try await library.track(id: trackID)
+        } catch {
+            // Track lookup failed (e.g. database error). Reset so the next
+            // track change can retry rather than staying stuck on stale state.
+            resolvedTrackID = nil
+            return
+        }
+
+        guard let track else { return }
         guard !Task.isCancelled else { return }
 
         trackTitle = track.title
         artistName = track.artistName
 
-        let sourceURL: URL? = nil // Artwork source URL not needed; pipeline reads from its own cache.
+        // sourceURL is nil: the pipeline serves from disk cache only.
+        // The grid and album detail views warm the thumbnail cache, so this
+        // will succeed for any album the user has browsed. If not cached yet,
+        // artworkFileURL stays nil and the placeholder is shown — that's fine.
         let fileURL = try? await artworkPipeline.fetchThumbnail(
             for: track.albumID,
             ownerKind: .album,
-            sourceURL: sourceURL
+            sourceURL: nil
         )
         guard !Task.isCancelled else { return }
         artworkFileURL = fileURL
