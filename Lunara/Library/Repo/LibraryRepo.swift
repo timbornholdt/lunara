@@ -6,6 +6,7 @@ protocol LibraryRemoteDataSource: AnyObject {
     func fetchAlbums() async throws -> [Album]
     func fetchAlbum(id albumID: String) async throws -> Album?
     func fetchTracks(forAlbum albumID: String) async throws -> [Track]
+    func fetchTrack(id trackID: String) async throws -> Track?
     func streamURL(forTrack track: Track) async throws -> URL
     func authenticatedArtworkURL(for rawValue: String?) async throws -> URL?
 }
@@ -92,7 +93,11 @@ final class LibraryRepo: LibraryRepoProtocol {
     }
 
     func track(id: String) async throws -> Track? {
-        try await store.track(id: id)
+        if let cachedTrack = try await store.track(id: id) {
+            return cachedTrack
+        }
+
+        return try await remote.fetchTrack(id: id)
     }
 
     func collections() async throws -> [Collection] {

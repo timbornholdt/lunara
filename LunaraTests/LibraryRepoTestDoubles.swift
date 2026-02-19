@@ -6,17 +6,20 @@ final class LibraryRemoteMock: LibraryRemoteDataSource {
     var albums: [Album] = []
     var albumsByID: [String: Album] = [:]
     var tracksByAlbumID: [String: [Track]] = [:]
+    var tracksByID: [String: Track] = [:]
     var streamURLByTrackID: [String: URL] = [:]
     var artworkURLByRawValue: [String: URL] = [:]
 
     var fetchAlbumsCallCount = 0
     var fetchAlbumRequests: [String] = []
     var fetchTracksRequests: [String] = []
+    var fetchTrackRequests: [String] = []
     var streamURLRequests: [String] = []
     var artworkURLRequests: [String?] = []
 
     var fetchAlbumsError: LibraryError?
     var fetchTracksErrorByAlbumID: [String: LibraryError] = [:]
+    var fetchTrackErrorByID: [String: LibraryError] = [:]
     var streamURLError: LibraryError?
     var artworkURLError: LibraryError?
 
@@ -39,6 +42,14 @@ final class LibraryRemoteMock: LibraryRemoteDataSource {
             throw error
         }
         return tracksByAlbumID[albumID] ?? []
+    }
+
+    func fetchTrack(id trackID: String) async throws -> Track? {
+        fetchTrackRequests.append(trackID)
+        if let error = fetchTrackErrorByID[trackID] {
+            throw error
+        }
+        return tracksByID[trackID]
     }
 
     func streamURL(forTrack track: Track) async throws -> URL {
