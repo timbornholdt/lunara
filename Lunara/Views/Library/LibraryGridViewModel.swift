@@ -26,24 +26,27 @@ final class LibraryGridViewModel {
     private var nextPageNumber = 1
     private var hasMorePages = true
     private var pendingArtworkAlbumIDs: Set<String> = []
+    private var searchRequestID = 0
+    private var searchTask: Task<Void, Never>?
 
     var albums: [Album] = []
-    var searchQuery = ""
+    var searchQuery = "" {
+        didSet {
+            scheduleSearch()
+        }
+    }
+    var searchedAlbums: [Album] = []
     var loadingState: LoadingState = .idle
     var isLoadingNextPage = false
     var artworkByAlbumID: [String: URL] = [:]
     var errorBannerState = ErrorBannerState()
 
     var filteredAlbums: [Album] {
-        let normalizedQuery = normalizedSearchQuery(searchQuery)
-        guard !normalizedQuery.isEmpty else {
+        guard isSearchActive else {
             return albums
         }
 
-        return albums.filter { album in
-            normalizedSearchQuery(album.title).contains(normalizedQuery) ||
-                normalizedSearchQuery(album.artistName).contains(normalizedQuery)
-        }
+        return searchedAlbums
     }
 
     init(
@@ -73,6 +76,10 @@ final class LibraryGridViewModel {
     }
 
     func loadNextPageIfNeeded(currentAlbumID: String?) async {
+        guard !isSearchActive else {
+            return
+        }
+
         guard shouldLoadNextPage(currentAlbumID: currentAlbumID) else {
             return
         }
@@ -153,6 +160,7 @@ final class LibraryGridViewModel {
             albums = firstPageAlbums
             hasMorePages = firstPageAlbums.count == pageSize
             nextPageNumber = hasMorePages ? 2 : 1
+            await refreshSearchResultsIfNeeded()
             loadingState = .loaded
         } catch {
             loadingState = .error(userFacingMessage(for: error))
@@ -182,6 +190,10 @@ final class LibraryGridViewModel {
     }
 
     private func shouldLoadNextPage(currentAlbumID: String?) -> Bool {
+        guard !isSearchActive else {
+            return false
+        }
+
         guard hasMorePages, !isLoadingNextPage else {
             return false
         }
@@ -214,6 +226,56 @@ final class LibraryGridViewModel {
             return lunaraError.userMessage
         }
         return error.localizedDescription
+    }
+
+    private var isSearchActive: Bool {
+        !normalizedSearchQuery(searchQuery).isEmpty
+    }
+
+    private func scheduleSearch() {
+        searchTask?.cancel()
+
+        let normalizedQuery = normalizedSearchQuery(searchQuery)
+        guard !normalizedQuery.isEmpty else {
+            searchedAlbums = []
+            return
+        }
+
+        searchRequestID += 1
+        let requestID = searchRequestID
+        searchTask = Task { [weak self] in
+            guard let self else {
+                return
+            }
+
+            await self.searchAlbumsInCatalog(query: normalizedQuery, requestID: requestID)
+        }
+    }
+
+    private func refreshSearchResultsIfNeeded() async {
+        guard isSearchActive else {
+            return
+        }
+
+        searchTask?.cancel()
+        searchRequestID += 1
+        await searchAlbumsInCatalog(query: normalizedSearchQuery(searchQuery), requestID: searchRequestID)
+    }
+
+    private func searchAlbumsInCatalog(query: String, requestID: Int) async {
+        do {
+            let results = try await library.searchAlbums(query: query)
+            guard requestID == searchRequestID else {
+                return
+            }
+            searchedAlbums = results
+        } catch {
+            guard requestID == searchRequestID else {
+                return
+            }
+            searchedAlbums = []
+            errorBannerState.show(message: userFacingMessage(for: error))
+        }
     }
 
     private func normalizedSearchQuery(_ value: String) -> String {
