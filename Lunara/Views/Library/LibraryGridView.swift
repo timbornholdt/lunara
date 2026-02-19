@@ -107,17 +107,7 @@ struct LibraryGridView: View {
                 LazyVGrid(columns: columns, spacing: 20) {
                     ForEach(viewModel.filteredAlbums) { album in
                         albumCard(for: album)
-                            .onAppear {
-                                Task {
-                                    await viewModel.loadNextPageIfNeeded(currentAlbumID: album.plexID)
-                                }
-                            }
                     }
-                }
-
-                if viewModel.isLoadingNextPage {
-                    ProgressView()
-                        .padding(.top, 12)
                 }
             }
         }

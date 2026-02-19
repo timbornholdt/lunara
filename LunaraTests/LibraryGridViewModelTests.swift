@@ -32,36 +32,6 @@ struct LibraryGridViewModelTests {
     }
 
     @Test
-    func loadNextPageIfNeeded_isNoOpWhenFullCatalogIsAlreadyLoaded() async {
-        let subject = makeSubject()
-        subject.library.queriedAlbumsByFilter[.all] = [
-            makeAlbum(id: "album-1"),
-            makeAlbum(id: "album-2")
-        ]
-
-        await subject.viewModel.loadInitialIfNeeded()
-        await subject.viewModel.loadNextPageIfNeeded(currentAlbumID: "album-2")
-
-        #expect(subject.library.albumQueryFilters == [.all])
-        #expect(subject.viewModel.albums.map(\.plexID) == ["album-1", "album-2"])
-    }
-
-    @Test
-    func loadNextPageIfNeeded_whenNotNearEnd_doesNotFetchAdditionalPages() async {
-        let subject = makeSubject(prefetchThreshold: 1)
-        subject.library.queriedAlbumsByFilter[.all] = [
-            makeAlbum(id: "album-1"),
-            makeAlbum(id: "album-2"),
-            makeAlbum(id: "album-3")
-        ]
-
-        await subject.viewModel.loadInitialIfNeeded()
-        await subject.viewModel.loadNextPageIfNeeded(currentAlbumID: "album-1")
-
-        #expect(subject.library.albumQueryFilters == [.all])
-    }
-
-    @Test
     func refresh_forcesLibraryRefreshAndReloadsCachedCatalog() async {
         let subject = makeSubject()
         subject.library.queriedAlbumsByFilter[.all] = [makeAlbum(id: "stale")]
@@ -281,22 +251,7 @@ struct LibraryGridViewModelTests {
         #expect(subject.viewModel.errorBannerState.message == LibraryError.timeout.userMessage)
     }
 
-    @Test
-    func loadNextPageIfNeeded_whenSearchActive_doesNotFetchNextPage() async {
-        let subject = makeSubject()
-        subject.library.queriedAlbumsByFilter[.all] = [makeAlbum(id: "album-1"), makeAlbum(id: "album-2")]
-        let albumFilter = AlbumQueryFilter(textQuery: "album")
-        subject.library.queriedAlbumsByFilter[albumFilter] = [makeAlbum(id: "album-search")]
-
-        await subject.viewModel.loadInitialIfNeeded()
-        subject.viewModel.searchQuery = "album"
-        await waitForCatalogQueryRequest(on: subject.library, expectedCount: 2)
-        await subject.viewModel.loadNextPageIfNeeded(currentAlbumID: "album-search")
-
-        #expect(subject.library.albumQueryFilters == [.all, albumFilter])
-    }
-
-    private func makeSubject(prefetchThreshold: Int = 2) -> (
+    private func makeSubject() -> (
         viewModel: LibraryGridViewModel,
         library: LibraryGridRepoMock,
         artwork: ArtworkPipelineMock,
@@ -308,9 +263,7 @@ struct LibraryGridViewModelTests {
         let viewModel = LibraryGridViewModel(
             library: library,
             artworkPipeline: artwork,
-            actions: actions,
-            pageSize: 2,
-            prefetchThreshold: prefetchThreshold
+            actions: actions
         )
 
         return (viewModel, library, artwork, actions)

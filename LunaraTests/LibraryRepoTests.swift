@@ -515,6 +515,36 @@ struct LibraryRepoTests {
         }
     }
     @Test
+    func playlists_servesFromStoreWithoutRemoteFetch() async throws {
+        let subject = makeSubject()
+        subject.store.cachedPlaylists = [
+            LibraryPlaylistSnapshot(plexID: "p1", title: "Chill", trackCount: 5, updatedAt: nil),
+            LibraryPlaylistSnapshot(plexID: "p2", title: "Hype", trackCount: 12, updatedAt: nil)
+        ]
+
+        let playlists = try await subject.repo.playlists()
+
+        #expect(playlists.map(\.plexID) == ["p1", "p2"])
+        #expect(subject.store.fetchPlaylistsCalls == 1)
+        #expect(subject.remote.fetchPlaylistsCallCount == 0)
+    }
+
+    @Test
+    func playlistItems_servesFromStoreWithoutRemoteFetch() async throws {
+        let subject = makeSubject()
+        subject.store.cachedPlaylistItemsByPlaylistID["p1"] = [
+            LibraryPlaylistItemSnapshot(trackID: "t1", position: 0),
+            LibraryPlaylistItemSnapshot(trackID: "t2", position: 1)
+        ]
+
+        let items = try await subject.repo.playlistItems(playlistID: "p1")
+
+        #expect(items.map(\.trackID) == ["t1", "t2"])
+        #expect(subject.store.fetchPlaylistItemsRequests == ["p1"])
+        #expect(subject.remote.fetchPlaylistItemsRequests.isEmpty)
+    }
+
+    @Test
     func lastRefreshDate_readsFromStore() async throws {
         let subject = makeSubject()
         let expectedDate = Date(timeIntervalSince1970: 9000)
