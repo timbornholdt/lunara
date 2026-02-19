@@ -147,6 +147,14 @@ final class LibraryRepo: LibraryRepoProtocol {
         try await store.searchArtists(query: query)
     }
 
+    func playlists() async throws -> [LibraryPlaylistSnapshot] {
+        try await store.fetchPlaylists()
+    }
+
+    func playlistItems(playlistID: String) async throws -> [LibraryPlaylistItemSnapshot] {
+        try await store.fetchPlaylistItems(playlistID: playlistID)
+    }
+
     func lastRefreshDate() async throws -> Date? {
         try await store.lastRefreshDate()
     }

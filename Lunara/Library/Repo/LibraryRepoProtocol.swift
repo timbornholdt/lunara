@@ -50,6 +50,14 @@ protocol LibraryRepoProtocol: AnyObject {
     func artists() async throws -> [Artist]
     func artist(id: String) async throws -> Artist?
 
+    /// Reads all persisted playlists from cache, ordered by title.
+    /// Playlists are populated during `refreshLibrary`; this method does not trigger a remote fetch.
+    func playlists() async throws -> [LibraryPlaylistSnapshot]
+
+    /// Reads ordered items for one playlist from cache, preserving Plex item order including duplicate track IDs.
+    /// Items are populated during `refreshLibrary`; this method does not trigger a remote fetch.
+    func playlistItems(playlistID: String) async throws -> [LibraryPlaylistItemSnapshot]
+
     /// Performs a remote refresh and persists it atomically.
     /// Implementations must preserve existing cache when this throws.
     func refreshLibrary(reason: LibraryRefreshReason) async throws -> LibraryRefreshOutcome
@@ -152,6 +160,14 @@ extension PlexAPIClient: LibraryRepoProtocol {
 
     func searchArtists(query: String) async throws -> [Artist] {
         throw LibraryError.operationFailed(reason: "Artist search is not implemented on PlexAPIClient-backed LibraryRepo yet.")
+    }
+
+    func playlists() async throws -> [LibraryPlaylistSnapshot] {
+        throw LibraryError.operationFailed(reason: "Playlist reads are not implemented on PlexAPIClient-backed LibraryRepo.")
+    }
+
+    func playlistItems(playlistID: String) async throws -> [LibraryPlaylistItemSnapshot] {
+        throw LibraryError.operationFailed(reason: "Playlist item reads are not implemented on PlexAPIClient-backed LibraryRepo.")
     }
 
     func refreshLibrary(reason: LibraryRefreshReason) async throws -> LibraryRefreshOutcome {

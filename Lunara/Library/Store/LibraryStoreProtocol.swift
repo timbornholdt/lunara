@@ -203,6 +203,13 @@ protocol LibraryStoreProtocol: AnyObject {
         in run: LibrarySyncRun
     ) async throws
 
+    /// Reads all persisted playlists ordered by title.
+    func fetchPlaylists() async throws -> [LibraryPlaylistSnapshot]
+
+    /// Reads ordered items for one playlist.
+    /// - Sorting guarantee: results are returned in ascending `position` order preserving Plex item order including duplicates.
+    func fetchPlaylistItems(playlistID: String) async throws -> [LibraryPlaylistItemSnapshot]
+
     /// Marks album rows as observed in the active sync run.
     /// - Transaction guarantee: all album IDs in this call are marked together or none are marked.
     func markAlbumsSeen(_ albumIDs: [String], in run: LibrarySyncRun) async throws
