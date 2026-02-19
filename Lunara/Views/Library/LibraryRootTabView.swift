@@ -10,10 +10,17 @@ struct LibraryRootTabView: View {
     let tabBarTheme: LunaraTabBarTheme
 
     @State private var selectedTab: Tab = .albums
+    private let nowPlayingBarViewModel: NowPlayingBarViewModel
 
     init(coordinator: AppCoordinator, tabBarTheme: LunaraTabBarTheme = .garden) {
         self.coordinator = coordinator
         self.tabBarTheme = tabBarTheme
+        self.nowPlayingBarViewModel = NowPlayingBarViewModel(
+            queueManager: coordinator.queueManager,
+            engine: coordinator.playbackEngine,
+            library: coordinator.libraryRepo,
+            artworkPipeline: coordinator.artworkPipeline
+        )
     }
 
     var body: some View {
@@ -42,6 +49,9 @@ struct LibraryRootTabView: View {
         .tint(Color.lunara(tabBarTheme.selectedTintRole))
         .toolbarBackground(Color.lunara(tabBarTheme.backgroundRole), for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            NowPlayingBar(viewModel: nowPlayingBarViewModel)
+        }
         .onAppear {
             LunaraTabBarStyler.apply(theme: tabBarTheme)
         }
