@@ -157,7 +157,7 @@ Status: Completed on February 18, 2026.
 
 ## Stage 5: App-Wide Cached Catalog Adoption (Up Next)
 
-Status: In progress (Stages 5A-5F completed as of February 19, 2026; 5G+ pending).
+Status: In progress (Stages 5A-5H completed as of February 19, 2026; 5I+ pending).
 
 ### Purpose
 
@@ -329,7 +329,7 @@ Stage 5F status (completed February 19, 2026):
   - `/Users/timbornholdt/Repos/Lunara/LunaraTests/AppRouterTests.swift`
   - `/Users/timbornholdt/Repos/Lunara/LunaraTests/QueueManagerTests.swift`
   - `/Users/timbornholdt/Repos/Lunara/LunaraTests/AppCoordinatorTests.swift`
-- Stage 5 remains in progress pending Stage 5G+ relational/ingest milestones.
+- Stage 5 remains in progress pending Stage 5I+ reconciliation/query/UI milestones.
 
 7. Stage 5G: Remote ingest parity for full metadata catalogs
    - Extend `LibraryRemoteDataSource` + `PlexAPIClient` with:
@@ -339,6 +339,15 @@ Stage 5F status (completed February 19, 2026):
    - Update `LibraryRepo.refreshLibrary` orchestration so refresh can populate and persist artists/collections (and later playlists) in the same reconciliation run.
    - Keep launch/debug refresh behavior cache-first and stale-cache-safe.
    - Add integration tests proving debug-triggered/full refresh populates full metadata catalogs, not albums/tracks only.
+
+Stage 5G status (completed February 19, 2026):
+- Extended Library remote ingest contracts and Plex client support for:
+  - `fetchArtists()`
+  - `fetchCollections()`
+  - playlist fetch API hooks.
+- Updated `LibraryRepo.refreshLibrary` orchestration so artists + collections are fetched and persisted in the same refresh run as albums + tracks.
+- Preserved existing cache-first launch/read behavior and stale-cache-on-failure refresh behavior.
+- Added integration-style refresh coverage proving full metadata catalog ingest parity.
 
 8. Stage 5H: Relational schema foundation (Store)
    - Add normalized entity/join tables in `LibraryStore` migration(s), likely including:
@@ -354,6 +363,11 @@ Stage 5F status (completed February 19, 2026):
      - `album_collections(collectionID, albumID)`
      - `playlists(plexID)` and `playlist_items(playlistID, position)`
    - Keep existing tables temporarily where needed; remove deprecated paths after parity tests pass.
+
+Stage 5H status (completed February 19, 2026):
+- Added relational schema foundation in `LibraryStore` for normalized entities and join-table modeling.
+- Added baseline indexes needed for relational filter/query performance and stable playlist ordering lookups.
+- Preserved deterministic migration behavior and existing cache-first/stale-cache-safe repository behavior.
 
 9. Stage 5I: Reconciliation engine for relationships
    - Extend incremental sync bookkeeping to relationship rows so joins are upserted + pruned deterministically per run.
@@ -481,15 +495,13 @@ This reduces unnecessary network work even before conditional requests are prove
 
 ## Suggested Session Slicing for Future Bots
 
-1. Stage 5G: remote ingest parity for artists/collections (+ playlist API hooks).
-2. Stage 5H: relational schema and indexes.
-3. Stage 5I: relationship reconciliation + canonicalization/prune correctness.
-4. Stage 5J: flexible filter API and GRDB query planner.
-5. Stage 5K: UI adoption of relational filtering.
-6. Stage 5L: playlist relational persistence/read APIs.
-7. Stage 5M: cleanup + hardening.
-8. Stage 6: conditional feasibility instrumentation + diagnostics.
-9. Stage 7: conditional integration (only if viability confirmed).
+1. Stage 5I: relationship reconciliation + canonicalization/prune correctness.
+2. Stage 5J: flexible filter API and GRDB query planner.
+3. Stage 5K: UI adoption of relational filtering.
+4. Stage 5L: playlist relational persistence/read APIs.
+5. Stage 5M: cleanup + hardening.
+6. Stage 6: conditional feasibility instrumentation + diagnostics.
+7. Stage 7: conditional integration (only if viability confirmed).
 
 Each session should stay within one module and end with passing tests plus a short QA checklist.
 
