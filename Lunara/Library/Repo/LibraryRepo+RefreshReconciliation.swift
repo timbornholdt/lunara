@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 extension LibraryRepo {
     private struct ReconciliationDelta {
@@ -14,6 +15,7 @@ extension LibraryRepo {
 
     func refreshLibrary(reason: LibraryRefreshReason) async throws -> LibraryRefreshOutcome {
         let refreshedAt = nowProvider()
+        let logger = Logger(subsystem: "holdings.chinlock.lunara", category: "LibraryRefresh")
 
         do {
             let remoteAlbums = try await remote.fetchAlbums()
@@ -22,11 +24,24 @@ extension LibraryRepo {
 
             let cachedAlbums = try await fetchAllCachedAlbums()
             let cachedTracks = try await fetchTracks(for: cachedAlbums)
+            logger.info(
+                "refresh start reason=\(String(describing: reason), privacy: .public) cachedAlbums=\(cachedAlbums.count) cachedTracks=\(cachedTracks.count)"
+            )
+            logger.info(
+                "refresh remote reason=\(String(describing: reason), privacy: .public) remoteAlbums=\(remoteAlbums.count) remoteTracks=\(remoteTracks.count) dedupedAlbums=\(dedupedLibrary.albums.count) dedupedTracks=\(dedupedLibrary.tracks.count)"
+            )
             let delta = buildReconciliationDelta(
                 cachedAlbums: cachedAlbums,
                 cachedTracks: cachedTracks,
                 remoteAlbums: dedupedLibrary.albums,
                 remoteTracks: dedupedLibrary.tracks
+            )
+            logger.info(
+                """
+                refresh delta reason=\(String(describing: reason), privacy: .public) \
+                albums[new=\(delta.newAlbumIDs.count),changed=\(delta.changedAlbumIDs.count),unchanged=\(delta.unchangedAlbumIDs.count),deleted=\(delta.deletedAlbumIDs.count)] \
+                tracks[new=\(delta.newTrackIDs.count),changed=\(delta.changedTrackIDs.count),unchanged=\(delta.unchangedTrackIDs.count),deleted=\(delta.deletedTrackIDs.count)]
+                """
             )
 
             let run = try await store.beginIncrementalSync(startedAt: refreshedAt)
@@ -36,6 +51,9 @@ extension LibraryRepo {
             try await store.markAlbumsSeen(dedupedLibrary.albums.map(\.plexID), in: run)
             try await store.markTracksSeen(dedupedLibrary.tracks.map(\.plexID), in: run)
             let pruneResult = try await store.pruneRowsNotSeen(in: run)
+            logger.info(
+                "refresh prune reason=\(String(describing: reason), privacy: .public) prunedAlbums=\(pruneResult.prunedAlbumIDs.count) prunedTracks=\(pruneResult.prunedTrackIDs.count)"
+            )
             try await store.completeIncrementalSync(run, refreshedAt: refreshedAt)
 
             let dedupedAlbums = dedupedLibrary.albums
@@ -53,6 +71,9 @@ extension LibraryRepo {
 
             let cachedArtists = try await store.fetchArtists()
             let cachedCollections = try await store.fetchCollections()
+            logger.info(
+                "refresh complete reason=\(String(describing: reason), privacy: .public) refreshedAt=\(refreshedAt.timeIntervalSince1970) albums=\(dedupedLibrary.albums.count) tracks=\(dedupedLibrary.tracks.count) artists=\(cachedArtists.count) collections=\(cachedCollections.count)"
+            )
             return LibraryRefreshOutcome(
                 reason: reason,
                 refreshedAt: refreshedAt,
@@ -62,8 +83,14 @@ extension LibraryRepo {
                 collectionCount: cachedCollections.count
             )
         } catch let error as LibraryError {
+            logger.error(
+                "refresh failed reason=\(String(describing: reason), privacy: .public) error=\(error.userMessage, privacy: .public)"
+            )
             throw error
         } catch {
+            logger.error(
+                "refresh failed reason=\(String(describing: reason), privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+            )
             throw LibraryError.operationFailed(reason: "Library refresh failed: \(error.localizedDescription)")
         }
     }
