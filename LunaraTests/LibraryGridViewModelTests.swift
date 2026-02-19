@@ -86,6 +86,41 @@ struct LibraryGridViewModelTests {
     }
 
     @Test
+    func applyBackgroundRefreshUpdateIfNeeded_reloadsVisibleCachedPages() async {
+        let subject = makeSubject()
+        subject.library.albumsByPage[1] = [makeAlbum(id: "album-1"), makeAlbum(id: "album-2")]
+        subject.library.albumsByPage[2] = [makeAlbum(id: "album-3"), makeAlbum(id: "album-4")]
+
+        await subject.viewModel.loadInitialIfNeeded()
+        await subject.viewModel.loadNextPageIfNeeded(currentAlbumID: "album-2")
+
+        subject.library.albumsByPage[1] = [makeAlbum(id: "fresh-1"), makeAlbum(id: "fresh-2")]
+        subject.library.albumsByPage[2] = [makeAlbum(id: "fresh-3"), makeAlbum(id: "fresh-4")]
+
+        await subject.viewModel.applyBackgroundRefreshUpdateIfNeeded(successToken: 1)
+
+        #expect(subject.viewModel.albums.map(\.plexID) == ["fresh-1", "fresh-2", "fresh-3", "fresh-4"])
+        #expect(subject.library.albumPageRequests == [
+            LibraryPage(number: 1, size: 2),
+            LibraryPage(number: 2, size: 2),
+            LibraryPage(number: 1, size: 2),
+            LibraryPage(number: 2, size: 2)
+        ])
+    }
+
+    @Test
+    func applyBackgroundRefreshFailureIfNeeded_showsErrorBannerMessage() {
+        let subject = makeSubject()
+
+        subject.viewModel.applyBackgroundRefreshFailureIfNeeded(
+            failureToken: 1,
+            message: "Refresh failed"
+        )
+
+        #expect(subject.viewModel.errorBannerState.message == "Refresh failed")
+    }
+
+    @Test
     func playAlbum_routesIntentThroughActionsDependency() async {
         let subject = makeSubject()
         let album = makeAlbum(id: "album-7")

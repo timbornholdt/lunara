@@ -16,15 +16,15 @@ final class LibraryGridViewModel {
         case error(String)
     }
 
-    private let library: LibraryRepoProtocol
+    let library: LibraryRepoProtocol
     private let artworkPipeline: ArtworkPipelineProtocol
     private let actions: LibraryGridActionRouting
 
-    private let pageSize: Int
+    let pageSize: Int
     private let prefetchThreshold: Int
 
-    private var nextPageNumber = 1
-    private var hasMorePages = true
+    var nextPageNumber = 1
+    var hasMorePages = true
     private var pendingArtworkAlbumIDs: Set<String> = []
     private var searchRequestID = 0
     private var searchTask: Task<Void, Never>?
@@ -221,7 +221,7 @@ final class LibraryGridViewModel {
         albums.append(contentsOf: uniqueIncoming)
     }
 
-    private func userFacingMessage(for error: Error) -> String {
+    func userFacingMessage(for error: Error) -> String {
         if let lunaraError = error as? LunaraError {
             return lunaraError.userMessage
         }
@@ -252,7 +252,7 @@ final class LibraryGridViewModel {
         }
     }
 
-    private func refreshSearchResultsIfNeeded() async {
+    func refreshSearchResultsIfNeeded() async {
         guard isSearchActive else {
             return
         }

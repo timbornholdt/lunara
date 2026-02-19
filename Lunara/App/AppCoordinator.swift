@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import os
 
 /// Coordinates app-wide dependencies and state
 /// This is a minimal coordinator for Phase 1 - will expand in later phases
@@ -16,12 +17,18 @@ final class AppCoordinator {
     let playbackEngine: PlaybackEngineProtocol
     let queueManager: QueueManagerProtocol
     let appRouter: AppRouter
+    private let logger = Logger(subsystem: "holdings.chinlock.lunara", category: "AppCoordinator")
 
     // MARK: - State
 
     var isSignedIn: Bool {
         authManager.isSignedIn
     }
+
+    private(set) var backgroundRefreshSuccessToken = 0
+    private(set) var backgroundRefreshFailureToken = 0
+    private(set) var lastBackgroundRefreshDate: Date?
+    private(set) var lastBackgroundRefreshErrorMessage: String?
 
     // MARK: - Initialization
 
@@ -153,13 +160,31 @@ final class AppCoordinator {
                 guard let self else {
                     return
                 }
-                _ = try? await self.libraryRepo.refreshLibrary(reason: refreshReason)
+                await self.performBackgroundRefresh(reason: refreshReason)
             }
             return cachedAlbums
         }
 
         _ = try await libraryRepo.refreshLibrary(reason: refreshReason)
         return try await libraryRepo.fetchAlbums()
+    }
+
+    private func performBackgroundRefresh(reason: LibraryRefreshReason) async {
+        do {
+            let outcome = try await libraryRepo.refreshLibrary(reason: reason)
+            backgroundRefreshSuccessToken += 1
+            lastBackgroundRefreshDate = outcome.refreshedAt
+            lastBackgroundRefreshErrorMessage = nil
+            logger.info("Background refresh succeeded for reason '\(String(describing: reason), privacy: .public)' at \(outcome.refreshedAt, privacy: .public)")
+        } catch let error as LunaraError {
+            backgroundRefreshFailureToken += 1
+            lastBackgroundRefreshErrorMessage = error.userMessage
+            logger.error("Background refresh failed for reason '\(String(describing: reason), privacy: .public)' with LunaraError: \(String(describing: error), privacy: .public)")
+        } catch {
+            backgroundRefreshFailureToken += 1
+            lastBackgroundRefreshErrorMessage = error.localizedDescription
+            logger.error("Background refresh failed for reason '\(String(describing: reason), privacy: .public)' with unexpected error: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     private static func loadServerURL() -> URL {
