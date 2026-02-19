@@ -24,9 +24,20 @@ protocol LibraryRepoProtocol: AnyObject {
     /// Implementations should return quickly from local storage.
     func albums(page: LibraryPage) async throws -> [Album]
     func album(id: String) async throws -> Album?
+    /// Queries cached albums by `album.title` and `album.artistName`.
+    /// - Sorting guarantee: results are fully sorted by source ordering (`artistName`, then `title`).
+    func searchAlbums(query: String) async throws -> [Album]
 
     func tracks(forAlbum albumID: String) async throws -> [Track]
+    func track(id: String) async throws -> Track?
     func collections() async throws -> [Collection]
+    func collection(id: String) async throws -> Collection?
+    /// Queries cached artists by name and sort name.
+    /// - Sorting guarantee: results are fully sorted by source ordering (`sortName`, then `name`).
+    func searchArtists(query: String) async throws -> [Artist]
+    /// Queries cached collections by title.
+    /// - Sorting guarantee: results are fully sorted by source ordering (`title`).
+    func searchCollections(query: String) async throws -> [Collection]
     func artists() async throws -> [Artist]
     func artist(id: String) async throws -> Artist?
 
@@ -88,12 +99,28 @@ extension PlexAPIClient: LibraryRepoProtocol {
         try await fetchAlbum(id: id)
     }
 
+    func searchAlbums(query: String) async throws -> [Album] {
+        throw LibraryError.operationFailed(reason: "Album search is not implemented on PlexAPIClient-backed LibraryRepo yet.")
+    }
+
     func tracks(forAlbum albumID: String) async throws -> [Track] {
         try await fetchTracks(forAlbum: albumID)
     }
 
+    func track(id: String) async throws -> Track? {
+        throw LibraryError.operationFailed(reason: "Track lookup is not implemented on PlexAPIClient-backed LibraryRepo yet.")
+    }
+
     func collections() async throws -> [Collection] {
         throw LibraryError.operationFailed(reason: "Collections fetch is not implemented on PlexAPIClient-backed LibraryRepo yet.")
+    }
+
+    func collection(id: String) async throws -> Collection? {
+        throw LibraryError.operationFailed(reason: "Collection lookup is not implemented on PlexAPIClient-backed LibraryRepo yet.")
+    }
+
+    func searchCollections(query: String) async throws -> [Collection] {
+        throw LibraryError.operationFailed(reason: "Collection search is not implemented on PlexAPIClient-backed LibraryRepo yet.")
     }
 
     func artists() async throws -> [Artist] {
@@ -102,6 +129,10 @@ extension PlexAPIClient: LibraryRepoProtocol {
 
     func artist(id: String) async throws -> Artist? {
         throw LibraryError.operationFailed(reason: "Artist fetch is not implemented on PlexAPIClient-backed LibraryRepo yet.")
+    }
+
+    func searchArtists(query: String) async throws -> [Artist] {
+        throw LibraryError.operationFailed(reason: "Artist search is not implemented on PlexAPIClient-backed LibraryRepo yet.")
     }
 
     func refreshLibrary(reason: LibraryRefreshReason) async throws -> LibraryRefreshOutcome {

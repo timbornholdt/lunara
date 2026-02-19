@@ -267,12 +267,20 @@ private final class LibraryRepoMock: LibraryRepoProtocol {
         albums.first { $0.plexID == id }
     }
 
+    func searchAlbums(query: String) async throws -> [Album] {
+        []
+    }
+
     func tracks(forAlbum albumID: String) async throws -> [Track] {
         trackRequests.append(albumID)
         if let tracksError {
             throw tracksError
         }
         return tracksByAlbumID[albumID] ?? []
+    }
+
+    func track(id: String) async throws -> Track? {
+        nil
     }
 
     func streamURL(for track: Track) async throws -> URL {
@@ -290,12 +298,24 @@ private final class LibraryRepoMock: LibraryRepoProtocol {
         []
     }
 
+    func collection(id: String) async throws -> Collection? {
+        nil
+    }
+
+    func searchCollections(query: String) async throws -> [Collection] {
+        []
+    }
+
     func artists() async throws -> [Artist] {
         []
     }
 
     func artist(id: String) async throws -> Artist? {
         nil
+    }
+
+    func searchArtists(query: String) async throws -> [Artist] {
+        []
     }
 
     func refreshLibrary(reason: LibraryRefreshReason) async throws -> LibraryRefreshOutcome {
@@ -310,6 +330,10 @@ private final class LibraryRepoMock: LibraryRepoProtocol {
     }
 
     func lastRefreshDate() async throws -> Date? {
+        nil
+    }
+
+    func authenticatedArtworkURL(for rawValue: String?) async throws -> URL? {
         nil
     }
 }

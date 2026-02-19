@@ -118,10 +118,16 @@ struct AppCoordinatorTests {
             queueManager: queue,
             appRouter: AppRouter(library: repo, queue: queue)
         )
-        remote.albums = [makeAlbum(id: "fresh-1"), makeAlbum(id: "fresh-2")]
+        remote.albums = [
+            makeAlbum(id: "fresh-1", thumbURL: "/library/metadata/fresh-1/thumb/1"),
+            makeAlbum(id: "fresh-2", thumbURL: "/library/metadata/fresh-2/thumb/1")
+        ]
         let albums = try await coordinator.fetchAlbums()
         #expect(albums.map(\.plexID) == ["fresh-1", "fresh-2"])
-        #expect(store.replaceLibraryCallCount == 1)
+        #expect(store.replaceLibraryCallCount == 0)
+        #expect(store.begunSyncRuns.count == 1)
+        #expect(store.upsertAlbumsCalls.count == 1)
+        #expect(store.completeIncrementalSyncCalls.count == 1)
         await waitForArtworkRequests(
             on: artworkPipeline,
             expectedOwnerIDs: ["fresh-1", "fresh-2"]
@@ -157,13 +163,13 @@ struct AppCoordinatorTests {
         )
         return (coordinator, queue, library, artworkPipeline)
     }
-    private func makeAlbum(id: String) -> Album {
+    private func makeAlbum(id: String, thumbURL: String? = nil) -> Album {
         Album(
             plexID: id,
             title: "Album \(id)",
             artistName: "Artist",
             year: nil,
-            thumbURL: nil,
+            thumbURL: thumbURL,
             genre: nil,
             rating: nil,
             addedAt: nil,
@@ -195,10 +201,22 @@ private final class CoordinatorLibraryRepoMock: LibraryRepoProtocol {
     func album(id: String) async throws -> Album? {
         nil
     }
+    func searchAlbums(query: String) async throws -> [Album] {
+        []
+    }
     func tracks(forAlbum albumID: String) async throws -> [Track] {
         []
     }
+    func track(id: String) async throws -> Track? {
+        nil
+    }
     func collections() async throws -> [Collection] {
+        []
+    }
+    func collection(id: String) async throws -> Collection? {
+        nil
+    }
+    func searchCollections(query: String) async throws -> [Collection] {
         []
     }
     func artists() async throws -> [Artist] {
@@ -206,6 +224,9 @@ private final class CoordinatorLibraryRepoMock: LibraryRepoProtocol {
     }
     func artist(id: String) async throws -> Artist? {
         nil
+    }
+    func searchArtists(query: String) async throws -> [Artist] {
+        []
     }
     func refreshLibrary(reason: LibraryRefreshReason) async throws -> LibraryRefreshOutcome {
         refreshReasons.append(reason)
@@ -227,6 +248,9 @@ private final class CoordinatorLibraryRepoMock: LibraryRepoProtocol {
     }
     func streamURL(for track: Track) async throws -> URL {
         throw LibraryError.resourceNotFound(type: "track", id: track.plexID)
+    }
+    func authenticatedArtworkURL(for rawValue: String?) async throws -> URL? {
+        nil
     }
 }
 @MainActor

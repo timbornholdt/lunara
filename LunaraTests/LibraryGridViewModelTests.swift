@@ -281,11 +281,27 @@ private final class LibraryGridRepoMock: LibraryRepoProtocol {
         nil
     }
 
+    func searchAlbums(query: String) async throws -> [Album] {
+        []
+    }
+
     func tracks(forAlbum albumID: String) async throws -> [Track] {
         []
     }
 
+    func track(id: String) async throws -> Track? {
+        nil
+    }
+
     func collections() async throws -> [Collection] {
+        []
+    }
+
+    func collection(id: String) async throws -> Collection? {
+        nil
+    }
+
+    func searchCollections(query: String) async throws -> [Collection] {
         []
     }
 
@@ -295,6 +311,10 @@ private final class LibraryGridRepoMock: LibraryRepoProtocol {
 
     func artist(id: String) async throws -> Artist? {
         nil
+    }
+
+    func searchArtists(query: String) async throws -> [Artist] {
+        []
     }
 
     func refreshLibrary(reason: LibraryRefreshReason) async throws -> LibraryRefreshOutcome {
