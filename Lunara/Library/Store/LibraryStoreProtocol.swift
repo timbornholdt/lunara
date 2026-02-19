@@ -63,6 +63,24 @@ struct LibrarySyncPruneResult: Equatable, Sendable {
     static let empty = LibrarySyncPruneResult(prunedAlbumIDs: [], prunedTrackIDs: [])
 }
 
+enum LibraryTagKind: String, CaseIterable, Equatable, Sendable {
+    case genre
+    case style
+    case mood
+}
+
+struct LibraryPlaylistSnapshot: Equatable, Sendable {
+    let plexID: String
+    let title: String
+    let trackCount: Int
+    let updatedAt: Date?
+}
+
+struct LibraryPlaylistItemSnapshot: Equatable, Sendable {
+    let trackID: String
+    let position: Int
+}
+
 enum ArtworkOwnerType: String, Equatable, Sendable {
     case album
     case artist
@@ -124,13 +142,25 @@ protocol LibraryStoreProtocol: AnyObject {
     /// - Transaction guarantee: all provided tracks are written atomically or no track rows are changed.
     func upsertTracks(_ tracks: [Track], in run: LibrarySyncRun) async throws
 
-    /// Replaces the full cached artist catalog for the provided sync run.
-    /// - Transaction guarantee: delete + insert completes atomically so callers never observe a partial artist catalog.
+    /// Reconciles artist rows for the provided sync run using Plex artist IDs as canonical keys.
+    /// - Transaction guarantee: all artist rows in this call are upserted atomically or no artist rows are changed.
     func replaceArtists(_ artists: [Artist], in run: LibrarySyncRun) async throws
 
-    /// Replaces the full cached collection catalog for the provided sync run.
-    /// - Transaction guarantee: delete + insert completes atomically so callers never observe a partial collection catalog.
+    /// Reconciles collection rows for the provided sync run using Plex collection IDs as canonical keys.
+    /// - Transaction guarantee: all collection rows in this call are upserted atomically or no collection rows are changed.
     func replaceCollections(_ collections: [Collection], in run: LibrarySyncRun) async throws
+
+    /// Reconciles playlist rows for the provided sync run using Plex playlist IDs as canonical keys.
+    /// - Transaction guarantee: all playlist rows in this call are upserted atomically or no playlist rows are changed.
+    func upsertPlaylists(_ playlists: [LibraryPlaylistSnapshot], in run: LibrarySyncRun) async throws
+
+    /// Reconciles ordered playlist item rows for one playlist in the provided sync run.
+    /// - Transaction guarantee: all playlist items for `playlistID` in this call are written atomically or no playlist items are changed.
+    func upsertPlaylistItems(
+        _ items: [LibraryPlaylistItemSnapshot],
+        playlistID: String,
+        in run: LibrarySyncRun
+    ) async throws
 
     /// Marks album rows as observed in the active sync run.
     /// - Transaction guarantee: all album IDs in this call are marked together or none are marked.

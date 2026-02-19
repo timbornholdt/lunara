@@ -20,10 +20,13 @@ extension LibraryRepo {
         do {
             async let remoteArtistsTask = remote.fetchArtists()
             async let remoteCollectionsTask = remote.fetchCollections()
+            async let remotePlaylistsTask = remote.fetchPlaylists()
             let remoteAlbums = try await remote.fetchAlbums()
             let remoteTracks = try await fetchRemoteTracks(for: remoteAlbums)
             let remoteArtists = try await remoteArtistsTask
             let remoteCollections = try await remoteCollectionsTask
+            let remotePlaylists = try await remotePlaylistsTask
+            let remotePlaylistItems = try await fetchRemotePlaylistItems(for: remotePlaylists)
             let dedupedLibrary = dedupeLibrary(albums: remoteAlbums, tracks: remoteTracks)
 
             let cachedAlbums = try await fetchAllCachedAlbums()
@@ -34,7 +37,7 @@ extension LibraryRepo {
             logger.info(
                 """
                 refresh remote reason=\(String(describing: reason), privacy: .public) \
-                remoteAlbums=\(remoteAlbums.count) remoteTracks=\(remoteTracks.count) remoteArtists=\(remoteArtists.count) remoteCollections=\(remoteCollections.count) \
+                remoteAlbums=\(remoteAlbums.count) remoteTracks=\(remoteTracks.count) remoteArtists=\(remoteArtists.count) remoteCollections=\(remoteCollections.count) remotePlaylists=\(remotePlaylists.count) \
                 dedupedAlbums=\(dedupedLibrary.albums.count) dedupedTracks=\(dedupedLibrary.tracks.count)
                 """
             )
@@ -58,6 +61,21 @@ extension LibraryRepo {
             try await store.upsertTracks(dedupedLibrary.tracks, in: run)
             try await store.replaceArtists(remoteArtists, in: run)
             try await store.replaceCollections(remoteCollections, in: run)
+            try await store.upsertPlaylists(remotePlaylists.map {
+                LibraryPlaylistSnapshot(
+                    plexID: $0.plexID,
+                    title: $0.title,
+                    trackCount: $0.trackCount,
+                    updatedAt: $0.updatedAt
+                )
+            }, in: run)
+            for (playlistID, items) in remotePlaylistItems {
+                try await store.upsertPlaylistItems(
+                    items.map { LibraryPlaylistItemSnapshot(trackID: $0.trackID, position: $0.position) },
+                    playlistID: playlistID,
+                    in: run
+                )
+            }
             try await store.markAlbumsSeen(dedupedLibrary.albums.map(\.plexID), in: run)
             try await store.markTracksSeen(dedupedLibrary.tracks.map(\.plexID), in: run)
             let pruneResult = try await store.pruneRowsNotSeen(in: run)
@@ -112,6 +130,17 @@ extension LibraryRepo {
             tracks.append(contentsOf: albumTracks)
         }
         return tracks
+    }
+
+    private func fetchRemotePlaylistItems(
+        for playlists: [LibraryRemotePlaylist]
+    ) async throws -> [String: [LibraryRemotePlaylistItem]] {
+        var itemsByPlaylistID: [String: [LibraryRemotePlaylistItem]] = [:]
+        itemsByPlaylistID.reserveCapacity(playlists.count)
+        for playlist in playlists {
+            itemsByPlaylistID[playlist.plexID] = try await remote.fetchPlaylistItems(playlistID: playlist.plexID)
+        }
+        return itemsByPlaylistID
     }
 
     private func fetchAllCachedAlbums(pageSize: Int = 200) async throws -> [Album] {
