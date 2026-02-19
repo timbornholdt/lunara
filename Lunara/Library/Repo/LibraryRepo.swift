@@ -1,10 +1,26 @@
 import Foundation
 
+struct LibraryRemotePlaylist: Equatable, Sendable {
+    let plexID: String
+    let title: String
+    let trackCount: Int
+    let updatedAt: Date?
+}
+
+struct LibraryRemotePlaylistItem: Equatable, Sendable {
+    let trackID: String
+    let position: Int
+}
+
 /// Network contract consumed by LibraryRepo.
 /// Kept protocol-based so repository behavior can be unit-tested with mocks.
 protocol LibraryRemoteDataSource: AnyObject {
     func fetchAlbums() async throws -> [Album]
     func fetchAlbum(id albumID: String) async throws -> Album?
+    func fetchArtists() async throws -> [Artist]
+    func fetchCollections() async throws -> [Collection]
+    func fetchPlaylists() async throws -> [LibraryRemotePlaylist]
+    func fetchPlaylistItems(playlistID: String) async throws -> [LibraryRemotePlaylistItem]
     func fetchTracks(forAlbum albumID: String) async throws -> [Track]
     func fetchTrack(id trackID: String) async throws -> Track?
     func streamURL(forTrack track: Track) async throws -> URL

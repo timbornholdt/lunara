@@ -4,6 +4,10 @@ import Foundation
 @MainActor
 final class LibraryRemoteMock: LibraryRemoteDataSource {
     var albums: [Album] = []
+    var artists: [Artist] = []
+    var collections: [Collection] = []
+    var playlists: [LibraryRemotePlaylist] = []
+    var playlistItemsByPlaylistID: [String: [LibraryRemotePlaylistItem]] = [:]
     var albumsByID: [String: Album] = [:]
     var tracksByAlbumID: [String: [Track]] = [:]
     var tracksByID: [String: Track] = [:]
@@ -11,13 +15,21 @@ final class LibraryRemoteMock: LibraryRemoteDataSource {
     var artworkURLByRawValue: [String: URL] = [:]
 
     var fetchAlbumsCallCount = 0
+    var fetchArtistsCallCount = 0
+    var fetchCollectionsCallCount = 0
     var fetchAlbumRequests: [String] = []
+    var fetchPlaylistItemsRequests: [String] = []
+    var fetchPlaylistsCallCount = 0
     var fetchTracksRequests: [String] = []
     var fetchTrackRequests: [String] = []
     var streamURLRequests: [String] = []
     var artworkURLRequests: [String?] = []
 
     var fetchAlbumsError: LibraryError?
+    var fetchArtistsError: LibraryError?
+    var fetchCollectionsError: LibraryError?
+    var fetchPlaylistsError: LibraryError?
+    var fetchPlaylistItemsErrorByID: [String: LibraryError] = [:]
     var fetchTracksErrorByAlbumID: [String: LibraryError] = [:]
     var fetchAlbumErrorByID: [String: LibraryError] = [:]
     var fetchTrackErrorByID: [String: LibraryError] = [:]
@@ -38,6 +50,38 @@ final class LibraryRemoteMock: LibraryRemoteDataSource {
             throw error
         }
         return albumsByID[albumID]
+    }
+
+    func fetchArtists() async throws -> [Artist] {
+        fetchArtistsCallCount += 1
+        if let fetchArtistsError {
+            throw fetchArtistsError
+        }
+        return artists
+    }
+
+    func fetchCollections() async throws -> [Collection] {
+        fetchCollectionsCallCount += 1
+        if let fetchCollectionsError {
+            throw fetchCollectionsError
+        }
+        return collections
+    }
+
+    func fetchPlaylists() async throws -> [LibraryRemotePlaylist] {
+        fetchPlaylistsCallCount += 1
+        if let fetchPlaylistsError {
+            throw fetchPlaylistsError
+        }
+        return playlists
+    }
+
+    func fetchPlaylistItems(playlistID: String) async throws -> [LibraryRemotePlaylistItem] {
+        fetchPlaylistItemsRequests.append(playlistID)
+        if let error = fetchPlaylistItemsErrorByID[playlistID] {
+            throw error
+        }
+        return playlistItemsByPlaylistID[playlistID] ?? []
     }
 
     func fetchTracks(forAlbum albumID: String) async throws -> [Track] {
@@ -107,6 +151,8 @@ final class LibraryStoreMock: LibraryStoreProtocol {
     var begunSyncRuns: [LibrarySyncRun] = []
     var upsertAlbumsCalls: [([Album], LibrarySyncRun)] = []
     var upsertTracksCalls: [([Track], LibrarySyncRun)] = []
+    var replaceArtistsCalls: [([Artist], LibrarySyncRun)] = []
+    var replaceCollectionsCalls: [([Collection], LibrarySyncRun)] = []
     var markAlbumsSeenCalls: [([String], LibrarySyncRun)] = []
     var markTracksSeenCalls: [([String], LibrarySyncRun)] = []
     var pruneRowsNotSeenCalls: [LibrarySyncRun] = []
@@ -123,6 +169,8 @@ final class LibraryStoreMock: LibraryStoreProtocol {
     var beginIncrementalSyncError: LibraryError?
     var upsertAlbumsError: LibraryError?
     var upsertTracksError: LibraryError?
+    var replaceArtistsError: LibraryError?
+    var replaceCollectionsError: LibraryError?
     var markAlbumsSeenError: LibraryError?
     var markTracksSeenError: LibraryError?
     var pruneRowsNotSeenError: LibraryError?
@@ -273,6 +321,24 @@ final class LibraryStoreMock: LibraryStoreProtocol {
             tracksByID[track.plexID] = track
         }
         tracksByAlbumID = Dictionary(grouping: tracksByID.values, by: \.albumID)
+    }
+
+    func replaceArtists(_ artists: [Artist], in run: LibrarySyncRun) async throws {
+        if let replaceArtistsError {
+            throw replaceArtistsError
+        }
+        replaceArtistsCalls.append((artists, run))
+        cachedArtists = artists
+        artistsByID = Dictionary(uniqueKeysWithValues: artists.map { ($0.plexID, $0) })
+    }
+
+    func replaceCollections(_ collections: [Collection], in run: LibrarySyncRun) async throws {
+        if let replaceCollectionsError {
+            throw replaceCollectionsError
+        }
+        replaceCollectionsCalls.append((collections, run))
+        cachedCollections = collections
+        collectionsByID = Dictionary(uniqueKeysWithValues: collections.map { ($0.plexID, $0) })
     }
 
     func markAlbumsSeen(_ albumIDs: [String], in run: LibrarySyncRun) async throws {

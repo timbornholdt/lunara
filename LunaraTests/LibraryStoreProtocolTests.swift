@@ -205,6 +205,8 @@ private final class ProtocolStoreMock: LibraryStoreProtocol {
     }
     func upsertAlbums(_ albums: [Album], in run: LibrarySyncRun) async throws { }
     func upsertTracks(_ tracks: [Track], in run: LibrarySyncRun) async throws { }
+    func replaceArtists(_ artists: [Artist], in run: LibrarySyncRun) async throws { }
+    func replaceCollections(_ collections: [Collection], in run: LibrarySyncRun) async throws { }
     func markAlbumsSeen(_ albumIDs: [String], in run: LibrarySyncRun) async throws { }
     func markTracksSeen(_ trackIDs: [String], in run: LibrarySyncRun) async throws { }
     func pruneRowsNotSeen(in run: LibrarySyncRun) async throws -> LibrarySyncPruneResult { .empty }

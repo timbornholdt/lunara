@@ -31,6 +31,24 @@ extension LibraryStore {
         }
     }
 
+    func replaceArtists(_ artists: [Artist], in run: LibrarySyncRun) async throws {
+        try await dbQueue.write { db in
+            try ArtistRecord.deleteAll(db)
+            for artist in artists {
+                try ArtistRecord(model: artist).insert(db)
+            }
+        }
+    }
+
+    func replaceCollections(_ collections: [Collection], in run: LibrarySyncRun) async throws {
+        try await dbQueue.write { db in
+            try CollectionRecord.deleteAll(db)
+            for collection in collections {
+                try CollectionRecord(model: collection).insert(db)
+            }
+        }
+    }
+
     func markAlbumsSeen(_ albumIDs: [String], in run: LibrarySyncRun) async throws {
         guard !albumIDs.isEmpty else { return }
 

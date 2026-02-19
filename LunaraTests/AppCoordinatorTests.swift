@@ -197,12 +197,22 @@ struct AppCoordinatorTests {
             makeAlbum(id: "fresh-1", thumbURL: "/library/metadata/fresh-1/thumb/1"),
             makeAlbum(id: "fresh-2", thumbURL: "/library/metadata/fresh-2/thumb/1")
         ]
+        remote.artists = [
+            Artist(plexID: "artist-1", name: "Artist 1", sortName: nil, thumbURL: nil, genre: nil, summary: nil, albumCount: 1)
+        ]
+        remote.collections = [
+            Collection(plexID: "collection-1", title: "Collection 1", thumbURL: nil, summary: nil, albumCount: 2, updatedAt: nil)
+        ]
         let albums = try await coordinator.fetchAlbums()
         #expect(albums.map(\.plexID) == ["fresh-1", "fresh-2"])
         #expect(store.replaceLibraryCallCount == 0)
         #expect(store.begunSyncRuns.count == 1)
         #expect(store.upsertAlbumsCalls.count == 1)
+        #expect(store.replaceArtistsCalls.count == 1)
+        #expect(store.replaceCollectionsCalls.count == 1)
         #expect(store.completeIncrementalSyncCalls.count == 1)
+        #expect(try await store.fetchArtists().map(\.plexID) == ["artist-1"])
+        #expect(try await store.fetchCollections().map(\.plexID) == ["collection-1"])
         await waitForArtworkRequests(
             on: artworkPipeline,
             expectedOwnerIDs: ["fresh-1", "fresh-2"]
