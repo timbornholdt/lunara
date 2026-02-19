@@ -340,6 +340,10 @@ private final class LibraryRepoMock: LibraryRepoProtocol {
         []
     }
 
+    func queryAlbums(filter: AlbumQueryFilter) async throws -> [Album] {
+        []
+    }
+
     func tracks(forAlbum albumID: String) async throws -> [Track] {
         trackRequests.append(albumID)
         if let tracksError {

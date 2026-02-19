@@ -350,6 +350,9 @@ private final class CoordinatorLibraryRepoMock: LibraryRepoProtocol {
     func searchAlbums(query: String) async throws -> [Album] {
         []
     }
+    func queryAlbums(filter: AlbumQueryFilter) async throws -> [Album] {
+        []
+    }
     func tracks(forAlbum albumID: String) async throws -> [Track] {
         []
     }

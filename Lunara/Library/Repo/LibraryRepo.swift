@@ -80,6 +80,10 @@ final class LibraryRepo: LibraryRepoProtocol {
         try await store.searchAlbums(query: query)
     }
 
+    func queryAlbums(filter: AlbumQueryFilter) async throws -> [Album] {
+        try await store.queryAlbums(filter: filter)
+    }
+
     func tracks(forAlbum albumID: String) async throws -> [Track] {
         let cachedTracks = try await store.fetchTracks(forAlbum: albumID)
         if !cachedTracks.isEmpty {
