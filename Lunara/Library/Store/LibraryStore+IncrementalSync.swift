@@ -15,36 +15,10 @@ extension LibraryStore {
         return run
     }
 
-    func upsertAlbums(_ albums: [Album], in run: LibrarySyncRun) async throws {
-        try await dbQueue.write { db in
-            for album in albums {
-                try AlbumRecord(model: album).save(db)
-            }
-        }
-    }
-
     func upsertTracks(_ tracks: [Track], in run: LibrarySyncRun) async throws {
         try await dbQueue.write { db in
             for track in tracks {
                 try TrackRecord(model: track).save(db)
-            }
-        }
-    }
-
-    func replaceArtists(_ artists: [Artist], in run: LibrarySyncRun) async throws {
-        try await dbQueue.write { db in
-            try ArtistRecord.deleteAll(db)
-            for artist in artists {
-                try ArtistRecord(model: artist).insert(db)
-            }
-        }
-    }
-
-    func replaceCollections(_ collections: [Collection], in run: LibrarySyncRun) async throws {
-        try await dbQueue.write { db in
-            try CollectionRecord.deleteAll(db)
-            for collection in collections {
-                try CollectionRecord(model: collection).insert(db)
             }
         }
     }
@@ -93,6 +67,23 @@ extension LibraryStore {
                 sql: "SELECT plexID FROM albums WHERE lastSeenSyncID IS NULL OR lastSeenSyncID != ?",
                 arguments: [run.id]
             )
+            let staleArtistIDs = try String.fetchAll(
+                db,
+                sql: "SELECT plexID FROM artists WHERE lastSeenSyncID IS NULL OR lastSeenSyncID != ?",
+                arguments: [run.id]
+            )
+            let staleCollectionIDs = try String.fetchAll(
+                db,
+                sql: "SELECT plexID FROM collections WHERE lastSeenSyncID IS NULL OR lastSeenSyncID != ?",
+                arguments: [run.id]
+            )
+
+            try db.execute(sql: "DELETE FROM playlist_items WHERE lastSeenSyncID IS NULL OR lastSeenSyncID != ?", arguments: [run.id])
+            try db.execute(sql: "DELETE FROM album_tags WHERE lastSeenSyncID IS NULL OR lastSeenSyncID != ?", arguments: [run.id])
+            try db.execute(sql: "DELETE FROM album_artists WHERE lastSeenSyncID IS NULL OR lastSeenSyncID != ?", arguments: [run.id])
+            try db.execute(sql: "DELETE FROM album_collections WHERE lastSeenSyncID IS NULL OR lastSeenSyncID != ?", arguments: [run.id])
+            try db.execute(sql: "DELETE FROM tags WHERE lastSeenSyncID IS NULL OR lastSeenSyncID != ?", arguments: [run.id])
+            try db.execute(sql: "DELETE FROM playlists WHERE lastSeenSyncID IS NULL OR lastSeenSyncID != ?", arguments: [run.id])
 
             if !staleTrackIDs.isEmpty {
                 _ = try TrackRecord
@@ -105,6 +96,26 @@ extension LibraryStore {
                     .filter(staleAlbumIDs.contains(Column("plexID")))
                     .deleteAll(db)
             }
+
+            if !staleArtistIDs.isEmpty {
+                _ = try ArtistRecord
+                    .filter(staleArtistIDs.contains(Column("plexID")))
+                    .deleteAll(db)
+            }
+
+            if !staleCollectionIDs.isEmpty {
+                _ = try CollectionRecord
+                    .filter(staleCollectionIDs.contains(Column("plexID")))
+                    .deleteAll(db)
+            }
+
+            try db.execute(sql: "DELETE FROM album_tags WHERE albumID NOT IN (SELECT plexID FROM albums)")
+            try db.execute(sql: "DELETE FROM album_tags WHERE tagID NOT IN (SELECT id FROM tags)")
+            try db.execute(sql: "DELETE FROM album_artists WHERE albumID NOT IN (SELECT plexID FROM albums)")
+            try db.execute(sql: "DELETE FROM album_artists WHERE artistID NOT IN (SELECT plexID FROM artists)")
+            try db.execute(sql: "DELETE FROM album_collections WHERE albumID NOT IN (SELECT plexID FROM albums)")
+            try db.execute(sql: "DELETE FROM album_collections WHERE collectionID NOT IN (SELECT plexID FROM collections)")
+            try db.execute(sql: "DELETE FROM playlist_items WHERE playlistID NOT IN (SELECT plexID FROM playlists)")
 
             try LibraryMetadataRecord(
                 key: LibraryStoreMigrations.lastIncrementalPrunedAlbumCountMetadataKey,

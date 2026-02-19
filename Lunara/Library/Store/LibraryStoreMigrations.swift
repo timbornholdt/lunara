@@ -168,6 +168,83 @@ enum LibraryStoreMigrations {
             try db.create(index: "collections_title_search_idx", on: "collections", columns: ["titleSearch"])
         }
 
+        migrator.registerMigration("v5_relationship_reconciliation") { db in
+            try db.alter(table: "artists") { table in
+                table.add(column: "lastSeenSyncID", .text)
+                table.add(column: "lastSeenAt", .datetime)
+            }
+            try db.create(index: "artists_seen_sync_idx", on: "artists", columns: ["lastSeenSyncID"])
+
+            try db.alter(table: "collections") { table in
+                table.add(column: "lastSeenSyncID", .text)
+                table.add(column: "lastSeenAt", .datetime)
+            }
+            try db.create(index: "collections_seen_sync_idx", on: "collections", columns: ["lastSeenSyncID"])
+
+            try db.create(table: "tags") { table in
+                table.autoIncrementedPrimaryKey("id")
+                table.column("kind", .text).notNull()
+                table.column("name", .text).notNull()
+                table.column("normalizedName", .text).notNull()
+                table.column("lastSeenSyncID", .text)
+                table.column("lastSeenAt", .datetime)
+                table.uniqueKey(["kind", "normalizedName"])
+            }
+            try db.create(index: "tags_kind_normalized_idx", on: "tags", columns: ["kind", "normalizedName"])
+            try db.create(index: "tags_seen_sync_idx", on: "tags", columns: ["lastSeenSyncID"])
+
+            try db.create(table: "album_tags") { table in
+                table.column("albumID", .text).notNull().references("albums", column: "plexID", onDelete: .cascade)
+                table.column("tagID", .integer).notNull().references("tags", column: "id", onDelete: .cascade)
+                table.column("lastSeenSyncID", .text)
+                table.column("lastSeenAt", .datetime)
+                table.primaryKey(["albumID", "tagID"])
+            }
+            try db.create(index: "album_tags_tag_album_idx", on: "album_tags", columns: ["tagID", "albumID"])
+            try db.create(index: "album_tags_seen_sync_idx", on: "album_tags", columns: ["lastSeenSyncID"])
+
+            try db.create(table: "album_artists") { table in
+                table.column("albumID", .text).notNull().references("albums", column: "plexID", onDelete: .cascade)
+                table.column("artistID", .text).notNull().references("artists", column: "plexID", onDelete: .cascade)
+                table.column("lastSeenSyncID", .text)
+                table.column("lastSeenAt", .datetime)
+                table.primaryKey(["albumID", "artistID"])
+            }
+            try db.create(index: "album_artists_artist_album_idx", on: "album_artists", columns: ["artistID", "albumID"])
+            try db.create(index: "album_artists_seen_sync_idx", on: "album_artists", columns: ["lastSeenSyncID"])
+
+            try db.create(table: "album_collections") { table in
+                table.column("albumID", .text).notNull().references("albums", column: "plexID", onDelete: .cascade)
+                table.column("collectionID", .text).notNull().references("collections", column: "plexID", onDelete: .cascade)
+                table.column("lastSeenSyncID", .text)
+                table.column("lastSeenAt", .datetime)
+                table.primaryKey(["albumID", "collectionID"])
+            }
+            try db.create(index: "album_collections_collection_album_idx", on: "album_collections", columns: ["collectionID", "albumID"])
+            try db.create(index: "album_collections_seen_sync_idx", on: "album_collections", columns: ["lastSeenSyncID"])
+
+            try db.create(table: "playlists") { table in
+                table.column("plexID", .text).primaryKey()
+                table.column("title", .text).notNull()
+                table.column("trackCount", .integer).notNull()
+                table.column("updatedAt", .datetime)
+                table.column("lastSeenSyncID", .text)
+                table.column("lastSeenAt", .datetime)
+            }
+            try db.create(index: "playlists_seen_sync_idx", on: "playlists", columns: ["lastSeenSyncID"])
+
+            try db.create(table: "playlist_items") { table in
+                table.column("playlistID", .text).notNull().references("playlists", column: "plexID", onDelete: .cascade)
+                table.column("trackID", .text).notNull()
+                table.column("position", .integer).notNull()
+                table.column("lastSeenSyncID", .text)
+                table.column("lastSeenAt", .datetime)
+                table.primaryKey(["playlistID", "position"])
+            }
+            try db.create(index: "playlist_items_playlist_position_idx", on: "playlist_items", columns: ["playlistID", "position"])
+            try db.create(index: "playlist_items_seen_sync_idx", on: "playlist_items", columns: ["lastSeenSyncID"])
+        }
+
         return migrator
     }
 }

@@ -150,6 +150,13 @@ struct LibraryRepoTests {
         subject.remote.albums = [albumA, albumB]
         subject.remote.artists = [makeArtist(id: "artist-a"), makeArtist(id: "artist-b")]
         subject.remote.collections = [makeCollection(id: "collection-a")]
+        subject.remote.playlists = [
+            LibraryRemotePlaylist(plexID: "playlist-1", title: "Playlist", trackCount: 2, updatedAt: nil)
+        ]
+        subject.remote.playlistItemsByPlaylistID["playlist-1"] = [
+            LibraryRemotePlaylistItem(trackID: "track-a1", position: 0),
+            LibraryRemotePlaylistItem(trackID: "track-b1", position: 1)
+        ]
         subject.remote.tracksByAlbumID[albumA.plexID] = [
             makeTrack(id: "track-a1", albumID: albumA.plexID, number: 1)
         ]
@@ -162,6 +169,8 @@ struct LibraryRepoTests {
         #expect(subject.remote.fetchAlbumsCallCount == 1)
         #expect(subject.remote.fetchArtistsCallCount == 1)
         #expect(subject.remote.fetchCollectionsCallCount == 1)
+        #expect(subject.remote.fetchPlaylistsCallCount == 1)
+        #expect(subject.remote.fetchPlaylistItemsRequests == ["playlist-1"])
         #expect(subject.remote.fetchTracksRequests == ["album-a", "album-b"])
         #expect(subject.store.replaceLibraryCallCount == 0)
         #expect(subject.store.begunSyncRuns.count == 1)
@@ -169,6 +178,8 @@ struct LibraryRepoTests {
         #expect(subject.store.upsertTracksCalls.count == 1)
         #expect(subject.store.replaceArtistsCalls.count == 1)
         #expect(subject.store.replaceCollectionsCalls.count == 1)
+        #expect(subject.store.upsertPlaylistsCalls.count == 1)
+        #expect(subject.store.upsertPlaylistItemsCalls.count == 1)
         #expect(subject.store.markAlbumsSeenCalls.count == 1)
         #expect(subject.store.markTracksSeenCalls.count == 1)
         #expect(subject.store.pruneRowsNotSeenCalls.count == 1)
@@ -177,6 +188,9 @@ struct LibraryRepoTests {
         #expect(subject.store.upsertTracksCalls.first?.0.map(\.plexID) == ["track-a1", "track-b1"])
         #expect(subject.store.replaceArtistsCalls.first?.0.map(\.plexID) == ["artist-a", "artist-b"])
         #expect(subject.store.replaceCollectionsCalls.first?.0.map(\.plexID) == ["collection-a"])
+        #expect(subject.store.upsertPlaylistsCalls.first?.0.map(\.plexID) == ["playlist-1"])
+        #expect(subject.store.upsertPlaylistItemsCalls.first?.1 == "playlist-1")
+        #expect(subject.store.upsertPlaylistItemsCalls.first?.0.map(\.trackID) == ["track-a1", "track-b1"])
         #expect(subject.store.completeIncrementalSyncCalls.first?.1 == now)
         #expect(outcome == LibraryRefreshOutcome(
             reason: .userInitiated,

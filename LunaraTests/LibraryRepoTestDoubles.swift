@@ -153,6 +153,8 @@ final class LibraryStoreMock: LibraryStoreProtocol {
     var upsertTracksCalls: [([Track], LibrarySyncRun)] = []
     var replaceArtistsCalls: [([Artist], LibrarySyncRun)] = []
     var replaceCollectionsCalls: [([Collection], LibrarySyncRun)] = []
+    var upsertPlaylistsCalls: [([LibraryPlaylistSnapshot], LibrarySyncRun)] = []
+    var upsertPlaylistItemsCalls: [([LibraryPlaylistItemSnapshot], String, LibrarySyncRun)] = []
     var markAlbumsSeenCalls: [([String], LibrarySyncRun)] = []
     var markTracksSeenCalls: [([String], LibrarySyncRun)] = []
     var pruneRowsNotSeenCalls: [LibrarySyncRun] = []
@@ -171,6 +173,8 @@ final class LibraryStoreMock: LibraryStoreProtocol {
     var upsertTracksError: LibraryError?
     var replaceArtistsError: LibraryError?
     var replaceCollectionsError: LibraryError?
+    var upsertPlaylistsError: LibraryError?
+    var upsertPlaylistItemsError: LibraryError?
     var markAlbumsSeenError: LibraryError?
     var markTracksSeenError: LibraryError?
     var pruneRowsNotSeenError: LibraryError?
@@ -339,6 +343,24 @@ final class LibraryStoreMock: LibraryStoreProtocol {
         replaceCollectionsCalls.append((collections, run))
         cachedCollections = collections
         collectionsByID = Dictionary(uniqueKeysWithValues: collections.map { ($0.plexID, $0) })
+    }
+
+    func upsertPlaylists(_ playlists: [LibraryPlaylistSnapshot], in run: LibrarySyncRun) async throws {
+        if let upsertPlaylistsError {
+            throw upsertPlaylistsError
+        }
+        upsertPlaylistsCalls.append((playlists, run))
+    }
+
+    func upsertPlaylistItems(
+        _ items: [LibraryPlaylistItemSnapshot],
+        playlistID: String,
+        in run: LibrarySyncRun
+    ) async throws {
+        if let upsertPlaylistItemsError {
+            throw upsertPlaylistItemsError
+        }
+        upsertPlaylistItemsCalls.append((items, playlistID, run))
     }
 
     func markAlbumsSeen(_ albumIDs: [String], in run: LibrarySyncRun) async throws {

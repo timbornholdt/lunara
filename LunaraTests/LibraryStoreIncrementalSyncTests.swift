@@ -79,51 +79,6 @@ struct LibraryStoreIncrementalSyncTests {
         #expect(try await store.syncCheckpoint(forKey: "albums.cursor") == second)
     }
 
-    @Test
-    func replaceArtists_replacesExistingCatalogRows() async throws {
-        let store = try LibraryStore.inMemory()
-        let run = try await store.beginIncrementalSync(startedAt: Date(timeIntervalSince1970: 5310))
-
-        try await store.replaceArtists(
-            [
-                Artist(plexID: "artist-old", name: "Old", sortName: nil, thumbURL: nil, genre: nil, summary: nil, albumCount: 1)
-            ],
-            in: run
-        )
-
-        try await store.replaceArtists(
-            [
-                Artist(plexID: "artist-new", name: "New", sortName: nil, thumbURL: nil, genre: nil, summary: nil, albumCount: 2)
-            ],
-            in: run
-        )
-
-        let artists = try await store.fetchArtists()
-        #expect(artists.map(\.plexID) == ["artist-new"])
-    }
-
-    @Test
-    func replaceCollections_replacesExistingCatalogRows() async throws {
-        let store = try LibraryStore.inMemory()
-        let run = try await store.beginIncrementalSync(startedAt: Date(timeIntervalSince1970: 5311))
-
-        try await store.replaceCollections(
-            [
-                Collection(plexID: "collection-old", title: "Old", thumbURL: nil, summary: nil, albumCount: 1, updatedAt: nil)
-            ],
-            in: run
-        )
-
-        try await store.replaceCollections(
-            [
-                Collection(plexID: "collection-new", title: "New", thumbURL: nil, summary: nil, albumCount: 2, updatedAt: nil)
-            ],
-            in: run
-        )
-
-        let collections = try await store.fetchCollections()
-        #expect(collections.map(\.plexID) == ["collection-new"])
-    }
 
     @Test
     func completeIncrementalSync_setsLastRefreshDate() async throws {
