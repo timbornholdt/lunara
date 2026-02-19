@@ -308,12 +308,41 @@ private final class ArtworkStoreMock: LibraryStoreProtocol {
 
     func fetchAlbums(page: LibraryPage) async throws -> [Album] { [] }
     func fetchAlbum(id: String) async throws -> Album? { nil }
+    func upsertAlbum(_ album: Album) async throws { }
     func fetchTracks(forAlbum albumID: String) async throws -> [Track] { [] }
+    func replaceTracks(_ tracks: [Track], forAlbum albumID: String) async throws { }
+    func track(id: String) async throws -> Track? { nil }
     func fetchArtists() async throws -> [Artist] { [] }
     func fetchArtist(id: String) async throws -> Artist? { nil }
     func fetchCollections() async throws -> [Collection] { [] }
+    func collection(id: String) async throws -> Collection? { nil }
+    func searchAlbums(query: String) async throws -> [Album] { [] }
+    func queryAlbums(filter: AlbumQueryFilter) async throws -> [Album] { [] }
+    func searchArtists(query: String) async throws -> [Artist] { [] }
+    func searchCollections(query: String) async throws -> [Collection] { [] }
     func replaceLibrary(with snapshot: LibrarySnapshot, refreshedAt: Date) async throws { }
     func lastRefreshDate() async throws -> Date? { nil }
+    func beginIncrementalSync(startedAt: Date) async throws -> LibrarySyncRun {
+        LibrarySyncRun(id: "artwork-store-sync", startedAt: startedAt)
+    }
+    func upsertAlbums(_ albums: [Album], in run: LibrarySyncRun) async throws { }
+    func upsertTracks(_ tracks: [Track], in run: LibrarySyncRun) async throws { }
+    func replaceArtists(_ artists: [Artist], in run: LibrarySyncRun) async throws { }
+    func replaceCollections(_ collections: [Collection], in run: LibrarySyncRun) async throws { }
+    func fetchPlaylists() async throws -> [LibraryPlaylistSnapshot] { [] }
+    func fetchPlaylistItems(playlistID: String) async throws -> [LibraryPlaylistItemSnapshot] { [] }
+    func upsertPlaylists(_ playlists: [LibraryPlaylistSnapshot], in run: LibrarySyncRun) async throws { }
+    func upsertPlaylistItems(
+        _ items: [LibraryPlaylistItemSnapshot],
+        playlistID: String,
+        in run: LibrarySyncRun
+    ) async throws { }
+    func markAlbumsSeen(_ albumIDs: [String], in run: LibrarySyncRun) async throws { }
+    func markTracksSeen(_ trackIDs: [String], in run: LibrarySyncRun) async throws { }
+    func pruneRowsNotSeen(in run: LibrarySyncRun) async throws -> LibrarySyncPruneResult { .empty }
+    func setSyncCheckpoint(_ checkpoint: LibrarySyncCheckpoint, in run: LibrarySyncRun?) async throws { }
+    func syncCheckpoint(forKey key: String) async throws -> LibrarySyncCheckpoint? { nil }
+    func completeIncrementalSync(_ run: LibrarySyncRun, refreshedAt: Date) async throws { }
 
     func artworkPath(for key: ArtworkKey) async throws -> String? {
         artworkPathByKey[key]

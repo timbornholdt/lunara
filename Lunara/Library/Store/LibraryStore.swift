@@ -2,7 +2,7 @@ import Foundation
 import GRDB
 
 final class LibraryStore: LibraryStoreProtocol {
-    private let dbQueue: DatabaseQueue
+    let dbQueue: DatabaseQueue
 
     convenience init(databaseURL: URL) throws {
         try self.init(databasePath: databaseURL.path)
@@ -41,6 +41,13 @@ final class LibraryStore: LibraryStoreProtocol {
         }
     }
 
+    func upsertAlbum(_ album: Album) async throws {
+        let target = album
+        try await dbQueue.write { db in
+            try AlbumRecord(model: target).save(db)
+        }
+    }
+
     func fetchTracks(forAlbum albumID: String) async throws -> [Track] {
         let targetAlbumID = albumID
 
@@ -50,6 +57,26 @@ final class LibraryStore: LibraryStoreProtocol {
                 .order(Column("trackNumber").asc, Column("title").asc)
                 .fetchAll(db)
             return records.map(\.model)
+        }
+    }
+
+    func track(id: String) async throws -> Track? {
+        try await dbQueue.read { db in
+            try TrackRecord.fetchOne(db, key: id)?.model
+        }
+    }
+
+    func replaceTracks(_ tracks: [Track], forAlbum albumID: String) async throws {
+        let targetAlbumID = albumID
+        let replacementTracks = tracks
+        try await dbQueue.write { db in
+            _ = try TrackRecord
+                .filter(Column("albumID") == targetAlbumID)
+                .deleteAll(db)
+
+            for track in replacementTracks {
+                try TrackRecord(model: track).save(db)
+            }
         }
     }
 
@@ -73,6 +100,61 @@ final class LibraryStore: LibraryStoreProtocol {
             let records = try CollectionRecord
                 .order(Column("title").asc)
                 .fetchAll(db)
+            return records.map(\.model)
+        }
+    }
+
+    func collection(id: String) async throws -> Collection? {
+        try await dbQueue.read { db in
+            try CollectionRecord.fetchOne(db, key: id)?.model
+        }
+    }
+
+    func searchAlbums(query: String) async throws -> [Album] {
+        try await queryAlbums(filter: AlbumQueryFilter(textQuery: query))
+    }
+
+    func searchArtists(query: String) async throws -> [Artist] {
+        let normalizedQuery = LibraryStoreSearchNormalizer.normalize(query)
+        guard !normalizedQuery.isEmpty else {
+            return try await fetchArtists()
+        }
+
+        let pattern = LibraryStoreSearchNormalizer.likeContainsPattern(for: normalizedQuery)
+        return try await dbQueue.read { db in
+            let records = try ArtistRecord.fetchAll(
+                db,
+                sql: """
+                SELECT *
+                FROM artists
+                WHERE nameSearch LIKE ? ESCAPE '\\'
+                   OR sortNameSearch LIKE ? ESCAPE '\\'
+                ORDER BY sortName ASC, name ASC
+                """,
+                arguments: [pattern, pattern]
+            )
+            return records.map(\.model)
+        }
+    }
+
+    func searchCollections(query: String) async throws -> [Collection] {
+        let normalizedQuery = LibraryStoreSearchNormalizer.normalize(query)
+        guard !normalizedQuery.isEmpty else {
+            return try await fetchCollections()
+        }
+
+        let pattern = LibraryStoreSearchNormalizer.likeContainsPattern(for: normalizedQuery)
+        return try await dbQueue.read { db in
+            let records = try CollectionRecord.fetchAll(
+                db,
+                sql: """
+                SELECT *
+                FROM collections
+                WHERE titleSearch LIKE ? ESCAPE '\\'
+                ORDER BY title ASC
+                """,
+                arguments: [pattern]
+            )
             return records.map(\.model)
         }
     }
@@ -174,6 +256,37 @@ final class LibraryStore: LibraryStoreProtocol {
                 .filter(Column("ownerType") == ownerType)
                 .filter(Column("variant") == variant)
                 .deleteAll(db)
+        }
+    }
+
+    func fetchPlaylists() async throws -> [LibraryPlaylistSnapshot] {
+        try await dbQueue.read { db in
+            let rows = try Row.fetchAll(
+                db,
+                sql: "SELECT plexID, title, trackCount, updatedAt FROM playlists ORDER BY title ASC"
+            )
+            return rows.map { row in
+                LibraryPlaylistSnapshot(
+                    plexID: row["plexID"],
+                    title: row["title"],
+                    trackCount: row["trackCount"],
+                    updatedAt: row["updatedAt"]
+                )
+            }
+        }
+    }
+
+    func fetchPlaylistItems(playlistID: String) async throws -> [LibraryPlaylistItemSnapshot] {
+        let targetID = playlistID
+        return try await dbQueue.read { db in
+            let rows = try Row.fetchAll(
+                db,
+                sql: "SELECT trackID, position FROM playlist_items WHERE playlistID = ? ORDER BY position ASC",
+                arguments: [targetID]
+            )
+            return rows.map { row in
+                LibraryPlaylistItemSnapshot(trackID: row["trackID"], position: row["position"])
+            }
         }
     }
 }

@@ -7,9 +7,15 @@ struct AlbumRecord: Codable, FetchableRecord, PersistableRecord, TableRecord {
     let plexID: String
     let title: String
     let artistName: String
+    let titleSearch: String
+    let artistNameSearch: String
     let year: Int?
     let thumbURL: String?
     let genre: String?
+    let review: String?
+    let genres: String
+    let styles: String
+    let moods: String
     let rating: Int?
     let addedAt: Date?
     let trackCount: Int
@@ -19,9 +25,15 @@ struct AlbumRecord: Codable, FetchableRecord, PersistableRecord, TableRecord {
         plexID = model.plexID
         title = model.title
         artistName = model.artistName
+        titleSearch = LibraryStoreSearchNormalizer.normalize(model.title)
+        artistNameSearch = LibraryStoreSearchNormalizer.normalize(model.artistName)
         year = model.year
         thumbURL = model.thumbURL
         genre = model.genre
+        review = model.review
+        genres = Self.encodedTags(model.genres)
+        styles = Self.encodedTags(model.styles)
+        moods = Self.encodedTags(model.moods)
         rating = model.rating
         addedAt = model.addedAt
         trackCount = model.trackCount
@@ -39,8 +51,35 @@ struct AlbumRecord: Codable, FetchableRecord, PersistableRecord, TableRecord {
             rating: rating,
             addedAt: addedAt,
             trackCount: trackCount,
-            duration: duration
+            duration: duration,
+            review: review,
+            genres: Self.decodedTags(genres),
+            styles: Self.decodedTags(styles),
+            moods: Self.decodedTags(moods)
         )
+    }
+
+    private static func encodedTags(_ values: [String]) -> String {
+        do {
+            let data = try JSONEncoder().encode(values)
+            guard let string = String(data: data, encoding: .utf8) else {
+                return "[]"
+            }
+            return string
+        } catch {
+            return "[]"
+        }
+    }
+
+    private static func decodedTags(_ value: String) -> [String] {
+        guard let data = value.data(using: .utf8) else {
+            return []
+        }
+        do {
+            return try JSONDecoder().decode([String].self, from: data)
+        } catch {
+            return []
+        }
     }
 }
 
@@ -87,6 +126,8 @@ struct ArtistRecord: Codable, FetchableRecord, PersistableRecord, TableRecord {
     let plexID: String
     let name: String
     let sortName: String?
+    let nameSearch: String
+    let sortNameSearch: String
     let thumbURL: String?
     let genre: String?
     let summary: String?
@@ -96,6 +137,8 @@ struct ArtistRecord: Codable, FetchableRecord, PersistableRecord, TableRecord {
         plexID = model.plexID
         name = model.name
         sortName = model.sortName
+        nameSearch = LibraryStoreSearchNormalizer.normalize(model.name)
+        sortNameSearch = LibraryStoreSearchNormalizer.normalize(model.sortName ?? "")
         thumbURL = model.thumbURL
         genre = model.genre
         summary = model.summary
@@ -120,6 +163,7 @@ struct CollectionRecord: Codable, FetchableRecord, PersistableRecord, TableRecor
 
     let plexID: String
     let title: String
+    let titleSearch: String
     let thumbURL: String?
     let summary: String?
     let albumCount: Int
@@ -128,6 +172,7 @@ struct CollectionRecord: Codable, FetchableRecord, PersistableRecord, TableRecor
     init(model: Collection) {
         plexID = model.plexID
         title = model.title
+        titleSearch = LibraryStoreSearchNormalizer.normalize(model.title)
         thumbURL = model.thumbURL
         summary = model.summary
         albumCount = model.albumCount
@@ -167,4 +212,24 @@ struct LibraryMetadataRecord: Codable, FetchableRecord, PersistableRecord, Table
 
     let key: String
     let value: String
+}
+
+struct LibrarySyncCheckpointRecord: Codable, FetchableRecord, PersistableRecord, TableRecord {
+    static let databaseTableName = "library_sync_checkpoints"
+
+    let key: String
+    let value: String
+    let updatedAt: Date
+    let runID: String?
+
+    init(checkpoint: LibrarySyncCheckpoint, runID: String?) {
+        key = checkpoint.key
+        value = checkpoint.value
+        updatedAt = checkpoint.updatedAt
+        self.runID = runID
+    }
+
+    var model: LibrarySyncCheckpoint {
+        LibrarySyncCheckpoint(key: key, value: value, updatedAt: updatedAt)
+    }
 }

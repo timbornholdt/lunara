@@ -92,6 +92,50 @@ final class PlexAPIClientTests: XCTestCase {
         XCTAssertEqual(albums[1].title, "Dark Side of the Moon")
     }
 
+    func test_fetchAlbums_parsesSummaryAndChildGenreTags() async throws {
+        try authManager.setToken("token")
+        mockSession.dataToReturn = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <MediaContainer>
+            <Directory key="/library/metadata/1001/children" ratingKey="1001" type="album" title="Test Album" parentTitle="Test Artist" summary="Album review text" leafCount="2" duration="120000">
+                <Genre tag="Pop/Rock" />
+                <Genre tag="Electronic" />
+            </Directory>
+        </MediaContainer>
+        """.data(using: .utf8)!
+
+        let albums = try await client.fetchAlbums()
+
+        XCTAssertEqual(albums.count, 1)
+        XCTAssertEqual(albums[0].review, "Album review text")
+        XCTAssertEqual(albums[0].genres, ["Pop/Rock", "Electronic"])
+        XCTAssertEqual(albums[0].genre, "Pop/Rock")
+    }
+
+    func test_fetchAlbum_parsesReviewGenresStylesAndMoodsFromMetadataEndpoint() async throws {
+        try authManager.setToken("token")
+        mockSession.dataToReturn = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <MediaContainer>
+            <Directory ratingKey="99438" key="/library/metadata/99438/children" type="album" title="Blackstar" parentTitle="David Bowie" summary="Detailed review" leafCount="7" duration="2461000">
+                <Genre tag="Pop/Rock" />
+                <Style tag="Experimental Rock" />
+                <Style tag="Art Rock" />
+                <Mood tag="Brooding" />
+                <Mood tag="Dramatic" />
+            </Directory>
+        </MediaContainer>
+        """.data(using: .utf8)!
+
+        let album = try await client.fetchAlbum(id: "99438")
+
+        XCTAssertEqual(album?.plexID, "99438")
+        XCTAssertEqual(album?.review, "Detailed review")
+        XCTAssertEqual(album?.genres, ["Pop/Rock"])
+        XCTAssertEqual(album?.styles, ["Experimental Rock", "Art Rock"])
+        XCTAssertEqual(album?.moods, ["Brooding", "Dramatic"])
+    }
+
     func test_fetchAlbums_withMissingRatingKey_throwsInvalidResponse() async throws {
         try authManager.setToken("token")
         mockSession.dataToReturn = """
@@ -232,6 +276,25 @@ final class PlexAPIClientTests: XCTestCase {
         XCTAssertEqual(tracks[0].key, "/library/parts/2/123/file.mp3")
     }
 
+    func test_fetchTracks_prefersOriginalTitle_forCompilationTrackArtist() async throws {
+        try authManager.setToken("token")
+        mockSession.dataToReturn = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <MediaContainer>
+            <Track ratingKey="2001" type="track" title="Monster Song" index="1" originalTitle="Warrant" grandparentTitle="Various Artists" key="/library/metadata/2001">
+                <Media id="1" duration="259000">
+                    <Part id="2" key="/library/parts/2/123/file.mp3" />
+                </Media>
+            </Track>
+        </MediaContainer>
+        """.data(using: .utf8)!
+
+        let tracks = try await client.fetchTracks(forAlbum: "12345")
+
+        XCTAssertEqual(tracks.count, 1)
+        XCTAssertEqual(tracks[0].artistName, "Warrant")
+    }
+
     func test_fetchTracks_whenTrackLacksPlayablePartKey_throwsInvalidResponse() async throws {
         try authManager.setToken("token")
         mockSession.dataToReturn = """
@@ -253,6 +316,116 @@ final class PlexAPIClientTests: XCTestCase {
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
+    }
+
+    // MARK: - fetchTrack() Tests
+
+    func test_fetchTrack_parsesTrackMetadataResponse_returnsTrack() async throws {
+        try authManager.setToken("token")
+        mockSession.dataToReturn = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <MediaContainer>
+            <Track ratingKey="2001" parentRatingKey="1001" type="track" title="Come Together" index="1" grandparentTitle="The Beatles" duration="259000" key="/library/metadata/2001">
+                <Media id="1" duration="259000">
+                    <Part id="11" key="/library/parts/11/123/file.mp3" />
+                </Media>
+            </Track>
+        </MediaContainer>
+        """.data(using: .utf8)!
+
+        let track = try await client.fetchTrack(id: "2001")
+
+        XCTAssertEqual(track?.plexID, "2001")
+        XCTAssertEqual(track?.albumID, "1001")
+        XCTAssertEqual(track?.title, "Come Together")
+        XCTAssertEqual(track?.trackNumber, 1)
+        XCTAssertEqual(track?.artistName, "The Beatles")
+        XCTAssertEqual(track?.key, "/library/parts/11/123/file.mp3")
+    }
+
+    func test_fetchTrack_whenResponseHasNoTrack_returnsNil() async throws {
+        try authManager.setToken("token")
+        mockSession.dataToReturn = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <MediaContainer />
+        """.data(using: .utf8)!
+
+        let track = try await client.fetchTrack(id: "missing")
+
+        XCTAssertNil(track)
+    }
+
+    // MARK: - Catalog Metadata Tests
+
+    func test_fetchArtists_parsesArtistDirectories() async throws {
+        try authManager.setToken("token")
+        mockSession.dataToReturn = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <MediaContainer>
+            <Directory key="100" ratingKey="100" type="artist" title="The Beatles" titleSort="Beatles, The" thumb="/library/metadata/100/thumb" genre="Rock" summary="Liverpool" leafCount="12" />
+            <Directory key="200" ratingKey="200" type="artist" title="Miles Davis" leafCount="8" />
+        </MediaContainer>
+        """.data(using: .utf8)!
+
+        let artists = try await client.fetchArtists()
+
+        XCTAssertEqual(artists.map(\.plexID), ["100", "200"])
+        XCTAssertEqual(artists.first?.name, "The Beatles")
+        XCTAssertEqual(artists.first?.sortName, "Beatles, The")
+        XCTAssertEqual(artists.first?.albumCount, 12)
+    }
+
+    func test_fetchCollections_parsesCollectionDirectories() async throws {
+        try authManager.setToken("token")
+        mockSession.dataToReturn = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <MediaContainer>
+            <Directory key="300" ratingKey="300" type="collection" title="Current Vibes" thumb="/library/metadata/300/thumb" summary="Mood set" leafCount="5" updatedAt="1700001000" />
+        </MediaContainer>
+        """.data(using: .utf8)!
+
+        let collections = try await client.fetchCollections()
+
+        XCTAssertEqual(collections.count, 1)
+        XCTAssertEqual(collections.first?.plexID, "300")
+        XCTAssertEqual(collections.first?.title, "Current Vibes")
+        XCTAssertEqual(collections.first?.albumCount, 5)
+        XCTAssertEqual(collections.first?.updatedAt, Date(timeIntervalSince1970: 1700001000))
+    }
+
+    func test_fetchPlaylists_parsesPlaylistMetadata() async throws {
+        try authManager.setToken("token")
+        mockSession.dataToReturn = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <MediaContainer>
+            <Playlist ratingKey="playlist-1" type="playlist" title="Morning Mix" leafCount="4" updatedAt="1700002000" />
+        </MediaContainer>
+        """.data(using: .utf8)!
+
+        let playlists = try await client.fetchPlaylists()
+
+        XCTAssertEqual(playlists.count, 1)
+        XCTAssertEqual(playlists.first?.plexID, "playlist-1")
+        XCTAssertEqual(playlists.first?.title, "Morning Mix")
+        XCTAssertEqual(playlists.first?.trackCount, 4)
+    }
+
+    func test_fetchPlaylistItems_preservesReturnedOrder() async throws {
+        try authManager.setToken("token")
+        mockSession.dataToReturn = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <MediaContainer>
+            <Track ratingKey="track-2" type="track" title="Second" />
+            <Track ratingKey="track-1" type="track" title="First" />
+        </MediaContainer>
+        """.data(using: .utf8)!
+
+        let items = try await client.fetchPlaylistItems(playlistID: "playlist-1")
+
+        XCTAssertEqual(items, [
+            LibraryRemotePlaylistItem(trackID: "track-2", position: 0),
+            LibraryRemotePlaylistItem(trackID: "track-1", position: 1)
+        ])
     }
 
     // MARK: - streamURL() Tests

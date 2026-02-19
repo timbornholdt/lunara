@@ -16,7 +16,7 @@ struct LunaraApp: App {
         WindowGroup {
             Group {
                 if coordinator.isSignedIn {
-                    DebugLibraryView(coordinator: coordinator)
+                    LibraryRootTabView(coordinator: coordinator)
                 } else {
                     SignInView(coordinator: coordinator)
                 }

@@ -5,18 +5,21 @@ import os
 /// Shows basic album fetching to verify Plex connectivity
 /// Will be replaced with proper UI in Phase 4
 struct DebugLibraryView: View {
-
     let coordinator: AppCoordinator
-    private let logger = Logger(subsystem: "holdings.chinlock.lunara", category: "DebugLibraryView")
-    private let duplicateReporter = AlbumDuplicateDebugReporter()
+    let logger = Logger(subsystem: "holdings.chinlock.lunara", category: "DebugLibraryView")
+    let duplicateReporter = AlbumDuplicateDebugReporter()
 
-    @State private var albums: [Album] = []
-    @State private var isLoading = false
-    @State private var errorMessage: String?
+    @State var albums: [Album] = []
+    @State var isLoading = false
+    @State var errorMessage: String?
+    @State var errorBannerState = ErrorBannerState()
+    @State var tracksByID: [String: Track] = [:]
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 20) {
+                LunaraStylePrimitivesShowcase()
+
                 playbackPanel
 
                 if isLoading {
@@ -29,6 +32,7 @@ struct DebugLibraryView: View {
                     albumList
                 }
             }
+            .lunaraLinenBackground()
             .navigationTitle("Debug Library")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
@@ -38,17 +42,30 @@ struct DebugLibraryView: View {
                     .disabled(isLoading)
                 }
 
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Test Banner") {
+                        showTestBanner()
+                    }
+                }
+
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Sign Out") {
                         coordinator.signOut()
                     }
                 }
             }
+            .lunaraErrorBanner(using: errorBannerState)
             .task {
                 // Auto-fetch albums on first appearance
                 if albums.isEmpty && !isLoading {
                     fetchAlbumsOnLaunch()
                 }
+            }
+            .task(id: coordinator.backgroundRefreshSuccessToken) {
+                await applyBackgroundRefreshIfNeeded()
+            }
+            .task(id: coordinator.backgroundRefreshFailureToken) {
+                applyBackgroundRefreshFailureIfNeeded()
             }
         }
     }
@@ -180,7 +197,7 @@ struct DebugLibraryView: View {
     }
 
     private var currentTrackLabel: String {
-        coordinator.queueManager.currentItem?.trackID ?? "none"
+        DebugCurrentTrackFormatter.label(for: coordinator.queueManager.currentItem?.trackID, tracksByID: tracksByID)
     }
 
     private func errorView(message: String) -> some View {
@@ -201,79 +218,6 @@ struct DebugLibraryView: View {
         .padding()
     }
 
-    // MARK: - Actions
-
-    private func fetchAlbumsOnLaunch() {
-        loadAlbums(
-            logMessage: "Fetch albums requested for app launch from debug screen",
-            loader: { try await coordinator.loadLibraryOnLaunch() }
-        )
-    }
-
-    private func refreshAlbumsUserInitiated() {
-        loadAlbums(
-            logMessage: "Fetch albums requested from debug screen",
-            loader: { try await coordinator.fetchAlbums() }
-        )
-    }
-
-    private func loadAlbums(
-        logMessage: String,
-        loader: @escaping @MainActor () async throws -> [Album]
-    ) {
-        logger.info("\(logMessage, privacy: .public)")
-        isLoading = true
-        errorMessage = nil
-
-        Task {
-            do {
-                let fetchedAlbums = try await loader()
-                await MainActor.run {
-                    self.albums = fetchedAlbums
-                    self.isLoading = false
-                }
-                logger.info("Fetched \(fetchedAlbums.count, privacy: .public) albums")
-                duplicateReporter.logReport(
-                    albums: fetchedAlbums,
-                    logger: logger,
-                    spotlightTitle: "After the Gold Rush",
-                    spotlightArtist: "Neil Young"
-                )
-            } catch let error as LibraryError {
-                await MainActor.run {
-                    self.isLoading = false
-                    self.errorMessage = error.userMessage
-                }
-                logger.error("Fetch albums failed with LibraryError: \(String(describing: error), privacy: .public)")
-            } catch {
-                await MainActor.run {
-                    self.isLoading = false
-                    self.errorMessage = error.localizedDescription
-                }
-                logger.error("Fetch albums failed with unexpected error: \(error.localizedDescription, privacy: .public)")
-            }
-        }
-    }
-
-    private func playAlbum(_ album: Album) {
-        logger.info("Play tapped for album '\(album.title, privacy: .public)' with plexID '\(album.plexID, privacy: .public)'")
-        Task {
-            do {
-                try await coordinator.playAlbum(album)
-                logger.info("Play request succeeded for album '\(album.title, privacy: .public)'")
-            } catch let error as LunaraError {
-                await MainActor.run {
-                    self.errorMessage = error.userMessage
-                }
-                logger.error("Play request failed for album '\(album.title, privacy: .public)'. Error: \(String(describing: error), privacy: .public)")
-            } catch {
-                await MainActor.run {
-                    self.errorMessage = error.localizedDescription
-                }
-                logger.error("Play request failed for album '\(album.title, privacy: .public)' with unexpected error: \(error.localizedDescription, privacy: .public)")
-            }
-        }
-    }
 }
 
 // MARK: - Preview

@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import os
 
 /// Coordinates app-wide dependencies and state
 /// This is a minimal coordinator for Phase 1 - will expand in later phases
@@ -16,12 +17,18 @@ final class AppCoordinator {
     let playbackEngine: PlaybackEngineProtocol
     let queueManager: QueueManagerProtocol
     let appRouter: AppRouter
+    private let logger = Logger(subsystem: "holdings.chinlock.lunara", category: "AppCoordinator")
 
     // MARK: - State
 
     var isSignedIn: Bool {
         authManager.isSignedIn
     }
+
+    private(set) var backgroundRefreshSuccessToken = 0
+    private(set) var backgroundRefreshFailureToken = 0
+    private(set) var lastBackgroundRefreshDate: Date?
+    private(set) var lastBackgroundRefreshErrorMessage: String?
 
     // MARK: - Initialization
 
@@ -98,6 +105,26 @@ final class AppCoordinator {
         try await appRouter.playAlbum(album)
     }
 
+    func queueAlbumNext(_ album: Album) async throws {
+        try await appRouter.queueAlbumNext(album)
+    }
+
+    func queueAlbumLater(_ album: Album) async throws {
+        try await appRouter.queueAlbumLater(album)
+    }
+
+    func playTrackNow(_ track: Track) async throws {
+        try await appRouter.playTrackNow(track)
+    }
+
+    func queueTrackNext(_ track: Track) async throws {
+        try await appRouter.queueTrackNext(track)
+    }
+
+    func queueTrackLater(_ track: Track) async throws {
+        try await appRouter.queueTrackLater(track)
+    }
+
     func pausePlayback() {
         appRouter.pausePlayback()
     }
@@ -128,14 +155,65 @@ final class AppCoordinator {
     private func syncAlbums(refreshReason: LibraryRefreshReason) async throws -> [Album] {
         let cachedAlbums = try await libraryRepo.fetchAlbums()
 
-        do {
-            _ = try await libraryRepo.refreshLibrary(reason: refreshReason)
-            return try await libraryRepo.fetchAlbums()
-        } catch {
-            if !cachedAlbums.isEmpty {
-                return cachedAlbums
+        if !cachedAlbums.isEmpty {
+            if refreshReason == .appLaunch {
+                Task { [weak self] in
+                    guard let self else {
+                        return
+                    }
+                    await self.reconcileQueueAfterCatalogUpdate(trigger: "startup-cache-load")
+                }
             }
-            throw error
+
+            Task { [weak self] in
+                guard let self else {
+                    return
+                }
+                await self.performBackgroundRefresh(reason: refreshReason)
+            }
+            return cachedAlbums
+        }
+
+        _ = try await libraryRepo.refreshLibrary(reason: refreshReason)
+        await reconcileQueueAfterCatalogUpdate(trigger: "foreground-refresh-\(String(describing: refreshReason))")
+        return try await libraryRepo.fetchAlbums()
+    }
+
+    private func performBackgroundRefresh(reason: LibraryRefreshReason) async {
+        do {
+            let outcome = try await libraryRepo.refreshLibrary(reason: reason)
+            backgroundRefreshSuccessToken += 1
+            lastBackgroundRefreshDate = outcome.refreshedAt
+            lastBackgroundRefreshErrorMessage = nil
+            logger.info("Background refresh succeeded for reason '\(String(describing: reason), privacy: .public)' at \(outcome.refreshedAt, privacy: .public)")
+
+            if reason != .appLaunch {
+                await reconcileQueueAfterCatalogUpdate(trigger: "background-refresh-\(String(describing: reason))")
+            }
+        } catch let error as LunaraError {
+            backgroundRefreshFailureToken += 1
+            lastBackgroundRefreshErrorMessage = error.userMessage
+            logger.error("Background refresh failed for reason '\(String(describing: reason), privacy: .public)' with LunaraError: \(String(describing: error), privacy: .public)")
+        } catch {
+            backgroundRefreshFailureToken += 1
+            lastBackgroundRefreshErrorMessage = error.localizedDescription
+            logger.error("Background refresh failed for reason '\(String(describing: reason), privacy: .public)' with unexpected error: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func reconcileQueueAfterCatalogUpdate(trigger: String) async {
+        do {
+            let outcome = try await appRouter.reconcileQueueAgainstLibrary()
+            guard outcome.removedItemCount > 0 else {
+                logger.info("Queue reconciliation found no missing tracks for trigger '\(trigger, privacy: .public)'")
+                return
+            }
+
+            logger.info(
+                "Queue reconciliation removed \(outcome.removedItemCount, privacy: .public) queue items for trigger '\(trigger, privacy: .public)'"
+            )
+        } catch {
+            logger.error("Queue reconciliation failed for trigger '\(trigger, privacy: .public)': \(error.localizedDescription, privacy: .public)")
         }
     }
 

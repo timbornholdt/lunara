@@ -135,6 +135,136 @@ struct AppRouterTests {
         #expect(subject.queue.clearCallCount == 1)
     }
 
+    @Test
+    func reconcileQueueAgainstLibrary_removesMissingTrackIDsFromQueue() async throws {
+        let subject = makeSubject()
+        let keptTrack = makeTrack(id: "track-kept")
+        subject.library.trackByID[keptTrack.plexID] = keptTrack
+        subject.queue.playNow([
+            QueueItem(trackID: keptTrack.plexID, url: try #require(URL(string: "https://example.com/\(keptTrack.plexID).mp3"))),
+            QueueItem(trackID: "track-missing", url: try #require(URL(string: "https://example.com/track-missing.mp3")))
+        ])
+
+        let outcome = try await subject.router.reconcileQueueAgainstLibrary()
+
+        #expect(outcome.removedTrackIDs == ["track-missing"])
+        #expect(outcome.removedItemCount == 1)
+        #expect(subject.library.trackLookupRequests == [keptTrack.plexID, "track-missing"])
+        #expect(subject.queue.reconcileCalls == [Set(["track-missing"])])
+        #expect(subject.queue.items.map(\.trackID) == [keptTrack.plexID])
+    }
+
+    @Test
+    func reconcileQueueAgainstLibrary_whenLookupFails_doesNotMutateQueue() async throws {
+        let subject = makeSubject()
+        let firstItem = QueueItem(
+            trackID: "track-1",
+            url: try #require(URL(string: "https://example.com/track-1.mp3"))
+        )
+        let secondItem = QueueItem(
+            trackID: "track-2",
+            url: try #require(URL(string: "https://example.com/track-2.mp3"))
+        )
+        subject.queue.playNow([firstItem, secondItem])
+        subject.library.trackLookupErrorByID["track-2"] = LibraryError.timeout
+        subject.library.trackByID["track-1"] = makeTrack(id: "track-1")
+
+        do {
+            _ = try await subject.router.reconcileQueueAgainstLibrary()
+            Issue.record("Expected reconcileQueueAgainstLibrary to throw")
+        } catch let error as LibraryError {
+            #expect(error == .timeout)
+        } catch {
+            Issue.record("Expected LibraryError, got: \(error)")
+        }
+
+        #expect(subject.queue.reconcileCalls.isEmpty)
+        #expect(subject.queue.items == [firstItem, secondItem])
+    }
+
+    @Test
+    func reconcileQueueAgainstLibrary_withDuplicateTrackIDs_performsSingleLookupAndRemovesAllOccurrences() async throws {
+        let subject = makeSubject()
+        subject.library.trackByID["track-2"] = makeTrack(id: "track-2")
+        subject.queue.playNow([
+            QueueItem(trackID: "track-missing", url: try #require(URL(string: "https://example.com/track-missing-a.mp3"))),
+            QueueItem(trackID: "track-missing", url: try #require(URL(string: "https://example.com/track-missing-b.mp3"))),
+            QueueItem(trackID: "track-2", url: try #require(URL(string: "https://example.com/track-2.mp3")))
+        ])
+
+        let outcome = try await subject.router.reconcileQueueAgainstLibrary()
+
+        #expect(outcome.removedTrackIDs == ["track-missing"])
+        #expect(outcome.removedItemCount == 2)
+        #expect(subject.library.trackLookupRequests == ["track-missing", "track-2"])
+        #expect(subject.queue.reconcileCalls == [Set(["track-missing"])])
+        #expect(subject.queue.items.map(\.trackID) == ["track-2"])
+    }
+
+    @Test
+    func queueAlbumNext_fetchesTracksResolvesURLsAndQueuesPlayNext() async throws {
+        let subject = makeSubject()
+        let album = makeAlbum(id: "album-next")
+        let track = makeTrack(id: "track-next", albumID: album.plexID)
+        subject.library.tracksByAlbumID[album.plexID] = [track]
+        let streamURL = try #require(URL(string: "https://example.com/stream/track-next.mp3"))
+        subject.library.streamURLByTrackID[track.plexID] = streamURL
+
+        try await subject.router.queueAlbumNext(album)
+
+        #expect(subject.queue.playNextCalls == [[QueueItem(trackID: track.plexID, url: streamURL)]])
+    }
+
+    @Test
+    func queueAlbumLater_fetchesTracksResolvesURLsAndQueuesPlayLater() async throws {
+        let subject = makeSubject()
+        let album = makeAlbum(id: "album-later")
+        let track = makeTrack(id: "track-later", albumID: album.plexID)
+        subject.library.tracksByAlbumID[album.plexID] = [track]
+        let streamURL = try #require(URL(string: "https://example.com/stream/track-later.mp3"))
+        subject.library.streamURLByTrackID[track.plexID] = streamURL
+
+        try await subject.router.queueAlbumLater(album)
+
+        #expect(subject.queue.playLaterCalls == [[QueueItem(trackID: track.plexID, url: streamURL)]])
+    }
+
+    @Test
+    func playTrackNow_resolvesURLAndQueuesSingleItemPlayNow() async throws {
+        let subject = makeSubject()
+        let track = makeTrack(id: "track-now")
+        let streamURL = try #require(URL(string: "https://example.com/stream/track-now.mp3"))
+        subject.library.streamURLByTrackID[track.plexID] = streamURL
+
+        try await subject.router.playTrackNow(track)
+
+        #expect(subject.queue.playNowCalls == [[QueueItem(trackID: track.plexID, url: streamURL)]])
+    }
+
+    @Test
+    func queueTrackNext_resolvesURLAndQueuesSingleItemPlayNext() async throws {
+        let subject = makeSubject()
+        let track = makeTrack(id: "track-next-single")
+        let streamURL = try #require(URL(string: "https://example.com/stream/track-next-single.mp3"))
+        subject.library.streamURLByTrackID[track.plexID] = streamURL
+
+        try await subject.router.queueTrackNext(track)
+
+        #expect(subject.queue.playNextCalls == [[QueueItem(trackID: track.plexID, url: streamURL)]])
+    }
+
+    @Test
+    func queueTrackLater_resolvesURLAndQueuesSingleItemPlayLater() async throws {
+        let subject = makeSubject()
+        let track = makeTrack(id: "track-later-single")
+        let streamURL = try #require(URL(string: "https://example.com/stream/track-later-single.mp3"))
+        subject.library.streamURLByTrackID[track.plexID] = streamURL
+
+        try await subject.router.queueTrackLater(track)
+
+        #expect(subject.queue.playLaterCalls == [[QueueItem(trackID: track.plexID, url: streamURL)]])
+    }
+
     private func makeSubject() -> (
         router: AppRouter,
         library: LibraryRepoMock,
@@ -187,6 +317,9 @@ private final class LibraryRepoMock: LibraryRepoProtocol {
     var streamURLByTrackID: [String: URL] = [:]
     var streamURLRequests: [String] = []
     var streamURLError: LibraryError?
+    var trackByID: [String: Track] = [:]
+    var trackLookupRequests: [String] = []
+    var trackLookupErrorByID: [String: Error] = [:]
 
     func albums(page: LibraryPage) async throws -> [Album] {
         albumPageRequests.append(page)
@@ -203,12 +336,32 @@ private final class LibraryRepoMock: LibraryRepoProtocol {
         albums.first { $0.plexID == id }
     }
 
+    func searchAlbums(query: String) async throws -> [Album] {
+        []
+    }
+
+    func queryAlbums(filter: AlbumQueryFilter) async throws -> [Album] {
+        []
+    }
+
     func tracks(forAlbum albumID: String) async throws -> [Track] {
         trackRequests.append(albumID)
         if let tracksError {
             throw tracksError
         }
         return tracksByAlbumID[albumID] ?? []
+    }
+
+    func track(id: String) async throws -> Track? {
+        trackLookupRequests.append(id)
+        if let error = trackLookupErrorByID[id] {
+            throw error
+        }
+        return trackByID[id]
+    }
+
+    func refreshAlbumDetail(albumID: String) async throws -> AlbumDetailRefreshOutcome {
+        AlbumDetailRefreshOutcome(album: nil, tracks: tracksByAlbumID[albumID] ?? [])
     }
 
     func streamURL(for track: Track) async throws -> URL {
@@ -226,6 +379,14 @@ private final class LibraryRepoMock: LibraryRepoProtocol {
         []
     }
 
+    func collection(id: String) async throws -> Collection? {
+        nil
+    }
+
+    func searchCollections(query: String) async throws -> [Collection] {
+        []
+    }
+
     func artists() async throws -> [Artist] {
         []
     }
@@ -233,6 +394,14 @@ private final class LibraryRepoMock: LibraryRepoProtocol {
     func artist(id: String) async throws -> Artist? {
         nil
     }
+
+    func searchArtists(query: String) async throws -> [Artist] {
+        []
+    }
+
+    func playlists() async throws -> [LibraryPlaylistSnapshot] { [] }
+
+    func playlistItems(playlistID: String) async throws -> [LibraryPlaylistItemSnapshot] { [] }
 
     func refreshLibrary(reason: LibraryRefreshReason) async throws -> LibraryRefreshOutcome {
         LibraryRefreshOutcome(
@@ -248,6 +417,10 @@ private final class LibraryRepoMock: LibraryRepoProtocol {
     func lastRefreshDate() async throws -> Date? {
         nil
     }
+
+    func authenticatedArtworkURL(for rawValue: String?) async throws -> URL? {
+        nil
+    }
 }
 
 @MainActor
@@ -259,10 +432,13 @@ private final class QueueManagerMock: QueueManagerProtocol {
     private(set) var lastError: MusicError?
 
     private(set) var playNowCalls: [[QueueItem]] = []
+    private(set) var playNextCalls: [[QueueItem]] = []
+    private(set) var playLaterCalls: [[QueueItem]] = []
     private(set) var pauseCallCount = 0
     private(set) var resumeCallCount = 0
     private(set) var skipToNextCallCount = 0
     private(set) var clearCallCount = 0
+    private(set) var reconcileCalls: [Set<String>] = []
 
     func playNow(_ items: [QueueItem]) {
         playNowCalls.append(items)
@@ -271,8 +447,12 @@ private final class QueueManagerMock: QueueManagerProtocol {
         currentItem = items.first
     }
 
-    func playNext(_ items: [QueueItem]) { }
-    func playLater(_ items: [QueueItem]) { }
+    func playNext(_ items: [QueueItem]) {
+        playNextCalls.append(items)
+    }
+    func playLater(_ items: [QueueItem]) {
+        playLaterCalls.append(items)
+    }
     func play() { }
     func pause() {
         pauseCallCount += 1
@@ -285,5 +465,20 @@ private final class QueueManagerMock: QueueManagerProtocol {
     }
     func clear() {
         clearCallCount += 1
+    }
+
+    func reconcile(removingTrackIDs: Set<String>) {
+        reconcileCalls.append(removingTrackIDs)
+        guard !removingTrackIDs.isEmpty else { return }
+        items.removeAll { removingTrackIDs.contains($0.trackID) }
+        if items.isEmpty {
+            currentIndex = nil
+            currentItem = nil
+        } else if let currentIndex, items.indices.contains(currentIndex) {
+            currentItem = items[currentIndex]
+        } else {
+            self.currentIndex = 0
+            currentItem = items.first
+        }
     }
 }

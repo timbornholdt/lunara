@@ -16,9 +16,17 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
         var partKey: String?
     }
 
+    private struct ParsedDirectoryItem {
+        let attributes: [String: String]
+        var genres: [String]
+        var styles: [String]
+        var moods: [String]
+    }
+
     private var metadataItems: [ParsedMetadataItem] = []
-    private var directoryItems: [[String: String]] = []
+    private var directoryItems: [ParsedDirectoryItem] = []
     private var currentMetadataIndex: Int?
+    private var currentDirectoryIndex: Int?
 
     func decode(_ data: Data) throws -> PlexMediaContainer {
         let parser = XMLParser(data: data)
@@ -26,6 +34,7 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
         metadataItems.removeAll()
         directoryItems.removeAll()
         currentMetadataIndex = nil
+        currentDirectoryIndex = nil
 
         guard parser.parse() else {
             throw XMLDecodingError.invalidXML
@@ -44,6 +53,7 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
             let addedAt = attrs["addedAt"].flatMap { Int($0) }
             let trackCount = attrs["leafCount"].flatMap { Int($0) }
             let albumCount = attrs["childCount"].flatMap { Int($0) }
+            let updatedAt = attrs["updatedAt"].flatMap { Int($0) }
 
             return PlexMetadata(
                 ratingKey: ratingKey,
@@ -54,6 +64,7 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
                 index: index,
                 parentTitle: attrs["parentTitle"],
                 grandparentTitle: attrs["grandparentTitle"],
+                originalTitle: attrs["originalTitle"],
                 year: year,
                 thumb: attrs["thumb"],
                 duration: duration,
@@ -62,19 +73,23 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
                 addedAt: addedAt,
                 trackCount: trackCount,
                 albumCount: albumCount,
+                leafCount: trackCount,
                 summary: attrs["summary"],
                 titleSort: attrs["titleSort"],
+                updatedAt: updatedAt,
                 key: parsedItem.partKey ?? attrs["key"]
             )
         }
 
         // Convert parsed attributes to PlexDirectory objects
-        let directories = directoryItems.map { attrs -> PlexDirectory in
+        let directories = directoryItems.map { directoryItem -> PlexDirectory in
+            let attrs = directoryItem.attributes
             let year = attrs["year"].flatMap { Int($0) }
             let rating = attrs["rating"].flatMap { Double($0) }
             let addedAt = attrs["addedAt"].flatMap { Int($0) }
             let leafCount = attrs["leafCount"].flatMap { Int($0) }
             let duration = attrs["duration"].flatMap { Int($0) }
+            let updatedAt = attrs["updatedAt"].flatMap { Int($0) }
 
             return PlexDirectory(
                 key: attrs["key"] ?? "",
@@ -88,11 +103,16 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
                 year: year,
                 thumb: attrs["thumb"],
                 genre: attrs["genre"],
+                genres: directoryItem.genres,
+                styles: directoryItem.styles,
+                moods: directoryItem.moods,
                 rating: rating,
                 addedAt: addedAt,
                 leafCount: leafCount,
                 duration: duration,
                 summary: attrs["summary"],
+                titleSort: attrs["titleSort"],
+                updatedAt: updatedAt,
                 parentRatingKey: attrs["parentRatingKey"],
                 ratingKey: attrs["ratingKey"]
             )
@@ -117,7 +137,7 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
             // Store all attributes for this Metadata element
             metadataItems.append(ParsedMetadataItem(attributes: attributeDict, partKey: nil))
             currentMetadataIndex = metadataItems.count - 1
-        } else if elementName == "Track" || elementName == "Video" {
+        } else if elementName == "Track" || elementName == "Video" || elementName == "Playlist" {
             // Plex track listing endpoints commonly use <Track> elements instead of <Metadata>
             metadataItems.append(ParsedMetadataItem(attributes: attributeDict, partKey: nil))
             currentMetadataIndex = metadataItems.count - 1
@@ -129,7 +149,30 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
             metadataItems[metadataIndex].partKey = partKey
         } else if elementName == "Directory" {
             // Store all attributes for this Directory element
-            directoryItems.append(attributeDict)
+            directoryItems.append(
+                ParsedDirectoryItem(
+                    attributes: attributeDict,
+                    genres: [],
+                    styles: [],
+                    moods: []
+                )
+            )
+            currentDirectoryIndex = directoryItems.count - 1
+        } else if elementName == "Genre",
+                  let directoryIndex = currentDirectoryIndex,
+                  let tag = attributeDict["tag"],
+                  !tag.isEmpty {
+            directoryItems[directoryIndex].genres.append(tag)
+        } else if elementName == "Style",
+                  let directoryIndex = currentDirectoryIndex,
+                  let tag = attributeDict["tag"],
+                  !tag.isEmpty {
+            directoryItems[directoryIndex].styles.append(tag)
+        } else if elementName == "Mood",
+                  let directoryIndex = currentDirectoryIndex,
+                  let tag = attributeDict["tag"],
+                  !tag.isEmpty {
+            directoryItems[directoryIndex].moods.append(tag)
         }
     }
 
@@ -139,8 +182,10 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
         namespaceURI: String?,
         qualifiedName qName: String?
     ) {
-        if elementName == "Track" || elementName == "Video" || elementName == "Metadata" {
+        if elementName == "Track" || elementName == "Video" || elementName == "Playlist" || elementName == "Metadata" {
             currentMetadataIndex = nil
+        } else if elementName == "Directory" {
+            currentDirectoryIndex = nil
         }
     }
 }
