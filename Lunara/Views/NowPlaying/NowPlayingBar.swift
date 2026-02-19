@@ -85,7 +85,7 @@ struct NowPlayingBar: View {
 
             if let artist = viewModel.artistName {
                 Text(artist)
-                    .font(.system(size: 12))
+                    .font(playfairFont(size: 12))
                     .foregroundStyle(Color.lunara(.textSecondary))
                     .lineLimit(1)
             }
