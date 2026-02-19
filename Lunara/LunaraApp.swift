@@ -6,10 +6,12 @@
 //
 
 import SwiftUI
+import UIKit
 
 @main
 struct LunaraApp: App {
 
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @State private var coordinator = AppCoordinator()
 
     var body: some Scene {
@@ -21,6 +23,33 @@ struct LunaraApp: App {
                     SignInView(coordinator: coordinator)
                 }
             }
+        }
+    }
+}
+
+final class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(
+        _ application: UIApplication,
+        configurationForConnecting connectingSceneSession: UISceneSession,
+        options: UIScene.ConnectionOptions
+    ) -> UISceneConfiguration {
+        let config = UISceneConfiguration(name: nil, sessionRole: connectingSceneSession.role)
+        config.delegateClass = SceneDelegate.self
+        return config
+    }
+}
+
+final class SceneDelegate: NSObject, UIWindowSceneDelegate {
+    func scene(
+        _ scene: UIScene,
+        willConnectTo session: UISceneSession,
+        options connectionOptions: UIScene.ConnectionOptions
+    ) {
+        guard let windowScene = scene as? UIWindowScene else { return }
+        // Set early so the iOS 26 Liquid Glass tab bar pill inherits
+        // the linen background color rather than white.
+        windowScene.windows.forEach { window in
+            window.backgroundColor = UIColor.lunara(.backgroundBase)
         }
     }
 }

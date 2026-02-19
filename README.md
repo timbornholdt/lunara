@@ -31,9 +31,9 @@ If something isn't in this document, it's not in scope yet. If a task would viol
 - **Phase 1 (Shared Types + Plex Connectivity):** Complete
 - **Phase 2 (Playback Engine + Queue Manager):** Complete
 - **Phase 3 (Library Domain Core):** Complete
-- **Current phase:** Phase 4 (UI Shell) — ~70% complete
+- **Current phase:** Phase 4 (UI Shell) — ~90% complete
 - **Last verified milestone:** Phase 3 acceptance verified in test suite on February 17, 2026.
-- **Phase 4 progress (as of February 19, 2026):** Visual design system, error banner, library grid, album detail, and AppRouter wiring are complete. Now Playing Bar and Now Playing Screen are not yet built.
+- **Phase 4 progress (as of February 19, 2026):** Visual design system, error banner, library grid, album detail, AppRouter wiring, and Now Playing Bar are complete. Now Playing Screen (full-screen sheet) is the only remaining deliverable.
 
 ---
 
@@ -495,7 +495,7 @@ These two are built together because the PlaybackEngine needs someone to drive t
 **Build:**
 - Library grid (paginated, album art + title, artwork pipeline integrated). ✅ Complete
 - Album detail (track list, play/queue actions via AppRouter). ✅ Complete
-- Now playing bar (floating, current track, play/pause, buffering indicator). ❌ Not built
+- Now playing bar (floating, current track, play/pause, buffering indicator). ✅ Complete
 - Now playing screen (slides up, dismiss pull-down, artwork, controls, buffering state). ❌ Not built
 - Error banner component (consistent across all screens). ✅ Complete
 - Long-press queue menus on albums and tracks. ✅ Complete (context menus on album cards and track rows — Play Now / Next / Later)
@@ -507,11 +507,10 @@ These two are built together because the PlaybackEngine needs someone to drive t
 - Library grid: adaptive grid layout, artwork with async loading and placeholders, search with debounce, pull-to-refresh, loading/empty/error states.
 - Album detail: hero card with artwork + metadata, track list with async loading, genre/style/mood tags, context menus for queue operations on albums and tracks.
 - AppRouter: full playback and queue wiring (play now, play next, play later at album and track level).
-- `Views/NowPlaying/` directory exists but contains no Swift files.
+- Now Playing Bar: floating compact strip above the iOS 26 Liquid Glass tab bar. Shows artwork thumbnail, track title + artist (Playfair Display), play/pause/buffering/error states. Tapping opens a stub sheet. Hides when queue is empty. Artwork cache persists between launches (filename-only storage, path reconstructed at read time).
 
 **Remaining work:**
-- `NowPlayingBar`: floating compact strip docked to the bottom of every main screen. Shows current track title + artist, play/pause button, and buffering indicator. Tapping expands to the full screen.
-- `NowPlayingScreen`: full-screen sheet that slides up. Large artwork, track title + artist, scrubber, previous/play-pause/next controls, buffering state, pull-down dismiss gesture.
+- `NowPlayingScreen`: full-screen sheet that slides up from the Now Playing Bar tap. Large artwork, track title + artist, scrubber, previous/play-pause/next controls, buffering state, pull-down dismiss gesture.
 
 **Acceptance:** Full flow: scroll library → tap album → play → now playing bar shows track with buffering then playing → full screen → skip/pause/resume. Errors show as banners. Looks like Lunara.
 
