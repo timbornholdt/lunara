@@ -283,6 +283,10 @@ private final class LibraryRepoMock: LibraryRepoProtocol {
         nil
     }
 
+    func refreshAlbumDetail(albumID: String) async throws -> AlbumDetailRefreshOutcome {
+        AlbumDetailRefreshOutcome(album: nil, tracks: tracksByAlbumID[albumID] ?? [])
+    }
+
     func streamURL(for track: Track) async throws -> URL {
         streamURLRequests.append(track.plexID)
         if let streamURLError {

@@ -49,6 +49,41 @@ struct AlbumDetailViewModelTests {
     }
 
     @Test
+    func loadIfNeeded_backgroundRefreshAppliesUpdatedMetadataAndTracks() async {
+        let subject = makeSubject(review: nil, genres: nil, styles: [], moods: [])
+        let cachedTrack = makeTrack(id: "track-cached", albumID: subject.album.plexID)
+        subject.library.tracksByAlbumID[subject.album.plexID] = [cachedTrack]
+        subject.library.refreshOutcomeByAlbumID[subject.album.plexID] = AlbumDetailRefreshOutcome(
+            album: Album(
+                plexID: subject.album.plexID,
+                title: subject.album.title,
+                artistName: subject.album.artistName,
+                year: subject.album.year,
+                thumbURL: subject.album.thumbURL,
+                genre: "Jazz",
+                rating: subject.album.rating,
+                addedAt: subject.album.addedAt,
+                trackCount: subject.album.trackCount,
+                duration: subject.album.duration,
+                review: "Fresh review",
+                genres: ["Jazz"],
+                styles: ["Post-Bop"],
+                moods: ["Driving"]
+            ),
+            tracks: [makeTrack(id: "track-fresh", albumID: subject.album.plexID)]
+        )
+
+        await subject.viewModel.loadIfNeeded()
+        await waitForBackgroundRefresh(on: subject.library, expectedAlbumID: subject.album.plexID)
+
+        #expect(subject.viewModel.review == "Fresh review")
+        #expect(subject.viewModel.genres == ["Jazz"])
+        #expect(subject.viewModel.styles == ["Post-Bop"])
+        #expect(subject.viewModel.moods == ["Driving"])
+        #expect(subject.viewModel.tracks.map(\.plexID) == ["track-fresh"])
+    }
+
+    @Test
     func playAlbum_routesIntentToActions() async {
         let subject = makeSubject()
 
@@ -169,6 +204,8 @@ private final class AlbumDetailLibraryRepoMock: LibraryRepoProtocol {
     var albumRequests: [String] = []
     var tracksByAlbumID: [String: [Track]] = [:]
     var trackRequests: [String] = []
+    var refreshOutcomeByAlbumID: [String: AlbumDetailRefreshOutcome] = [:]
+    var refreshAlbumDetailRequests: [String] = []
 
     func albums(page: LibraryPage) async throws -> [Album] { [] }
     func album(id: String) async throws -> Album? {
@@ -182,6 +219,14 @@ private final class AlbumDetailLibraryRepoMock: LibraryRepoProtocol {
         return tracksByAlbumID[albumID] ?? []
     }
     func track(id: String) async throws -> Track? { nil }
+
+    func refreshAlbumDetail(albumID: String) async throws -> AlbumDetailRefreshOutcome {
+        refreshAlbumDetailRequests.append(albumID)
+        return refreshOutcomeByAlbumID[albumID] ?? AlbumDetailRefreshOutcome(
+            album: albumByID[albumID],
+            tracks: tracksByAlbumID[albumID] ?? []
+        )
+    }
 
     func collections() async throws -> [Collection] { [] }
     func collection(id: String) async throws -> Collection? { nil }
@@ -246,5 +291,18 @@ private final class AlbumDetailActionsMock: AlbumDetailActionRouting {
 
     func queueTrackLater(_ track: Track) async throws {
         queueTrackLaterRequests.append(track.plexID)
+    }
+}
+
+@MainActor
+private func waitForBackgroundRefresh(
+    on repo: AlbumDetailLibraryRepoMock,
+    expectedAlbumID: String
+) async {
+    for _ in 0..<100 {
+        if repo.refreshAlbumDetailRequests.contains(expectedAlbumID) {
+            return
+        }
+        await Task.yield()
     }
 }

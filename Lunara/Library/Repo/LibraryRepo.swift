@@ -48,22 +48,16 @@ final class LibraryRepo: LibraryRepoProtocol {
 
     func album(id: String) async throws -> Album? {
         let cachedAlbum = try await store.fetchAlbum(id: id)
-        guard let cachedAlbum else {
-            return try await remote.fetchAlbum(id: id)
-        }
-
-        if cachedAlbum.review != nil,
-           !cachedAlbum.genres.isEmpty,
-           !cachedAlbum.styles.isEmpty,
-           !cachedAlbum.moods.isEmpty {
+        if let cachedAlbum {
             return cachedAlbum
         }
 
         guard let remoteAlbum = try await remote.fetchAlbum(id: id) else {
-            return cachedAlbum
+            return nil
         }
 
-        return mergeAlbumMetadata(primary: remoteAlbum, fallback: cachedAlbum)
+        try await store.upsertAlbum(remoteAlbum)
+        return remoteAlbum
     }
 
     func searchAlbums(query: String) async throws -> [Album] {
@@ -72,24 +66,13 @@ final class LibraryRepo: LibraryRepoProtocol {
 
     func tracks(forAlbum albumID: String) async throws -> [Track] {
         let cachedTracks = try await store.fetchTracks(forAlbum: albumID)
-
-        do {
-            let remoteTracks = try await remote.fetchTracks(forAlbum: albumID)
-            if !remoteTracks.isEmpty {
-                return remoteTracks
-            }
+        if !cachedTracks.isEmpty {
             return cachedTracks
-        } catch let error as LibraryError {
-            if !cachedTracks.isEmpty {
-                return cachedTracks
-            }
-            throw error
-        } catch {
-            if !cachedTracks.isEmpty {
-                return cachedTracks
-            }
-            throw LibraryError.operationFailed(reason: "Track fetch failed: \(error.localizedDescription)")
         }
+
+        let remoteTracks = try await remote.fetchTracks(forAlbum: albumID)
+        try await store.replaceTracks(remoteTracks, forAlbum: albumID)
+        return remoteTracks
     }
 
     func track(id: String) async throws -> Track? {
@@ -97,7 +80,27 @@ final class LibraryRepo: LibraryRepoProtocol {
             return cachedTrack
         }
 
-        return try await remote.fetchTrack(id: id)
+        guard let remoteTrack = try await remote.fetchTrack(id: id) else {
+            return nil
+        }
+
+        try await store.replaceTracks([remoteTrack], forAlbum: remoteTrack.albumID)
+        return remoteTrack
+    }
+
+    func refreshAlbumDetail(albumID: String) async throws -> AlbumDetailRefreshOutcome {
+        async let remoteAlbumTask = remote.fetchAlbum(id: albumID)
+        async let remoteTracksTask = remote.fetchTracks(forAlbum: albumID)
+
+        let remoteAlbum = try await remoteAlbumTask
+        let remoteTracks = try await remoteTracksTask
+
+        if let remoteAlbum {
+            try await store.upsertAlbum(remoteAlbum)
+        }
+        try await store.replaceTracks(remoteTracks, forAlbum: albumID)
+
+        return AlbumDetailRefreshOutcome(album: remoteAlbum, tracks: remoteTracks)
     }
 
     func collections() async throws -> [Collection] {

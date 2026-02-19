@@ -258,6 +258,10 @@ private final class CoordinatorLibraryRepoMock: LibraryRepoProtocol {
     func track(id: String) async throws -> Track? {
         nil
     }
+
+    func refreshAlbumDetail(albumID: String) async throws -> AlbumDetailRefreshOutcome {
+        AlbumDetailRefreshOutcome(album: albumByID(albumID), tracks: tracksByAlbumID(albumID))
+    }
     func collections() async throws -> [Collection] {
         []
     }
@@ -299,6 +303,14 @@ private final class CoordinatorLibraryRepoMock: LibraryRepoProtocol {
     }
     func authenticatedArtworkURL(for rawValue: String?) async throws -> URL? {
         nil
+    }
+
+    private func albumByID(_ albumID: String) -> Album? {
+        albumsByPage.values.flatMap { $0 }.first { $0.plexID == albumID }
+    }
+
+    private func tracksByAlbumID(_ albumID: String) -> [Track] {
+        []
     }
 }
 @MainActor

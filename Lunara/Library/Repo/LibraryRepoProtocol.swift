@@ -18,6 +18,11 @@ struct LibraryRefreshOutcome: Equatable, Sendable {
     }
 }
 
+struct AlbumDetailRefreshOutcome: Equatable, Sendable {
+    let album: Album?
+    let tracks: [Track]
+}
+
 @MainActor
 protocol LibraryRepoProtocol: AnyObject {
     /// Reads a single cached album page.
@@ -30,6 +35,7 @@ protocol LibraryRepoProtocol: AnyObject {
 
     func tracks(forAlbum albumID: String) async throws -> [Track]
     func track(id: String) async throws -> Track?
+    func refreshAlbumDetail(albumID: String) async throws -> AlbumDetailRefreshOutcome
     func collections() async throws -> [Collection]
     func collection(id: String) async throws -> Collection?
     /// Queries cached artists by name and sort name.
@@ -109,6 +115,12 @@ extension PlexAPIClient: LibraryRepoProtocol {
 
     func track(id: String) async throws -> Track? {
         try await fetchTrack(id: id)
+    }
+
+    func refreshAlbumDetail(albumID: String) async throws -> AlbumDetailRefreshOutcome {
+        let album = try await fetchAlbum(id: albumID)
+        let tracks = try await fetchTracks(forAlbum: albumID)
+        return AlbumDetailRefreshOutcome(album: album, tracks: tracks)
     }
 
     func collections() async throws -> [Collection] {

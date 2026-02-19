@@ -19,6 +19,7 @@ final class LibraryRemoteMock: LibraryRemoteDataSource {
 
     var fetchAlbumsError: LibraryError?
     var fetchTracksErrorByAlbumID: [String: LibraryError] = [:]
+    var fetchAlbumErrorByID: [String: LibraryError] = [:]
     var fetchTrackErrorByID: [String: LibraryError] = [:]
     var streamURLError: LibraryError?
     var artworkURLError: LibraryError?
@@ -33,6 +34,9 @@ final class LibraryRemoteMock: LibraryRemoteDataSource {
 
     func fetchAlbum(id albumID: String) async throws -> Album? {
         fetchAlbumRequests.append(albumID)
+        if let error = fetchAlbumErrorByID[albumID] {
+            throw error
+        }
         return albumsByID[albumID]
     }
 
@@ -114,6 +118,8 @@ final class LibraryStoreMock: LibraryStoreProtocol {
     var deletedArtworkPathKeys: [ArtworkKey] = []
 
     var replaceLibraryError: LibraryError?
+    var upsertAlbumError: LibraryError?
+    var replaceTracksError: LibraryError?
     var beginIncrementalSyncError: LibraryError?
     var upsertAlbumsError: LibraryError?
     var upsertTracksError: LibraryError?
@@ -132,6 +138,24 @@ final class LibraryStoreMock: LibraryStoreProtocol {
         albumByID[id]
     }
 
+    func upsertAlbum(_ album: Album) async throws {
+        if let upsertAlbumError {
+            throw upsertAlbumError
+        }
+        albumByID[album.plexID] = album
+        albumsByPage = [
+            1: albumByID.values.sorted {
+                if $0.artistName != $1.artistName {
+                    return $0.artistName < $1.artistName
+                }
+                if $0.title != $1.title {
+                    return $0.title < $1.title
+                }
+                return $0.plexID < $1.plexID
+            }
+        ]
+    }
+
     func fetchTracks(forAlbum albumID: String) async throws -> [Track] {
         fetchTrackRequests.append(albumID)
         return tracksByAlbumID[albumID] ?? []
@@ -140,6 +164,17 @@ final class LibraryStoreMock: LibraryStoreProtocol {
     func track(id: String) async throws -> Track? {
         trackLookupRequests.append(id)
         return tracksByID[id]
+    }
+
+    func replaceTracks(_ tracks: [Track], forAlbum albumID: String) async throws {
+        if let replaceTracksError {
+            throw replaceTracksError
+        }
+        tracksByID = tracksByID.filter { $0.value.albumID != albumID }
+        for track in tracks {
+            tracksByID[track.plexID] = track
+        }
+        tracksByAlbumID = Dictionary(grouping: tracksByID.values, by: \.albumID)
     }
 
     func fetchArtists() async throws -> [Artist] {

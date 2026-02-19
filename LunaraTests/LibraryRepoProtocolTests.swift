@@ -165,6 +165,10 @@ private final class ProtocolRepoMock: LibraryRepoProtocol {
         return trackByID[id]
     }
 
+    func refreshAlbumDetail(albumID: String) async throws -> AlbumDetailRefreshOutcome {
+        AlbumDetailRefreshOutcome(album: nil, tracks: [])
+    }
+
     func collections() async throws -> [Collection] {
         []
     }

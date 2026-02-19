@@ -37,6 +37,7 @@ final class AlbumDetailViewModel {
     private let library: LibraryRepoProtocol
     private let artworkPipeline: ArtworkPipelineProtocol
     private let actions: AlbumDetailActionRouting
+    private var backgroundRefreshTask: Task<Void, Never>?
 
     init(
         album: Album,
@@ -67,6 +68,7 @@ final class AlbumDetailViewModel {
         await loadAlbumMetadata()
         await loadTracks()
         await loadArtwork()
+        startBackgroundDetailRefresh()
     }
 
     func playAlbum() async {
@@ -129,32 +131,55 @@ final class AlbumDetailViewModel {
 
     private func loadAlbumMetadata() async {
         do {
-            guard let refreshedAlbum = try await library.album(id: album.plexID) else {
+            guard let cachedAlbum = try await library.album(id: album.plexID) else {
+                return
+            }
+            applyAlbumMetadata(cachedAlbum)
+        } catch {
+            // Metadata enrichment is best-effort; leave existing values when fetch fails.
+        }
+    }
+
+    private func startBackgroundDetailRefresh() {
+        backgroundRefreshTask?.cancel()
+        backgroundRefreshTask = Task { @MainActor [weak self] in
+            guard let self else {
                 return
             }
 
-            if let refreshedReview = refreshedAlbum.review?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty {
-                review = refreshedReview
+            do {
+                let outcome = try await library.refreshAlbumDetail(albumID: album.plexID)
+                if let refreshedAlbum = outcome.album {
+                    applyAlbumMetadata(refreshedAlbum)
+                }
+                tracks = outcome.tracks
+                loadingState = .loaded
+            } catch {
+                // Keep currently rendered cache when background refresh fails.
             }
+        }
+    }
 
-            let refreshedGenres = Self.normalizedTags(refreshedAlbum.genres)
-            if !refreshedGenres.isEmpty {
-                genres = refreshedGenres
-            } else if genres.isEmpty, let genre = refreshedAlbum.genre {
-                genres = Self.normalizedTags([genre])
-            }
+    private func applyAlbumMetadata(_ refreshedAlbum: Album) {
+        if let refreshedReview = refreshedAlbum.review?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty {
+            review = refreshedReview
+        }
 
-            let refreshedStyles = Self.normalizedTags(refreshedAlbum.styles)
-            if !refreshedStyles.isEmpty {
-                styles = refreshedStyles
-            }
+        let refreshedGenres = Self.normalizedTags(refreshedAlbum.genres)
+        if !refreshedGenres.isEmpty {
+            genres = refreshedGenres
+        } else if genres.isEmpty, let genre = refreshedAlbum.genre {
+            genres = Self.normalizedTags([genre])
+        }
 
-            let refreshedMoods = Self.normalizedTags(refreshedAlbum.moods)
-            if !refreshedMoods.isEmpty {
-                moods = refreshedMoods
-            }
-        } catch {
-            // Metadata enrichment is best-effort; leave existing values when fetch fails.
+        let refreshedStyles = Self.normalizedTags(refreshedAlbum.styles)
+        if !refreshedStyles.isEmpty {
+            styles = refreshedStyles
+        }
+
+        let refreshedMoods = Self.normalizedTags(refreshedAlbum.moods)
+        if !refreshedMoods.isEmpty {
+            moods = refreshedMoods
         }
     }
 

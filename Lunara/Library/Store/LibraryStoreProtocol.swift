@@ -85,9 +85,11 @@ struct ArtworkKey: Equatable, Hashable, Sendable {
 protocol LibraryStoreProtocol: AnyObject {
     func fetchAlbums(page: LibraryPage) async throws -> [Album]
     func fetchAlbum(id: String) async throws -> Album?
+    func upsertAlbum(_ album: Album) async throws
 
     func fetchTracks(forAlbum albumID: String) async throws -> [Track]
     func track(id: String) async throws -> Track?
+    func replaceTracks(_ tracks: [Track], forAlbum albumID: String) async throws
 
     func fetchArtists() async throws -> [Artist]
     func fetchArtist(id: String) async throws -> Artist?
