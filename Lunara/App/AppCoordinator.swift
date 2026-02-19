@@ -148,15 +148,18 @@ final class AppCoordinator {
     private func syncAlbums(refreshReason: LibraryRefreshReason) async throws -> [Album] {
         let cachedAlbums = try await libraryRepo.fetchAlbums()
 
-        do {
-            _ = try await libraryRepo.refreshLibrary(reason: refreshReason)
-            return try await libraryRepo.fetchAlbums()
-        } catch {
-            if !cachedAlbums.isEmpty {
-                return cachedAlbums
+        if !cachedAlbums.isEmpty {
+            Task { [weak self] in
+                guard let self else {
+                    return
+                }
+                _ = try? await self.libraryRepo.refreshLibrary(reason: refreshReason)
             }
-            throw error
+            return cachedAlbums
         }
+
+        _ = try await libraryRepo.refreshLibrary(reason: refreshReason)
+        return try await libraryRepo.fetchAlbums()
     }
 
     private static func loadServerURL() -> URL {
