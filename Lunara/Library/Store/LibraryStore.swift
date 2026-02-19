@@ -54,9 +54,9 @@ final class LibraryStore: LibraryStoreProtocol {
     }
 
     func track(id: String) async throws -> Track? {
-        throw LibraryError.operationFailed(
-            reason: "Stage 5B pending: LibraryStore.track(id:) query path is not implemented yet."
-        )
+        try await dbQueue.read { db in
+            try TrackRecord.fetchOne(db, key: id)?.model
+        }
     }
 
     func fetchArtists() async throws -> [Artist] {
@@ -84,30 +84,82 @@ final class LibraryStore: LibraryStoreProtocol {
     }
 
     func collection(id: String) async throws -> Collection? {
-        throw LibraryError.operationFailed(
-            reason: "Stage 5B pending: LibraryStore.collection(id:) query path is not implemented yet."
-        )
+        try await dbQueue.read { db in
+            try CollectionRecord.fetchOne(db, key: id)?.model
+        }
     }
 
     func searchAlbums(query: String) async throws -> [Album] {
-        let _ = query
-        throw LibraryError.operationFailed(
-            reason: "Stage 5B pending: LibraryStore.searchAlbums(query:) is not implemented yet."
-        )
+        let normalizedQuery = LibraryStoreSearchNormalizer.normalize(query)
+        guard !normalizedQuery.isEmpty else {
+            return try await dbQueue.read { db in
+                let records = try AlbumRecord
+                    .order(Column("artistName").asc, Column("title").asc)
+                    .fetchAll(db)
+                return records.map(\.model)
+            }
+        }
+
+        let pattern = LibraryStoreSearchNormalizer.likeContainsPattern(for: normalizedQuery)
+        return try await dbQueue.read { db in
+            let records = try AlbumRecord.fetchAll(
+                db,
+                sql: """
+                SELECT *
+                FROM albums
+                WHERE titleSearch LIKE ? ESCAPE '\\'
+                   OR artistNameSearch LIKE ? ESCAPE '\\'
+                ORDER BY artistName ASC, title ASC
+                """,
+                arguments: [pattern, pattern]
+            )
+            return records.map(\.model)
+        }
     }
 
     func searchArtists(query: String) async throws -> [Artist] {
-        let _ = query
-        throw LibraryError.operationFailed(
-            reason: "Stage 5B pending: LibraryStore.searchArtists(query:) is not implemented yet."
-        )
+        let normalizedQuery = LibraryStoreSearchNormalizer.normalize(query)
+        guard !normalizedQuery.isEmpty else {
+            return try await fetchArtists()
+        }
+
+        let pattern = LibraryStoreSearchNormalizer.likeContainsPattern(for: normalizedQuery)
+        return try await dbQueue.read { db in
+            let records = try ArtistRecord.fetchAll(
+                db,
+                sql: """
+                SELECT *
+                FROM artists
+                WHERE nameSearch LIKE ? ESCAPE '\\'
+                   OR sortNameSearch LIKE ? ESCAPE '\\'
+                ORDER BY sortName ASC, name ASC
+                """,
+                arguments: [pattern, pattern]
+            )
+            return records.map(\.model)
+        }
     }
 
     func searchCollections(query: String) async throws -> [Collection] {
-        let _ = query
-        throw LibraryError.operationFailed(
-            reason: "Stage 5B pending: LibraryStore.searchCollections(query:) is not implemented yet."
-        )
+        let normalizedQuery = LibraryStoreSearchNormalizer.normalize(query)
+        guard !normalizedQuery.isEmpty else {
+            return try await fetchCollections()
+        }
+
+        let pattern = LibraryStoreSearchNormalizer.likeContainsPattern(for: normalizedQuery)
+        return try await dbQueue.read { db in
+            let records = try CollectionRecord.fetchAll(
+                db,
+                sql: """
+                SELECT *
+                FROM collections
+                WHERE titleSearch LIKE ? ESCAPE '\\'
+                ORDER BY title ASC
+                """,
+                arguments: [pattern]
+            )
+            return records.map(\.model)
+        }
     }
 
     func replaceLibrary(with snapshot: LibrarySnapshot, refreshedAt: Date) async throws {
