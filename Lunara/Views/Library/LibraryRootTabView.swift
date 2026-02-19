@@ -24,7 +24,14 @@ struct LibraryRootTabView: View {
     }
 
     var body: some View {
-        TabView(selection: $selectedTab) {
+        ZStack {
+            // Covers the full screen — including the area around and below the
+            // iOS 18 floating tab bar pill, which sits outside the TabView's
+            // own SwiftUI layout frame and ignores .background() on the TabView.
+            Color.lunara(.backgroundBase)
+                .ignoresSafeArea()
+
+            TabView(selection: $selectedTab) {
             LibraryGridView(
                 viewModel: LibraryGridViewModel(
                     library: coordinator.libraryRepo,
@@ -46,18 +53,15 @@ struct LibraryRootTabView: View {
                 }
                 .tag(Tab.debug)
         }
-        .tint(Color.lunara(tabBarTheme.selectedTintRole))
-        .toolbarBackground(Color.lunara(tabBarTheme.backgroundRole), for: .tabBar)
-        .toolbarBackground(.visible, for: .tabBar)
-        // Fill the area around and below the floating pill tab bar (iOS 18)
-        // with the Lunara background. Without this, the window's default white
-        // shows through in both light and dark mode.
-        .background(Color.lunara(.backgroundBase).ignoresSafeArea())
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            NowPlayingBar(viewModel: nowPlayingBarViewModel)
-        }
-        .onAppear {
-            LunaraTabBarStyler.apply(theme: tabBarTheme)
+            .tint(Color.lunara(tabBarTheme.selectedTintRole))
+            .toolbarBackground(Color.lunara(tabBarTheme.backgroundRole), for: .tabBar)
+            .toolbarBackground(.visible, for: .tabBar)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                NowPlayingBar(viewModel: nowPlayingBarViewModel)
+            }
+            .onAppear {
+                LunaraTabBarStyler.apply(theme: tabBarTheme)
+            }
         }
     }
 }
