@@ -258,4 +258,35 @@ final class LibraryStore: LibraryStoreProtocol {
                 .deleteAll(db)
         }
     }
+
+    func fetchPlaylists() async throws -> [LibraryPlaylistSnapshot] {
+        try await dbQueue.read { db in
+            let rows = try Row.fetchAll(
+                db,
+                sql: "SELECT plexID, title, trackCount, updatedAt FROM playlists ORDER BY title ASC"
+            )
+            return rows.map { row in
+                LibraryPlaylistSnapshot(
+                    plexID: row["plexID"],
+                    title: row["title"],
+                    trackCount: row["trackCount"],
+                    updatedAt: row["updatedAt"]
+                )
+            }
+        }
+    }
+
+    func fetchPlaylistItems(playlistID: String) async throws -> [LibraryPlaylistItemSnapshot] {
+        let targetID = playlistID
+        return try await dbQueue.read { db in
+            let rows = try Row.fetchAll(
+                db,
+                sql: "SELECT trackID, position FROM playlist_items WHERE playlistID = ? ORDER BY position ASC",
+                arguments: [targetID]
+            )
+            return rows.map { row in
+                LibraryPlaylistItemSnapshot(trackID: row["trackID"], position: row["position"])
+            }
+        }
+    }
 }

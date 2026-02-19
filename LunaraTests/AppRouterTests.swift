@@ -399,6 +399,10 @@ private final class LibraryRepoMock: LibraryRepoProtocol {
         []
     }
 
+    func playlists() async throws -> [LibraryPlaylistSnapshot] { [] }
+
+    func playlistItems(playlistID: String) async throws -> [LibraryPlaylistItemSnapshot] { [] }
+
     func refreshLibrary(reason: LibraryRefreshReason) async throws -> LibraryRefreshOutcome {
         LibraryRefreshOutcome(
             reason: reason,

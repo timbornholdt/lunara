@@ -429,6 +429,10 @@ private final class LibraryGridRepoMock: LibraryRepoProtocol {
         []
     }
 
+    func playlists() async throws -> [LibraryPlaylistSnapshot] { [] }
+
+    func playlistItems(playlistID: String) async throws -> [LibraryPlaylistItemSnapshot] { [] }
+
     func refreshLibrary(reason: LibraryRefreshReason) async throws -> LibraryRefreshOutcome {
         refreshReasons.append(reason)
         if let refreshError {

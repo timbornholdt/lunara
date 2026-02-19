@@ -157,7 +157,7 @@ Status: Completed on February 18, 2026.
 
 ## Stage 5: App-Wide Cached Catalog Adoption (Up Next)
 
-Status: In progress (Stages 5A-5K completed as of February 19, 2026; 5L+ pending).
+Status: In progress (Stages 5A-5L completed as of February 19, 2026; 5M pending).
 
 ### Purpose
 
@@ -403,6 +403,24 @@ Stage 5K status (completed February 19, 2026):
    - Persist playlist metadata and ordered items from Plex payloads.
    - Validate that order and duplicate entries are preserved exactly.
    - Expose protocol-first read APIs for future playlist screens (no UI required in this stage unless explicitly scoped).
+
+Stage 5L status (completed February 19, 2026):
+- Added `fetchPlaylists()` and `fetchPlaylistItems(playlistID:)` to `LibraryStoreProtocol` with sort/ordering guarantees documented in protocol comments.
+- Implemented read APIs in `LibraryStore.swift` using raw SQL ordered by `title` (playlists) and `position ASC` (items).
+- Added `playlists()` and `playlistItems(playlistID:)` to `LibraryRepoProtocol` with cache-semantics documented (no remote fallback — playlists are populated during `refreshLibrary` only).
+- Implemented in `LibraryRepo.swift` delegating directly to the store.
+- Updated all `LibraryStoreProtocol` conforming mocks in tests and added `playlists`/`playlistItems` stubs to all `LibraryRepoProtocol` test doubles.
+- Added 9 new tests in `LunaraTests/LibraryStorePlaylistTests.swift` covering:
+  - New playlist inserts with correct metadata,
+  - Upsert-on-conflict updating existing playlists,
+  - Position-order preservation exactly matching Plex order regardless of insert order,
+  - Duplicate trackIDs at different positions remaining as distinct rows,
+  - Stale playlist prune removing playlists and their items without orphaning,
+  - Orphan cleanup after playlist pruned from a later sync run,
+  - fetchPlaylists returns empty on fresh store,
+  - fetchPlaylistItems returns empty for unknown playlist IDs,
+  - fetchPlaylists sorts by title ascending.
+- All 9 tests pass. Full project test suite passes.
 
 13. Stage 5M: Cleanup + hardening
    - Remove superseded non-relational query code and obsolete schema paths.
