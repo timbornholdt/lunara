@@ -16,34 +16,28 @@ struct LibraryRepoTests {
     }
 
     @Test
-    func album_whenCachedMetadataIsSparse_fetchesRemoteAlbumAndMergesMetadata() async throws {
+    func album_whenCached_returnsCachedWithoutRemoteFetch() async throws {
         let subject = makeSubject()
-        let sparseAlbum = makeAlbum(id: "album-1")
-        subject.store.albumByID[sparseAlbum.plexID] = sparseAlbum
-        subject.remote.albumsByID[sparseAlbum.plexID] = Album(
-            plexID: sparseAlbum.plexID,
-            title: sparseAlbum.title,
-            artistName: sparseAlbum.artistName,
-            year: sparseAlbum.year,
-            thumbURL: sparseAlbum.thumbURL,
-            genre: "Pop/Rock",
-            rating: sparseAlbum.rating,
-            addedAt: sparseAlbum.addedAt,
-            trackCount: sparseAlbum.trackCount,
-            duration: sparseAlbum.duration,
-            review: "Detailed review",
-            genres: ["Pop/Rock"],
-            styles: ["Art Rock"],
-            moods: ["Brooding"]
-        )
+        let cachedAlbum = makeAlbum(id: "album-1")
+        subject.store.albumByID[cachedAlbum.plexID] = cachedAlbum
 
-        let mergedAlbum = try await subject.repo.album(id: sparseAlbum.plexID)
+        let loadedAlbum = try await subject.repo.album(id: cachedAlbum.plexID)
 
-        #expect(subject.remote.fetchAlbumRequests == [sparseAlbum.plexID])
-        #expect(mergedAlbum?.review == "Detailed review")
-        #expect(mergedAlbum?.genres == ["Pop/Rock"])
-        #expect(mergedAlbum?.styles == ["Art Rock"])
-        #expect(mergedAlbum?.moods == ["Brooding"])
+        #expect(loadedAlbum?.plexID == cachedAlbum.plexID)
+        #expect(subject.remote.fetchAlbumRequests.isEmpty)
+    }
+
+    @Test
+    func album_whenCacheMiss_fetchesRemoteAndPersistsAlbum() async throws {
+        let subject = makeSubject()
+        let remoteAlbum = makeAlbum(id: "album-remote")
+        subject.remote.albumsByID[remoteAlbum.plexID] = remoteAlbum
+
+        let loadedAlbum = try await subject.repo.album(id: remoteAlbum.plexID)
+
+        #expect(loadedAlbum?.plexID == remoteAlbum.plexID)
+        #expect(subject.remote.fetchAlbumRequests == [remoteAlbum.plexID])
+        #expect(subject.store.albumByID[remoteAlbum.plexID]?.plexID == remoteAlbum.plexID)
     }
 
     @Test
@@ -392,14 +386,14 @@ struct LibraryRepoTests {
         ))
     }
     @Test
-    func tracks_prefersRemoteWhenStoreHasCachedTracks() async throws {
+    func tracks_whenStoreHasCachedTracks_returnsCachedWithoutRemoteFetch() async throws {
         let subject = makeSubject()
         subject.store.tracksByAlbumID["album-7"] = [makeTrack(id: "track-7", albumID: "album-7", number: 1)]
         subject.remote.tracksByAlbumID["album-7"] = [makeTrack(id: "track-7-remote", albumID: "album-7", number: 1)]
         let tracks = try await subject.repo.tracks(forAlbum: "album-7")
-        #expect(tracks.map(\.plexID) == ["track-7-remote"])
+        #expect(tracks.map(\.plexID) == ["track-7"])
         #expect(subject.store.fetchTrackRequests == ["album-7"])
-        #expect(subject.remote.fetchTracksRequests == ["album-7"])
+        #expect(subject.remote.fetchTracksRequests.isEmpty)
     }
     @Test
     func tracks_whenStoreHasNoTracks_fetchesFromRemote() async throws {
@@ -409,9 +403,10 @@ struct LibraryRepoTests {
         #expect(tracks.map(\.plexID) == ["track-9"])
         #expect(subject.store.fetchTrackRequests == ["album-9"])
         #expect(subject.remote.fetchTracksRequests == ["album-9"])
+        #expect(subject.store.tracksByAlbumID["album-9"]?.map(\.plexID) == ["track-9"])
     }
     @Test
-    func tracks_whenRemoteFailsAndStoreHasCachedTracks_returnsCachedTracks() async throws {
+    func tracks_whenStoreHasCachedTracksAndRemoteWouldFail_stillReturnsCachedTracks() async throws {
         let subject = makeSubject()
         subject.store.tracksByAlbumID["album-8"] = [makeTrack(id: "track-8-cached", albumID: "album-8", number: 1)]
         subject.remote.fetchTracksErrorByAlbumID["album-8"] = .timeout
@@ -420,7 +415,25 @@ struct LibraryRepoTests {
 
         #expect(tracks.map(\.plexID) == ["track-8-cached"])
         #expect(subject.store.fetchTrackRequests == ["album-8"])
-        #expect(subject.remote.fetchTracksRequests == ["album-8"])
+        #expect(subject.remote.fetchTracksRequests.isEmpty)
+    }
+
+    @Test
+    func refreshAlbumDetail_fetchesRemoteAlbumAndTracks_persistsAndReturnsOutcome() async throws {
+        let subject = makeSubject()
+        let album = makeAlbum(id: "album-detail")
+        let tracks = [makeTrack(id: "track-detail", albumID: album.plexID, number: 1)]
+        subject.remote.albumsByID[album.plexID] = album
+        subject.remote.tracksByAlbumID[album.plexID] = tracks
+
+        let outcome = try await subject.repo.refreshAlbumDetail(albumID: album.plexID)
+
+        #expect(subject.remote.fetchAlbumRequests == [album.plexID])
+        #expect(subject.remote.fetchTracksRequests == [album.plexID])
+        #expect(outcome.album?.plexID == album.plexID)
+        #expect(outcome.tracks.map(\.plexID) == ["track-detail"])
+        #expect(subject.store.albumByID[album.plexID]?.plexID == album.plexID)
+        #expect(subject.store.tracksByAlbumID[album.plexID]?.map(\.plexID) == ["track-detail"])
     }
     @Test
     func streamURL_delegatesToRemote() async throws {

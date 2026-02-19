@@ -41,6 +41,13 @@ final class LibraryStore: LibraryStoreProtocol {
         }
     }
 
+    func upsertAlbum(_ album: Album) async throws {
+        let target = album
+        try await dbQueue.write { db in
+            try AlbumRecord(model: target).save(db)
+        }
+    }
+
     func fetchTracks(forAlbum albumID: String) async throws -> [Track] {
         let targetAlbumID = albumID
 
@@ -56,6 +63,20 @@ final class LibraryStore: LibraryStoreProtocol {
     func track(id: String) async throws -> Track? {
         try await dbQueue.read { db in
             try TrackRecord.fetchOne(db, key: id)?.model
+        }
+    }
+
+    func replaceTracks(_ tracks: [Track], forAlbum albumID: String) async throws {
+        let targetAlbumID = albumID
+        let replacementTracks = tracks
+        try await dbQueue.write { db in
+            _ = try TrackRecord
+                .filter(Column("albumID") == targetAlbumID)
+                .deleteAll(db)
+
+            for track in replacementTracks {
+                try TrackRecord(model: track).save(db)
+            }
         }
     }
 

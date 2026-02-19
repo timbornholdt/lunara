@@ -20,11 +20,6 @@ final class LibraryGridViewModel {
     private let artworkPipeline: ArtworkPipelineProtocol
     private let actions: LibraryGridActionRouting
 
-    let pageSize: Int
-    private let prefetchThreshold: Int
-
-    var nextPageNumber = 1
-    var hasMorePages = true
     private var pendingArtworkAlbumIDs: Set<String> = []
     private var searchRequestID = 0
     private var searchTask: Task<Void, Never>?
@@ -53,14 +48,12 @@ final class LibraryGridViewModel {
         library: LibraryRepoProtocol,
         artworkPipeline: ArtworkPipelineProtocol,
         actions: LibraryGridActionRouting,
-        pageSize: Int = 40,
-        prefetchThreshold: Int = 8
+        pageSize _: Int = 40,
+        prefetchThreshold _: Int = 8
     ) {
         self.library = library
         self.artworkPipeline = artworkPipeline
         self.actions = actions
-        self.pageSize = max(1, pageSize)
-        self.prefetchThreshold = max(1, prefetchThreshold)
     }
 
     func loadInitialIfNeeded() async {
@@ -68,23 +61,20 @@ final class LibraryGridViewModel {
             return
         }
 
-        await loadFirstPage(clearExistingAlbums: false)
+        await reloadCachedCatalog()
     }
 
     func refresh() async {
-        await loadFirstPage(clearExistingAlbums: true)
+        do {
+            _ = try await library.refreshLibrary(reason: .userInitiated)
+            await reloadCachedCatalog()
+        } catch {
+            errorBannerState.show(message: userFacingMessage(for: error))
+        }
     }
 
-    func loadNextPageIfNeeded(currentAlbumID: String?) async {
-        guard !isSearchActive else {
-            return
-        }
-
-        guard shouldLoadNextPage(currentAlbumID: currentAlbumID) else {
-            return
-        }
-
-        await loadNextPage()
+    func loadNextPageIfNeeded(currentAlbumID _: String?) async {
+        // Albums tab renders full cached catalog immediately.
     }
 
     func playAlbum(_ album: Album) async {
@@ -145,82 +135,6 @@ final class LibraryGridViewModel {
         }
     }
 
-    private func loadFirstPage(clearExistingAlbums: Bool) async {
-        if clearExistingAlbums {
-            albums = []
-            artworkByAlbumID = [:]
-        }
-
-        loadingState = .loading
-        nextPageNumber = 1
-        hasMorePages = true
-
-        do {
-            let firstPageAlbums = try await library.albums(page: LibraryPage(number: 1, size: pageSize))
-            albums = firstPageAlbums
-            hasMorePages = firstPageAlbums.count == pageSize
-            nextPageNumber = hasMorePages ? 2 : 1
-            await refreshSearchResultsIfNeeded()
-            loadingState = .loaded
-        } catch {
-            loadingState = .error(userFacingMessage(for: error))
-        }
-    }
-
-    private func loadNextPage() async {
-        guard hasMorePages else {
-            return
-        }
-
-        isLoadingNextPage = true
-        defer {
-            isLoadingNextPage = false
-        }
-
-        do {
-            let nextPageAlbums = try await library.albums(page: LibraryPage(number: nextPageNumber, size: pageSize))
-            appendUniqueAlbums(nextPageAlbums)
-            hasMorePages = nextPageAlbums.count == pageSize
-            if hasMorePages {
-                nextPageNumber += 1
-            }
-        } catch {
-            errorBannerState.show(message: userFacingMessage(for: error))
-        }
-    }
-
-    private func shouldLoadNextPage(currentAlbumID: String?) -> Bool {
-        guard !isSearchActive else {
-            return false
-        }
-
-        guard hasMorePages, !isLoadingNextPage else {
-            return false
-        }
-
-        guard !albums.isEmpty else {
-            return false
-        }
-
-        guard let currentAlbumID,
-              let currentIndex = albums.firstIndex(where: { $0.plexID == currentAlbumID }) else {
-            return true
-        }
-
-        let triggerIndex = max(albums.count - prefetchThreshold, 0)
-        return currentIndex >= triggerIndex
-    }
-
-    private func appendUniqueAlbums(_ incomingAlbums: [Album]) {
-        guard !incomingAlbums.isEmpty else {
-            return
-        }
-
-        let existingIDs = Set(albums.map(\.plexID))
-        let uniqueIncoming = incomingAlbums.filter { !existingIDs.contains($0.plexID) }
-        albums.append(contentsOf: uniqueIncoming)
-    }
-
     func userFacingMessage(for error: Error) -> String {
         if let lunaraError = error as? LunaraError {
             return lunaraError.userMessage
@@ -275,6 +189,17 @@ final class LibraryGridViewModel {
             }
             searchedAlbums = []
             errorBannerState.show(message: userFacingMessage(for: error))
+        }
+    }
+
+    private func reloadCachedCatalog() async {
+        loadingState = .loading
+        do {
+            albums = try await library.fetchAlbums()
+            await refreshSearchResultsIfNeeded()
+            loadingState = .loaded
+        } catch {
+            loadingState = .error(userFacingMessage(for: error))
         }
     }
 
