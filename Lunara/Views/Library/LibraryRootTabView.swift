@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct LibraryRootTabView: View {
     private enum Tab: Hashable {
@@ -61,6 +62,15 @@ struct LibraryRootTabView: View {
             }
             .onAppear {
                 LunaraTabBarStyler.apply(theme: tabBarTheme)
+                // iOS 26: the Liquid Glass tab bar is translucent and picks up
+                // the UIWindow background color. Setting it here prevents the
+                // default white from bleeding through the glass material and
+                // into the safe area below the floating pill.
+                if let window = UIApplication.shared.connectedScenes
+                    .compactMap({ $0 as? UIWindowScene })
+                    .first?.windows.first {
+                    window.backgroundColor = UIColor.lunara(.backgroundBase)
+                }
             }
         }
     }
