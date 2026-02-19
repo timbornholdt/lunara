@@ -183,6 +183,25 @@ struct AppRouterTests {
     }
 
     @Test
+    func reconcileQueueAgainstLibrary_withDuplicateTrackIDs_performsSingleLookupAndRemovesAllOccurrences() async throws {
+        let subject = makeSubject()
+        subject.library.trackByID["track-2"] = makeTrack(id: "track-2")
+        subject.queue.playNow([
+            QueueItem(trackID: "track-missing", url: try #require(URL(string: "https://example.com/track-missing-a.mp3"))),
+            QueueItem(trackID: "track-missing", url: try #require(URL(string: "https://example.com/track-missing-b.mp3"))),
+            QueueItem(trackID: "track-2", url: try #require(URL(string: "https://example.com/track-2.mp3")))
+        ])
+
+        let outcome = try await subject.router.reconcileQueueAgainstLibrary()
+
+        #expect(outcome.removedTrackIDs == ["track-missing"])
+        #expect(outcome.removedItemCount == 2)
+        #expect(subject.library.trackLookupRequests == ["track-missing", "track-2"])
+        #expect(subject.queue.reconcileCalls == [Set(["track-missing"])])
+        #expect(subject.queue.items.map(\.trackID) == ["track-2"])
+    }
+
+    @Test
     func queueAlbumNext_fetchesTracksResolvesURLsAndQueuesPlayNext() async throws {
         let subject = makeSubject()
         let album = makeAlbum(id: "album-next")

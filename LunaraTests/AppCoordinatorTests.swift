@@ -136,6 +136,16 @@ struct AppCoordinatorTests {
         #expect(subject.queue.reconcileCalls.isEmpty)
     }
     @Test
+    func loadLibraryOnLaunch_withEmptyQueue_doesNotPerformTrackLookupsForReconciliation() async throws {
+        let subject = makeSubject()
+        subject.library.albumsByPage[1] = [makeAlbum(id: "cached-1")]
+        subject.library.refreshError = LibraryError.timeout
+
+        _ = try await subject.coordinator.loadLibraryOnLaunch()
+
+        #expect(subject.library.trackLookupRequests.isEmpty)
+    }
+    @Test
     func pausePlayback_delegatesToRouterQueuePause() {
         let subject = makeSubject()
         subject.coordinator.pausePlayback()
