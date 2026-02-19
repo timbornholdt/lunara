@@ -219,6 +219,48 @@ struct QueueManagerTests {
         }
     }
 
+    @Test
+    func reconcile_whenCurrentTrackRemoved_advancesToNextValidTrackAndPlaysIt() async throws {
+        let subject = makeSubject()
+        let queueItems = [
+            QueueItem(trackID: "track-0", url: try #require(URL(string: "https://example.com/track-0.mp3"))),
+            QueueItem(trackID: "track-1", url: try #require(URL(string: "https://example.com/track-1.mp3"))),
+            QueueItem(trackID: "track-2", url: try #require(URL(string: "https://example.com/track-2.mp3")))
+        ]
+
+        subject.manager.playNow(queueItems)
+        subject.manager.skipToNext()
+        await settleObservation()
+
+        subject.manager.reconcile(removingTrackIDs: ["track-1"])
+        await settleObservation()
+
+        #expect(subject.manager.items.map(\.trackID) == ["track-0", "track-2"])
+        #expect(subject.manager.currentItem?.trackID == "track-2")
+        #expect(subject.engine.playCalls.last?.1 == "track-2")
+    }
+
+    @Test
+    func reconcile_whenCurrentTrackRetained_removesInvalidItemsWithoutRestartingPlayback() async throws {
+        let subject = makeSubject()
+        let queueItems = [
+            QueueItem(trackID: "track-0", url: try #require(URL(string: "https://example.com/track-0.mp3"))),
+            QueueItem(trackID: "track-1", url: try #require(URL(string: "https://example.com/track-1.mp3"))),
+            QueueItem(trackID: "track-2", url: try #require(URL(string: "https://example.com/track-2.mp3")))
+        ]
+
+        subject.manager.playNow(queueItems)
+        await settleObservation()
+        let playCallCountBeforeReconcile = subject.engine.playCalls.count
+
+        subject.manager.reconcile(removingTrackIDs: ["track-2"])
+        await settleObservation()
+
+        #expect(subject.manager.items.map(\.trackID) == ["track-0", "track-1"])
+        #expect(subject.manager.currentItem?.trackID == "track-0")
+        #expect(subject.engine.playCalls.count == playCallCountBeforeReconcile)
+    }
+
     private func makeSubject() -> (
         manager: QueueManager,
         engine: PlaybackEngineMock,

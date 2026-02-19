@@ -1,6 +1,13 @@
 import Foundation
 import os
 
+struct QueueReconciliationOutcome: Equatable {
+    let removedTrackIDs: [String]
+    let removedItemCount: Int
+
+    static let noChanges = QueueReconciliationOutcome(removedTrackIDs: [], removedItemCount: 0)
+}
+
 @MainActor
 final class AppRouter {
     private let library: LibraryRepoProtocol
@@ -71,6 +78,48 @@ final class AppRouter {
 
     func stopPlayback() {
         queue.clear()
+    }
+
+    func reconcileQueueAgainstLibrary() async throws -> QueueReconciliationOutcome {
+        let queuedItems = queue.items
+        guard !queuedItems.isEmpty else {
+            return .noChanges
+        }
+
+        var missingTrackIDs: Set<String> = []
+        var trackLookupCache: [String: Bool] = [:]
+        trackLookupCache.reserveCapacity(queuedItems.count)
+
+        for item in queuedItems {
+            if let isPresent = trackLookupCache[item.trackID] {
+                if !isPresent {
+                    missingTrackIDs.insert(item.trackID)
+                }
+                continue
+            }
+
+            let track = try await library.track(id: item.trackID)
+            let isPresent = track != nil
+            trackLookupCache[item.trackID] = isPresent
+            if !isPresent {
+                missingTrackIDs.insert(item.trackID)
+            }
+        }
+
+        guard !missingTrackIDs.isEmpty else {
+            return .noChanges
+        }
+
+        let removedItemCount = queuedItems.filter { missingTrackIDs.contains($0.trackID) }.count
+        queue.reconcile(removingTrackIDs: missingTrackIDs)
+        let sortedMissingTrackIDs = missingTrackIDs.sorted()
+        logger.info(
+            "Queue reconciliation removed \(removedItemCount, privacy: .public) items for missing track IDs: \(sortedMissingTrackIDs.joined(separator: ","), privacy: .public)"
+        )
+        return QueueReconciliationOutcome(
+            removedTrackIDs: sortedMissingTrackIDs,
+            removedItemCount: removedItemCount
+        )
     }
 
     private func tracks(forAlbum album: Album) async throws -> [Track] {

@@ -136,6 +136,53 @@ struct AppRouterTests {
     }
 
     @Test
+    func reconcileQueueAgainstLibrary_removesMissingTrackIDsFromQueue() async throws {
+        let subject = makeSubject()
+        let keptTrack = makeTrack(id: "track-kept")
+        subject.library.trackByID[keptTrack.plexID] = keptTrack
+        subject.queue.playNow([
+            QueueItem(trackID: keptTrack.plexID, url: try #require(URL(string: "https://example.com/\(keptTrack.plexID).mp3"))),
+            QueueItem(trackID: "track-missing", url: try #require(URL(string: "https://example.com/track-missing.mp3")))
+        ])
+
+        let outcome = try await subject.router.reconcileQueueAgainstLibrary()
+
+        #expect(outcome.removedTrackIDs == ["track-missing"])
+        #expect(outcome.removedItemCount == 1)
+        #expect(subject.library.trackLookupRequests == [keptTrack.plexID, "track-missing"])
+        #expect(subject.queue.reconcileCalls == [Set(["track-missing"])])
+        #expect(subject.queue.items.map(\.trackID) == [keptTrack.plexID])
+    }
+
+    @Test
+    func reconcileQueueAgainstLibrary_whenLookupFails_doesNotMutateQueue() async throws {
+        let subject = makeSubject()
+        let firstItem = QueueItem(
+            trackID: "track-1",
+            url: try #require(URL(string: "https://example.com/track-1.mp3"))
+        )
+        let secondItem = QueueItem(
+            trackID: "track-2",
+            url: try #require(URL(string: "https://example.com/track-2.mp3"))
+        )
+        subject.queue.playNow([firstItem, secondItem])
+        subject.library.trackLookupErrorByID["track-2"] = LibraryError.timeout
+        subject.library.trackByID["track-1"] = makeTrack(id: "track-1")
+
+        do {
+            _ = try await subject.router.reconcileQueueAgainstLibrary()
+            Issue.record("Expected reconcileQueueAgainstLibrary to throw")
+        } catch let error as LibraryError {
+            #expect(error == .timeout)
+        } catch {
+            Issue.record("Expected LibraryError, got: \(error)")
+        }
+
+        #expect(subject.queue.reconcileCalls.isEmpty)
+        #expect(subject.queue.items == [firstItem, secondItem])
+    }
+
+    @Test
     func queueAlbumNext_fetchesTracksResolvesURLsAndQueuesPlayNext() async throws {
         let subject = makeSubject()
         let album = makeAlbum(id: "album-next")
@@ -251,6 +298,9 @@ private final class LibraryRepoMock: LibraryRepoProtocol {
     var streamURLByTrackID: [String: URL] = [:]
     var streamURLRequests: [String] = []
     var streamURLError: LibraryError?
+    var trackByID: [String: Track] = [:]
+    var trackLookupRequests: [String] = []
+    var trackLookupErrorByID: [String: Error] = [:]
 
     func albums(page: LibraryPage) async throws -> [Album] {
         albumPageRequests.append(page)
@@ -280,7 +330,11 @@ private final class LibraryRepoMock: LibraryRepoProtocol {
     }
 
     func track(id: String) async throws -> Track? {
-        nil
+        trackLookupRequests.append(id)
+        if let error = trackLookupErrorByID[id] {
+            throw error
+        }
+        return trackByID[id]
     }
 
     func refreshAlbumDetail(albumID: String) async throws -> AlbumDetailRefreshOutcome {
@@ -357,6 +411,7 @@ private final class QueueManagerMock: QueueManagerProtocol {
     private(set) var resumeCallCount = 0
     private(set) var skipToNextCallCount = 0
     private(set) var clearCallCount = 0
+    private(set) var reconcileCalls: [Set<String>] = []
 
     func playNow(_ items: [QueueItem]) {
         playNowCalls.append(items)
@@ -383,5 +438,20 @@ private final class QueueManagerMock: QueueManagerProtocol {
     }
     func clear() {
         clearCallCount += 1
+    }
+
+    func reconcile(removingTrackIDs: Set<String>) {
+        reconcileCalls.append(removingTrackIDs)
+        guard !removingTrackIDs.isEmpty else { return }
+        items.removeAll { removingTrackIDs.contains($0.trackID) }
+        if items.isEmpty {
+            currentIndex = nil
+            currentItem = nil
+        } else if let currentIndex, items.indices.contains(currentIndex) {
+            currentItem = items[currentIndex]
+        } else {
+            self.currentIndex = 0
+            currentItem = items.first
+        }
     }
 }

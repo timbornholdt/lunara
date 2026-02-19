@@ -15,11 +15,11 @@ final class QueueManager: QueueManagerProtocol {
         return items[currentIndex]
     }
 
-    private let engine: PlaybackEngineProtocol
+    let engine: PlaybackEngineProtocol
     private let persistence: QueueStatePersisting
     private var observedTrackID: String?
-    private var lastPersistedElapsed: TimeInterval = 0
-    private var pendingSeekAfterNextPlay: TimeInterval?
+    var lastPersistedElapsed: TimeInterval = 0
+    var pendingSeekAfterNextPlay: TimeInterval?
     private var persistenceTask: Task<Void, Never>?
 
     init(
@@ -117,7 +117,7 @@ final class QueueManager: QueueManagerProtocol {
         )
     }
 
-    private func playCurrentItem() {
+    func playCurrentItem() {
         guard let currentItem else { return }
         engine.play(url: currentItem.url, trackID: currentItem.trackID)
 
@@ -130,7 +130,7 @@ final class QueueManager: QueueManagerProtocol {
         persistQueueState(elapsed: engine.elapsed)
     }
 
-    private func prepareUpcomingTrack() {
+    func prepareUpcomingTrack() {
         guard let nextItem = nextItem() else { return }
         engine.prepareNext(url: nextItem.url, trackID: nextItem.trackID)
     }
@@ -181,7 +181,7 @@ final class QueueManager: QueueManagerProtocol {
         }
     }
 
-    private func persistQueueState(elapsed: TimeInterval) {
+    func persistQueueState(elapsed: TimeInterval) {
         let clampedElapsed = max(0, elapsed)
         lastPersistedElapsed = clampedElapsed
         let snapshot = QueueSnapshot(
@@ -287,5 +287,13 @@ final class QueueManager: QueueManagerProtocol {
         }
 
         return (elapsed - lastPersistedElapsed) >= 5
+    }
+
+    func applyReconciledItems(_ items: [QueueItem]) {
+        self.items = items
+    }
+
+    func applyReconciledCurrentIndex(_ index: Int?) {
+        currentIndex = index
     }
 }

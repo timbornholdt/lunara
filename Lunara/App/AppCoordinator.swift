@@ -156,6 +156,15 @@ final class AppCoordinator {
         let cachedAlbums = try await libraryRepo.fetchAlbums()
 
         if !cachedAlbums.isEmpty {
+            if refreshReason == .appLaunch {
+                Task { [weak self] in
+                    guard let self else {
+                        return
+                    }
+                    await self.reconcileQueueAfterCatalogUpdate(trigger: "startup-cache-load")
+                }
+            }
+
             Task { [weak self] in
                 guard let self else {
                     return
@@ -166,6 +175,7 @@ final class AppCoordinator {
         }
 
         _ = try await libraryRepo.refreshLibrary(reason: refreshReason)
+        await reconcileQueueAfterCatalogUpdate(trigger: "foreground-refresh-\(String(describing: refreshReason))")
         return try await libraryRepo.fetchAlbums()
     }
 
@@ -176,6 +186,10 @@ final class AppCoordinator {
             lastBackgroundRefreshDate = outcome.refreshedAt
             lastBackgroundRefreshErrorMessage = nil
             logger.info("Background refresh succeeded for reason '\(String(describing: reason), privacy: .public)' at \(outcome.refreshedAt, privacy: .public)")
+
+            if reason != .appLaunch {
+                await reconcileQueueAfterCatalogUpdate(trigger: "background-refresh-\(String(describing: reason))")
+            }
         } catch let error as LunaraError {
             backgroundRefreshFailureToken += 1
             lastBackgroundRefreshErrorMessage = error.userMessage
@@ -184,6 +198,22 @@ final class AppCoordinator {
             backgroundRefreshFailureToken += 1
             lastBackgroundRefreshErrorMessage = error.localizedDescription
             logger.error("Background refresh failed for reason '\(String(describing: reason), privacy: .public)' with unexpected error: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func reconcileQueueAfterCatalogUpdate(trigger: String) async {
+        do {
+            let outcome = try await appRouter.reconcileQueueAgainstLibrary()
+            guard outcome.removedItemCount > 0 else {
+                logger.info("Queue reconciliation found no missing tracks for trigger '\(trigger, privacy: .public)'")
+                return
+            }
+
+            logger.info(
+                "Queue reconciliation removed \(outcome.removedItemCount, privacy: .public) queue items for trigger '\(trigger, privacy: .public)'"
+            )
+        } catch {
+            logger.error("Queue reconciliation failed for trigger '\(trigger, privacy: .public)': \(error.localizedDescription, privacy: .public)")
         }
     }
 
