@@ -157,7 +157,7 @@ Status: Completed on February 18, 2026.
 
 ## Stage 5: App-Wide Cached Catalog Adoption (Up Next)
 
-Status: In progress (Stages 5A-5L completed as of February 19, 2026; 5M pending).
+Status: Completed (Stages 5A-5M completed as of February 19, 2026).
 
 ### Purpose
 
@@ -422,10 +422,11 @@ Stage 5L status (completed February 19, 2026):
   - fetchPlaylists sorts by title ascending.
 - All 9 tests pass. Full project test suite passes.
 
-13. Stage 5M: Cleanup + hardening
-   - Remove superseded non-relational query code and obsolete schema paths.
-   - Expand regression suite for relationship pruning, canonical tag merges, playlist ordering, and offline query correctness.
-   - Update roadmap status and residual risks.
+13. Stage 5M: Cleanup + hardening (completed February 19, 2026)
+   - Removed dead pagination code from LibraryGridViewModel (isLoadingNextPage, loadNextPageIfNeeded, pageSize/prefetchThreshold params) and corresponding call sites in LibraryGridView and tests.
+   - Added LibraryStoreHardeningTests: tag-prune coverage, orphan join row coverage, canonical tag reuse across consecutive runs.
+   - Added LibraryRepoTests: playlists_servesFromStoreWithoutRemoteFetch, playlistItems_servesFromStoreWithoutRemoteFetch.
+   - Full unit test suite passes.
 
 ## Stage 6: Conditional Request Feasibility Study
 

@@ -32,7 +32,6 @@ final class LibraryGridViewModel {
     }
     var queriedAlbums: [Album] = []
     var loadingState: LoadingState = .idle
-    var isLoadingNextPage = false
     var artworkByAlbumID: [String: URL] = [:]
     var errorBannerState = ErrorBannerState()
 
@@ -47,9 +46,7 @@ final class LibraryGridViewModel {
     init(
         library: LibraryRepoProtocol,
         artworkPipeline: ArtworkPipelineProtocol,
-        actions: LibraryGridActionRouting,
-        pageSize _: Int = 40,
-        prefetchThreshold _: Int = 8
+        actions: LibraryGridActionRouting
     ) {
         self.library = library
         self.artworkPipeline = artworkPipeline
@@ -71,10 +68,6 @@ final class LibraryGridViewModel {
         } catch {
             errorBannerState.show(message: userFacingMessage(for: error))
         }
-    }
-
-    func loadNextPageIfNeeded(currentAlbumID _: String?) async {
-        // Albums tab renders full cached catalog immediately.
     }
 
     func playAlbum(_ album: Album) async {
