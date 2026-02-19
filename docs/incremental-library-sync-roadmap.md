@@ -157,7 +157,7 @@ Status: Completed on February 18, 2026.
 
 ## Stage 5: App-Wide Cached Catalog Adoption (Up Next)
 
-Status: In progress (Stages 5A-5H completed as of February 19, 2026; 5I+ pending).
+Status: In progress (Stages 5A-5K completed as of February 19, 2026; 5L+ pending).
 
 ### Purpose
 
@@ -390,8 +390,14 @@ Stage 5H status (completed February 19, 2026):
 
 11. Stage 5K: UI/read-path adoption for relational filtering
    - Move album-screen filtering from view-local array filtering to store-backed flexible query APIs.
-   - Keep pagination for rendering performance; derive pages from filtered query result sets, not from ad hoc in-memory post-filtering.
+   - Remove page-sliced rendering from the primary album read path; load the full cached catalog immediately on screen entry and derive filtered/sorted views directly from cache-backed queries.
    - Ensure no normal navigation path requires remote metadata fetch when cache is present.
+
+Stage 5K status (completed February 19, 2026):
+- Migrated `LibraryGridViewModel` primary read path to `library.queryAlbums(filter: .all)` — full cached catalog loads immediately on screen entry, no pagination.
+- Search filtering replaced from view-local array filter to `AlbumQueryFilter(textQuery:)` store-backed query via `library.queryAlbums(filter:)`.
+- `loadNextPageIfNeeded()` is now a documented no-op; background refresh re-queries full catalog + active search via `applyBackgroundRefreshUpdateIfNeeded()`.
+- All tests pass: `LibraryGridViewModelTests` (22 tests) and `LibraryStoreAlbumQueryPlannerTests` (4 tests).
 
 12. Stage 5L: Playlist relational readiness pass
    - Persist playlist metadata and ordered items from Plex payloads.
@@ -488,7 +494,7 @@ This reduces unnecessary network work even before conditional requests are prove
 
 1. Launch app with network disabled after a prior successful sync; verify albums, album detail, collections, up next metadata, and now playing metadata render from cache.
 2. Re-enable network, trigger refresh with no server-side changes; verify no visible cache reset/reload flash and no broad artwork churn.
-3. Search albums by artist and title terms that are not in first rendered pages; verify results still appear.
+3. Search albums by artist and title terms from across the full catalog; verify results appear immediately without requiring prior page loads.
 4. Modify one album in Plex (metadata or artwork), refresh, verify only that album updates across grid and detail surfaces.
 5. Remove one album in Plex, refresh, verify it disappears locally and associated artwork is pruned.
 6. Disconnect network, trigger refresh, verify cached data remains visible and error banner appears.
