@@ -83,6 +83,59 @@ struct AppCoordinatorTests {
         }
     }
     @Test
+    func loadLibraryOnLaunch_reconcilesQueueAgainstCachedCatalog() async throws {
+        let subject = makeSubject()
+        subject.library.albumsByPage[1] = [makeAlbum(id: "cached-1")]
+        subject.queue.items = [
+            QueueItem(trackID: "track-valid", url: try #require(URL(string: "https://example.com/track-valid.mp3"))),
+            QueueItem(trackID: "track-missing", url: try #require(URL(string: "https://example.com/track-missing.mp3")))
+        ]
+        subject.queue.currentIndex = 0
+        subject.queue.currentItem = subject.queue.items.first
+        subject.library.trackByID["track-valid"] = makeTrack(id: "track-valid", albumID: "cached-1")
+        subject.library.refreshError = LibraryError.timeout
+
+        _ = try await subject.coordinator.loadLibraryOnLaunch()
+
+        await waitForReconcileCalls(on: subject.queue, expected: 1)
+        #expect(subject.queue.reconcileCalls == [Set(["track-missing"])])
+    }
+    @Test
+    func fetchAlbums_whenBackgroundRefreshSucceeds_reconcilesQueueAgainstUpdatedCatalog() async throws {
+        let subject = makeSubject()
+        subject.library.albumsByPage[1] = [makeAlbum(id: "cached-1")]
+        subject.queue.items = [
+            QueueItem(trackID: "track-valid", url: try #require(URL(string: "https://example.com/track-valid.mp3"))),
+            QueueItem(trackID: "track-missing", url: try #require(URL(string: "https://example.com/track-missing.mp3")))
+        ]
+        subject.queue.currentIndex = 0
+        subject.queue.currentItem = subject.queue.items.first
+        subject.library.trackByID["track-valid"] = makeTrack(id: "track-valid", albumID: "cached-1")
+
+        _ = try await subject.coordinator.fetchAlbums()
+
+        await waitForRefreshReasons(on: subject.library, expected: [.userInitiated])
+        await waitForReconcileCalls(on: subject.queue, expected: 1)
+        #expect(subject.queue.reconcileCalls == [Set(["track-missing"])])
+    }
+    @Test
+    func fetchAlbums_whenBackgroundRefreshFails_doesNotRunQueueReconciliation() async throws {
+        let subject = makeSubject()
+        subject.library.albumsByPage[1] = [makeAlbum(id: "cached-1")]
+        subject.library.refreshError = LibraryError.timeout
+        subject.queue.items = [
+            QueueItem(trackID: "track-valid", url: try #require(URL(string: "https://example.com/track-valid.mp3")))
+        ]
+        subject.queue.currentIndex = 0
+        subject.queue.currentItem = subject.queue.items.first
+        subject.library.trackByID["track-valid"] = makeTrack(id: "track-valid", albumID: "cached-1")
+
+        _ = try await subject.coordinator.fetchAlbums()
+
+        await waitForBackgroundRefreshFailure(on: subject.coordinator, expected: 1)
+        #expect(subject.queue.reconcileCalls.isEmpty)
+    }
+    @Test
     func pausePlayback_delegatesToRouterQueuePause() {
         let subject = makeSubject()
         subject.coordinator.pausePlayback()
@@ -189,6 +242,18 @@ struct AppCoordinatorTests {
             duration: 180
         )
     }
+    private func makeTrack(id: String, albumID: String) -> Track {
+        Track(
+            plexID: id,
+            albumID: albumID,
+            title: "Track \(id)",
+            trackNumber: 1,
+            duration: 180,
+            artistName: "Artist",
+            key: "/library/metadata/\(id)",
+            thumbURL: nil
+        )
+    }
     private func waitForArtworkRequests(
         on pipeline: ArtworkPipelineMock,
         expectedOwnerIDs: [String]
@@ -224,6 +289,17 @@ struct AppCoordinatorTests {
             await Task.yield()
         }
     }
+    private func waitForReconcileCalls(
+        on queue: CoordinatorQueueManagerMock,
+        expected: Int
+    ) async {
+        for _ in 0..<80 {
+            if queue.reconcileCalls.count == expected {
+                return
+            }
+            await Task.yield()
+        }
+    }
 
     private func waitForBackgroundRefreshFailure(
         on coordinator: AppCoordinator,
@@ -243,6 +319,8 @@ private final class CoordinatorLibraryRepoMock: LibraryRepoProtocol {
     var refreshReasons: [LibraryRefreshReason] = []
     var refreshError: LibraryError?
     var refreshHook: (() -> Void)?
+    var trackByID: [String: Track] = [:]
+    var trackLookupRequests: [String] = []
     func albums(page: LibraryPage) async throws -> [Album] {
         albumsByPage[page.number] ?? []
     }
@@ -256,7 +334,8 @@ private final class CoordinatorLibraryRepoMock: LibraryRepoProtocol {
         []
     }
     func track(id: String) async throws -> Track? {
-        nil
+        trackLookupRequests.append(id)
+        return trackByID[id]
     }
 
     func refreshAlbumDetail(albumID: String) async throws -> AlbumDetailRefreshOutcome {
@@ -338,6 +417,7 @@ private final class CoordinatorQueueManagerMock: QueueManagerProtocol {
     private(set) var resumeCallCount = 0
     private(set) var skipToNextCallCount = 0
     private(set) var clearCallCount = 0
+    private(set) var reconcileCalls: [Set<String>] = []
     func playNow(_ items: [QueueItem]) { }
     func playNext(_ items: [QueueItem]) { }
     func playLater(_ items: [QueueItem]) { }
@@ -353,5 +433,20 @@ private final class CoordinatorQueueManagerMock: QueueManagerProtocol {
     }
     func clear() {
         clearCallCount += 1
+    }
+
+    func reconcile(removingTrackIDs: Set<String>) {
+        reconcileCalls.append(removingTrackIDs)
+        guard !removingTrackIDs.isEmpty else { return }
+        items.removeAll { removingTrackIDs.contains($0.trackID) }
+        if items.isEmpty {
+            currentIndex = nil
+            currentItem = nil
+        } else if let currentIndex, items.indices.contains(currentIndex) {
+            currentItem = items[currentIndex]
+        } else {
+            self.currentIndex = 0
+            currentItem = items.first
+        }
     }
 }

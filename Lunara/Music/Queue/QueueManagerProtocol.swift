@@ -27,4 +27,5 @@ protocol QueueManagerProtocol: AnyObject, Observable {
     func resume()
     func skipToNext()
     func clear()
+    func reconcile(removingTrackIDs: Set<String>)
 }
