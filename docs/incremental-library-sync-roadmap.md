@@ -155,7 +155,7 @@ Status: Completed on February 18, 2026.
 
 ## Stage 5: App-Wide Cached Catalog Adoption (Up Next)
 
-Status: In progress (Stage 5A completed on February 18, 2026; 5B+ pending).
+Status: In progress (Stages 5A-5B completed as of February 19, 2026; 5C+ pending).
 
 ### Purpose
 
@@ -237,6 +237,16 @@ Stage 5A status (completed February 18, 2026):
    - Add/adjust indexes as needed for title/artist/collection search performance.
    - Ensure case/diacritic-insensitive matching behavior.
    - Add direct `track(id:)` lookup path required for queue metadata reconciliation.
+
+Stage 5B status (completed February 19, 2026):
+- Implemented GRDB-backed Stage 5B query APIs in:
+  - `/Users/timbornholdt/Repos/Lunara/Lunara/Library/Store/LibraryStore.swift`
+- Added normalized search columns + indexes and migration backfill in:
+  - `/Users/timbornholdt/Repos/Lunara/Lunara/Library/Store/LibraryStoreMigrations.swift`
+  - `/Users/timbornholdt/Repos/Lunara/Lunara/Library/Store/LibraryStoreRecords.swift`
+  - `/Users/timbornholdt/Repos/Lunara/Lunara/Library/Store/LibraryStoreSearchNormalizer.swift`
+- Added direct Store query coverage for Stage 5B behavior in:
+  - `/Users/timbornholdt/Repos/Lunara/LunaraTests/LibraryStoreQueryTests.swift`
 
 3. Stage 5C: Repo read layer + remote fallback
    - Wire new query APIs through `LibraryRepo`.

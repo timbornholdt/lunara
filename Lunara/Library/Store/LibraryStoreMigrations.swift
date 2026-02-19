@@ -106,6 +106,68 @@ enum LibraryStoreMigrations {
             }
         }
 
+        migrator.registerMigration("v4_search_query_indexes") { db in
+            try db.alter(table: "albums") { table in
+                table.add(column: "titleSearch", .text).notNull().defaults(to: "")
+                table.add(column: "artistNameSearch", .text).notNull().defaults(to: "")
+            }
+
+            try db.alter(table: "artists") { table in
+                table.add(column: "nameSearch", .text).notNull().defaults(to: "")
+                table.add(column: "sortNameSearch", .text).notNull().defaults(to: "")
+            }
+
+            try db.alter(table: "collections") { table in
+                table.add(column: "titleSearch", .text).notNull().defaults(to: "")
+            }
+
+            let albumRows = try Row.fetchAll(db, sql: "SELECT plexID, title, artistName FROM albums")
+            for row in albumRows {
+                let plexID: String = row["plexID"]
+                let title: String = row["title"]
+                let artistName: String = row["artistName"]
+                try db.execute(
+                    sql: "UPDATE albums SET titleSearch = ?, artistNameSearch = ? WHERE plexID = ?",
+                    arguments: [
+                        LibraryStoreSearchNormalizer.normalize(title),
+                        LibraryStoreSearchNormalizer.normalize(artistName),
+                        plexID
+                    ]
+                )
+            }
+
+            let artistRows = try Row.fetchAll(db, sql: "SELECT plexID, name, sortName FROM artists")
+            for row in artistRows {
+                let plexID: String = row["plexID"]
+                let name: String = row["name"]
+                let sortName: String = row["sortName"] ?? ""
+                try db.execute(
+                    sql: "UPDATE artists SET nameSearch = ?, sortNameSearch = ? WHERE plexID = ?",
+                    arguments: [
+                        LibraryStoreSearchNormalizer.normalize(name),
+                        LibraryStoreSearchNormalizer.normalize(sortName),
+                        plexID
+                    ]
+                )
+            }
+
+            let collectionRows = try Row.fetchAll(db, sql: "SELECT plexID, title FROM collections")
+            for row in collectionRows {
+                let plexID: String = row["plexID"]
+                let title: String = row["title"]
+                try db.execute(
+                    sql: "UPDATE collections SET titleSearch = ? WHERE plexID = ?",
+                    arguments: [LibraryStoreSearchNormalizer.normalize(title), plexID]
+                )
+            }
+
+            try db.create(index: "albums_title_search_idx", on: "albums", columns: ["titleSearch"])
+            try db.create(index: "albums_artist_search_idx", on: "albums", columns: ["artistNameSearch"])
+            try db.create(index: "artists_name_search_idx", on: "artists", columns: ["nameSearch"])
+            try db.create(index: "artists_sort_name_search_idx", on: "artists", columns: ["sortNameSearch"])
+            try db.create(index: "collections_title_search_idx", on: "collections", columns: ["titleSearch"])
+        }
+
         return migrator
     }
 }

@@ -7,6 +7,8 @@ struct AlbumRecord: Codable, FetchableRecord, PersistableRecord, TableRecord {
     let plexID: String
     let title: String
     let artistName: String
+    let titleSearch: String
+    let artistNameSearch: String
     let year: Int?
     let thumbURL: String?
     let genre: String?
@@ -23,6 +25,8 @@ struct AlbumRecord: Codable, FetchableRecord, PersistableRecord, TableRecord {
         plexID = model.plexID
         title = model.title
         artistName = model.artistName
+        titleSearch = LibraryStoreSearchNormalizer.normalize(model.title)
+        artistNameSearch = LibraryStoreSearchNormalizer.normalize(model.artistName)
         year = model.year
         thumbURL = model.thumbURL
         genre = model.genre
@@ -122,6 +126,8 @@ struct ArtistRecord: Codable, FetchableRecord, PersistableRecord, TableRecord {
     let plexID: String
     let name: String
     let sortName: String?
+    let nameSearch: String
+    let sortNameSearch: String
     let thumbURL: String?
     let genre: String?
     let summary: String?
@@ -131,6 +137,8 @@ struct ArtistRecord: Codable, FetchableRecord, PersistableRecord, TableRecord {
         plexID = model.plexID
         name = model.name
         sortName = model.sortName
+        nameSearch = LibraryStoreSearchNormalizer.normalize(model.name)
+        sortNameSearch = LibraryStoreSearchNormalizer.normalize(model.sortName ?? "")
         thumbURL = model.thumbURL
         genre = model.genre
         summary = model.summary
@@ -155,6 +163,7 @@ struct CollectionRecord: Codable, FetchableRecord, PersistableRecord, TableRecor
 
     let plexID: String
     let title: String
+    let titleSearch: String
     let thumbURL: String?
     let summary: String?
     let albumCount: Int
@@ -163,6 +172,7 @@ struct CollectionRecord: Codable, FetchableRecord, PersistableRecord, TableRecor
     init(model: Collection) {
         plexID = model.plexID
         title = model.title
+        titleSearch = LibraryStoreSearchNormalizer.normalize(model.title)
         thumbURL = model.thumbURL
         summary = model.summary
         albumCount = model.albumCount
