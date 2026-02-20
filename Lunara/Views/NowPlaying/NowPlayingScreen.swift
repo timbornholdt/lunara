@@ -95,6 +95,10 @@ struct NowPlayingScreen: View {
                 }
                 .buttonStyle(.plain)
             }
+
+            if let rating = viewModel.currentAlbum?.rating, rating > 0 {
+                starRating(rating)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -203,6 +207,27 @@ struct NowPlayingScreen: View {
                     .font(.system(size: 14))
                     .foregroundStyle(viewModel.palette.textSecondary)
             }
+    }
+
+    // MARK: - Star Rating
+
+    private func starRating(_ rating: Int) -> some View {
+        let fullStars = rating / 2
+        let hasHalf = rating % 2 != 0
+
+        return HStack(spacing: 4) {
+            ForEach(0..<5, id: \.self) { index in
+                if index < fullStars {
+                    Image(systemName: "star.fill")
+                } else if index == fullStars && hasHalf {
+                    Image(systemName: "star.leadinghalf.filled")
+                } else {
+                    Image(systemName: "star")
+                }
+            }
+        }
+        .font(.system(size: 14))
+        .foregroundStyle(viewModel.palette.accent)
     }
 
     // MARK: - Helpers
