@@ -88,8 +88,12 @@ final class NowPlayingBarViewModel {
             _ = self.engine.playbackState
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
-                self?.playbackState = self?.engine.playbackState ?? .idle
-                self?.observeEngine()
+                guard let self else { return }
+                let newState = self.engine.playbackState
+                if self.playbackState != newState {
+                    self.playbackState = newState
+                }
+                self.observeEngine()
             }
         }
     }

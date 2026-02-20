@@ -166,11 +166,13 @@ final class AVQueuePlayerEngine: PlaybackEngineProtocol {
         }
 
         driver.onElapsedChanged = { [weak self] elapsed in
-            self?.elapsed = elapsed
+            guard let self, self.elapsed != elapsed else { return }
+            self.elapsed = elapsed
         }
 
         driver.onDurationChanged = { [weak self] duration in
-            self?.duration = duration
+            guard let self, self.duration != duration else { return }
+            self.duration = duration
         }
 
         audioSession.onInterruptionBegan = { [weak self] in
@@ -191,7 +193,9 @@ final class AVQueuePlayerEngine: PlaybackEngineProtocol {
             }
         case .playing:
             cancelBufferingTimeout()
-            playbackState = .playing
+            if playbackState != .playing {
+                playbackState = .playing
+            }
         case .paused:
             if playbackState == .idle || playbackState.hasError || playbackState == .buffering {
                 return

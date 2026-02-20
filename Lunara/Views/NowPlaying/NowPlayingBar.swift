@@ -5,6 +5,8 @@ import UIKit
 /// Tapping opens NowPlayingStubSheet. Hides itself when the queue is empty.
 struct NowPlayingBar: View {
     let viewModel: NowPlayingBarViewModel
+    let screenViewModel: NowPlayingScreenViewModel
+    var onNavigateToAlbum: ((Album) -> Void)?
 
     @State private var showSheet = false
 
@@ -20,7 +22,13 @@ struct NowPlayingBar: View {
                     showSheet = true
                 }
                 .sheet(isPresented: $showSheet) {
-                    NowPlayingStubSheet()
+                    NowPlayingScreen(
+                        viewModel: screenViewModel,
+                        onNavigateToAlbum: { album in
+                            showSheet = false
+                            onNavigateToAlbum?(album)
+                        }
+                    )
                 }
                 .transition(.move(edge: .bottom).combined(with: .opacity))
                 .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isVisible)

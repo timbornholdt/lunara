@@ -11,8 +11,9 @@ struct LibraryRootTabView: View {
     let tabBarTheme: LunaraTabBarTheme
 
     @State private var selectedTab: Tab = .albums
-    private let nowPlayingBarViewModel: NowPlayingBarViewModel
-    private let nowPlayingScreenViewModel: NowPlayingScreenViewModel
+    @State private var selectedAlbumFromNowPlaying: Album?
+    @State private var nowPlayingBarViewModel: NowPlayingBarViewModel
+    @State private var nowPlayingScreenViewModel: NowPlayingScreenViewModel
 
     init(coordinator: AppCoordinator, tabBarTheme: LunaraTabBarTheme = .garden) {
         self.coordinator = coordinator
@@ -49,7 +50,8 @@ struct LibraryRootTabView: View {
                     ),
                     backgroundRefreshSuccessToken: coordinator.backgroundRefreshSuccessToken,
                     backgroundRefreshFailureToken: coordinator.backgroundRefreshFailureToken,
-                    backgroundRefreshErrorMessage: coordinator.lastBackgroundRefreshErrorMessage
+                    backgroundRefreshErrorMessage: coordinator.lastBackgroundRefreshErrorMessage,
+                    externalSelectedAlbum: $selectedAlbumFromNowPlaying
                 )
                 .tabItem {
                     Label("Albums", systemImage: "square.grid.2x2")
@@ -64,7 +66,14 @@ struct LibraryRootTabView: View {
             }
             .tint(Color.lunara(tabBarTheme.selectedTintRole))
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                NowPlayingBar(viewModel: nowPlayingBarViewModel, screenViewModel: nowPlayingScreenViewModel)
+                NowPlayingBar(
+                    viewModel: nowPlayingBarViewModel,
+                    screenViewModel: nowPlayingScreenViewModel,
+                    onNavigateToAlbum: { album in
+                        selectedTab = .albums
+                        selectedAlbumFromNowPlaying = album
+                    }
+                )
             }
         }
     }
