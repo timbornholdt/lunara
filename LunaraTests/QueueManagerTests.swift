@@ -284,6 +284,69 @@ struct QueueManagerTests {
         #expect(subject.engine.stopCallCount == 1)
     }
 
+    // MARK: - skipBack Tests
+
+    @Test
+    func skipBack_whenElapsedMoreThan3s_seeksToZeroAndPersists() async throws {
+        let subject = makeSubject()
+        let items = try makeQueueItems(count: 3)
+
+        subject.manager.playNow(items)
+        await settleObservation()
+
+        subject.engine.elapsed = 5.0
+
+        let seekCallsBefore = subject.engine.seekCalls.count
+        subject.manager.skipBack()
+        await settleObservation()
+
+        #expect(subject.engine.seekCalls.count == seekCallsBefore + 1)
+        #expect(subject.engine.seekCalls.last == 0.0)
+        // currentIndex should remain unchanged
+        #expect(subject.manager.currentIndex == 0)
+    }
+
+    @Test
+    func skipBack_whenElapsed3sOrLess_withNoPreviousTrack_seeksToZero() async throws {
+        let subject = makeSubject()
+        let items = try makeQueueItems(count: 3)
+
+        subject.manager.playNow(items)
+        await settleObservation()
+
+        subject.engine.elapsed = 2.0
+
+        let seekCallsBefore = subject.engine.seekCalls.count
+        subject.manager.skipBack()
+        await settleObservation()
+
+        // At index 0 with elapsed ≤ 3s, no previous track → seeks to 0
+        #expect(subject.engine.seekCalls.count == seekCallsBefore + 1)
+        #expect(subject.engine.seekCalls.last == 0.0)
+        #expect(subject.manager.currentIndex == 0)
+    }
+
+    @Test
+    func skipBack_whenElapsed3sOrLess_withPreviousTrack_goesToPreviousTrack() async throws {
+        let subject = makeSubject()
+        let items = try makeQueueItems(count: 3)
+
+        subject.manager.playNow(items)
+        subject.manager.skipToNext()
+        await settleObservation()
+
+        // Now at index 1, elapsed ≤ 3s
+        subject.engine.elapsed = 1.0
+
+        let playCallsBefore = subject.engine.playCalls.count
+        subject.manager.skipBack()
+        await settleObservation()
+
+        #expect(subject.manager.currentIndex == 0)
+        #expect(subject.manager.currentItem?.trackID == items[0].trackID)
+        #expect(subject.engine.playCalls.count > playCallsBefore)
+    }
+
     private func makeSubject() -> (
         manager: QueueManager,
         engine: PlaybackEngineMock,

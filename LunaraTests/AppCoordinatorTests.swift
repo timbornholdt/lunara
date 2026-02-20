@@ -456,6 +456,7 @@ private final class CoordinatorQueueManagerMock: QueueManagerProtocol {
     func skipToNext() {
         skipToNextCallCount += 1
     }
+    func skipBack() {}
     func clear() {
         clearCallCount += 1
     }

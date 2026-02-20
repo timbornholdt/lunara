@@ -12,11 +12,18 @@ struct LibraryRootTabView: View {
 
     @State private var selectedTab: Tab = .albums
     private let nowPlayingBarViewModel: NowPlayingBarViewModel
+    private let nowPlayingScreenViewModel: NowPlayingScreenViewModel
 
     init(coordinator: AppCoordinator, tabBarTheme: LunaraTabBarTheme = .garden) {
         self.coordinator = coordinator
         self.tabBarTheme = tabBarTheme
         self.nowPlayingBarViewModel = NowPlayingBarViewModel(
+            queueManager: coordinator.queueManager,
+            engine: coordinator.playbackEngine,
+            library: coordinator.libraryRepo,
+            artworkPipeline: coordinator.artworkPipeline
+        )
+        self.nowPlayingScreenViewModel = NowPlayingScreenViewModel(
             queueManager: coordinator.queueManager,
             engine: coordinator.playbackEngine,
             library: coordinator.libraryRepo,
@@ -57,7 +64,7 @@ struct LibraryRootTabView: View {
             }
             .tint(Color.lunara(tabBarTheme.selectedTintRole))
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                NowPlayingBar(viewModel: nowPlayingBarViewModel)
+                NowPlayingBar(viewModel: nowPlayingBarViewModel, screenViewModel: nowPlayingScreenViewModel)
             }
         }
     }
