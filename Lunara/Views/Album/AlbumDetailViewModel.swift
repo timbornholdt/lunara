@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import UIKit
 
 @MainActor
 protocol AlbumDetailActionRouting: AnyObject {
@@ -33,6 +34,7 @@ final class AlbumDetailViewModel {
     var loadingState: LoadingState = .idle
     var errorBannerState = ErrorBannerState()
     var artworkURL: URL?
+    var palette: ArtworkPaletteTheme = .default
 
     private let library: LibraryRepoProtocol
     private let artworkPipeline: ArtworkPipelineProtocol
@@ -119,11 +121,15 @@ final class AlbumDetailViewModel {
     private func loadArtwork() async {
         do {
             let sourceURL = try await library.authenticatedArtworkURL(for: album.thumbURL)
-            artworkURL = try await artworkPipeline.fetchFullSize(
+            let url = try await artworkPipeline.fetchFullSize(
                 for: album.plexID,
                 ownerKind: .album,
                 sourceURL: sourceURL
             )
+            artworkURL = url
+            if let url, let data = try? Data(contentsOf: url), let img = UIImage(data: data) {
+                palette = ArtworkPaletteExtractor.extract(from: img)
+            }
         } catch {
             // Artwork is non-blocking for detail presentation.
         }

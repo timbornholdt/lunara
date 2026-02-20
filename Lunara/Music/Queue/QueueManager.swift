@@ -103,6 +103,24 @@ final class QueueManager: QueueManagerProtocol {
         advanceAndPlayNextIfPossible()
     }
 
+    func skipBack() {
+        guard let currentIndex else { return }
+        if engine.elapsed > 3 {
+            engine.seek(to: 0)
+            persistQueueState(elapsed: 0)
+        } else {
+            let prevIndex = currentIndex - 1
+            guard items.indices.contains(prevIndex) else {
+                engine.seek(to: 0)
+                persistQueueState(elapsed: 0)
+                return
+            }
+            self.currentIndex = prevIndex
+            pendingSeekAfterNextPlay = nil
+            playCurrentItem()
+        }
+    }
+
     func clear() {
         items = []
         currentIndex = nil

@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 @MainActor
 final class ArtworkPipeline: ArtworkPipelineProtocol {
@@ -7,6 +8,7 @@ final class ArtworkPipeline: ArtworkPipelineProtocol {
     private let fileManager: FileManager
     private let cacheDirectoryURL: URL
     private let maxCacheSizeBytes: Int
+    private let logger = Logger(subsystem: "holdings.chinlock.lunara", category: "ArtworkPipeline")
 
     init(
         store: LibraryStoreProtocol,
@@ -61,13 +63,19 @@ final class ArtworkPipeline: ArtworkPipelineProtocol {
     }
 
     private func fetchArtwork(key: ArtworkCacheKey, sourceURL: URL?) async throws -> URL? {
+        let tag = "\(key.ownerKind.rawValue)/\(key.ownerID)/\(key.imageKind.rawValue)"
+
         if let cached = try await cachedFileURL(for: key) {
+            logger.debug("artwork cache HIT  \(tag, privacy: .public) → \(cached.lastPathComponent, privacy: .public)")
             return cached
         }
 
         guard let sourceURL else {
+            logger.debug("artwork cache MISS \(tag, privacy: .public) — no sourceURL, returning nil")
             return nil
         }
+
+        logger.info("artwork DOWNLOAD  \(tag, privacy: .public) ← \(sourceURL.host ?? sourceURL.absoluteString, privacy: .public)")
 
         var request = URLRequest(url: sourceURL)
         request.timeoutInterval = 30
@@ -77,28 +85,37 @@ final class ArtworkPipeline: ArtworkPipelineProtocol {
             try validate(response: response, data: data, key: key)
 
             try ensureCacheDirectoryExists()
-            let destinationURL = cacheDirectoryURL.appendingPathComponent(fileName(for: key, sourceURL: sourceURL))
+            let name = fileName(for: key, sourceURL: sourceURL)
+            let destinationURL = cacheDirectoryURL.appendingPathComponent(name)
             try data.write(to: destinationURL, options: .atomic)
-            try await store.setArtworkPath(destinationURL.path, for: key.storeKey)
+            // Store only the filename, not the absolute path. The app container
+            // path (which contains a UUID on simulator) changes on every fresh
+            // install, making absolute paths stale. Reconstructing from the
+            // current cacheDirectoryURL at read time keeps the cache valid.
+            try await store.setArtworkPath(name, for: key.storeKey)
+            logger.info("artwork STORED    \(tag, privacy: .public) → \(name, privacy: .public) (\(data.count / 1024, privacy: .public) KB)")
             try enforceCacheLimit()
             return destinationURL
         } catch {
+            logger.error("artwork FAILED    \(tag, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
             throw mapToLibraryError(error)
         }
     }
 
     private func cachedFileURL(for key: ArtworkCacheKey) async throws -> URL? {
         let storeKey = key.storeKey
-        guard let path = try await store.artworkPath(for: storeKey) else {
+        // The store holds just the filename (not an absolute path) so the
+        // cache survives app container relocations (simulator reinstalls, etc.)
+        guard let name = try await store.artworkPath(for: storeKey) else {
             return nil
         }
 
-        guard fileManager.fileExists(atPath: path) else {
+        let url = cacheDirectoryURL.appendingPathComponent(name)
+        guard fileManager.fileExists(atPath: url.path) else {
             try await store.deleteArtworkPath(for: storeKey)
             return nil
         }
 
-        let url = URL(fileURLWithPath: path)
         try touchFile(at: url)
         return url
     }

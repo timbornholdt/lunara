@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct AlbumDetailView: View {
     @State private var viewModel: AlbumDetailViewModel
@@ -9,6 +10,10 @@ struct AlbumDetailView: View {
 
     var body: some View {
         ZStack {
+            viewModel.palette.background
+                .ignoresSafeArea()
+                .animation(.easeInOut(duration: 0.4), value: viewModel.palette)
+
             ScrollView {
                 VStack(alignment: .leading, spacing: AlbumDetailLayout.sectionSpacing) {
                     headerCard
@@ -21,14 +26,15 @@ struct AlbumDetailView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(Color.lunara(.backgroundBase).ignoresSafeArea())
         .lunaraLinenBackground()
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
                 Text(viewModel.album.title)
-                    .lunaraHeading(.section, weight: .semibold)
+                    .font(sectionHeadingFont())
+                    .foregroundStyle(viewModel.palette.textPrimary)
                     .lineLimit(1)
+                    .animation(.easeInOut(duration: 0.4), value: viewModel.palette)
             }
         }
         .lunaraErrorBanner(using: viewModel.errorBannerState)
@@ -37,6 +43,8 @@ struct AlbumDetailView: View {
         }
     }
 
+    // MARK: - Header Card
+
     private var headerCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             artwork
@@ -44,31 +52,32 @@ struct AlbumDetailView: View {
                 .aspectRatio(1, contentMode: .fit)
 
             Text(viewModel.album.title)
-                .lunaraHeading(.title, weight: .semibold)
+                .font(titleHeadingFont())
+                .foregroundStyle(viewModel.palette.textPrimary)
+                .animation(.easeInOut(duration: 0.4), value: viewModel.palette)
 
             Text(subtitleText)
                 .font(AlbumDetailTypography.font(for: .subtitleMetadata))
-                .foregroundStyle(Color.lunara(.textSecondary))
+                .foregroundStyle(viewModel.palette.textSecondary)
+                .animation(.easeInOut(duration: 0.4), value: viewModel.palette)
 
             Button("Play Album") {
-                Task {
-                    await viewModel.playAlbum()
-                }
+                Task { await viewModel.playAlbum() }
             }
             .buttonStyle(LunaraPillButtonStyle())
         }
         .padding(14)
-        .background(Color.lunara(.backgroundElevated), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(viewModel.palette.background.opacity(0.6))
+                .animation(.easeInOut(duration: 0.4), value: viewModel.palette)
+        }
         .contextMenu {
             Button("Play Next", systemImage: "text.insert") {
-                Task {
-                    await viewModel.queueAlbumNext()
-                }
+                Task { await viewModel.queueAlbumNext() }
             }
             Button("Play Later", systemImage: "text.append") {
-                Task {
-                    await viewModel.queueAlbumLater()
-                }
+                Task { await viewModel.queueAlbumLater() }
             }
         }
     }
@@ -77,7 +86,7 @@ struct AlbumDetailView: View {
     private var artwork: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.lunara(.backgroundBase))
+                .fill(viewModel.palette.background)
 
             if let artworkURL = viewModel.artworkURL {
                 AsyncImage(url: artworkURL) { image in
@@ -88,16 +97,20 @@ struct AlbumDetailView: View {
             } else {
                 Image(systemName: "opticaldisc")
                     .font(.system(size: 48))
-                    .foregroundStyle(Color.lunara(.textSecondary))
+                    .foregroundStyle(viewModel.palette.textSecondary)
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
+    // MARK: - Track List
+
     private var trackList: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Tracks")
-                .lunaraHeading(.section, weight: .semibold)
+                .font(sectionHeadingFont())
+                .foregroundStyle(viewModel.palette.textPrimary)
+                .animation(.easeInOut(duration: 0.4), value: viewModel.palette)
 
             switch viewModel.loadingState {
             case .idle, .loading:
@@ -106,12 +119,12 @@ struct AlbumDetailView: View {
             case .error(let message):
                 Text(message)
                     .font(.subheadline)
-                    .foregroundStyle(Color.lunara(.textSecondary))
+                    .foregroundStyle(viewModel.palette.textSecondary)
             case .loaded:
                 if viewModel.tracks.isEmpty {
                     Text("No tracks available for this album.")
                         .font(.subheadline)
-                        .foregroundStyle(Color.lunara(.textSecondary))
+                        .foregroundStyle(viewModel.palette.textSecondary)
                 } else {
                     ForEach(viewModel.tracks) { track in
                         trackRow(track)
@@ -120,7 +133,11 @@ struct AlbumDetailView: View {
             }
         }
         .padding(14)
-        .background(Color.lunara(.backgroundElevated), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(viewModel.palette.background.opacity(0.6))
+                .animation(.easeInOut(duration: 0.4), value: viewModel.palette)
+        }
     }
 
     private func trackRow(_ track: Track) -> some View {
@@ -130,21 +147,19 @@ struct AlbumDetailView: View {
         )
 
         return Button {
-            Task {
-                await viewModel.playTrackNow(track)
-            }
+            Task { await viewModel.playTrackNow(track) }
         } label: {
             HStack(alignment: .top, spacing: 10) {
                 Text("\(track.trackNumber)")
                     .font(AlbumDetailTypography.font(for: .trackNumber))
-                    .foregroundStyle(Color.lunara(.textSecondary))
+                    .foregroundStyle(viewModel.palette.textSecondary)
                     .frame(width: 24, alignment: .trailing)
                     .padding(.top, 2)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(track.title)
                         .font(AlbumDetailTypography.font(for: .trackTitle))
-                        .foregroundStyle(Color.lunara(.textPrimary))
+                        .foregroundStyle(viewModel.palette.textPrimary)
                         .lineLimit(nil)
                         .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
@@ -152,7 +167,7 @@ struct AlbumDetailView: View {
                     if let secondaryArtist {
                         Text(secondaryArtist)
                             .font(AlbumDetailTypography.font(for: .trackSecondaryArtist))
-                            .foregroundStyle(Color.lunara(.textSecondary))
+                            .foregroundStyle(viewModel.palette.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -162,7 +177,7 @@ struct AlbumDetailView: View {
 
                 Text(track.formattedDuration)
                     .font(AlbumDetailTypography.font(for: .trackDuration))
-                    .foregroundStyle(Color.lunara(.textSecondary))
+                    .foregroundStyle(viewModel.palette.textSecondary)
                     .fixedSize(horizontal: true, vertical: false)
             }
             .padding(.vertical, 8)
@@ -170,22 +185,18 @@ struct AlbumDetailView: View {
         .buttonStyle(.plain)
         .contextMenu {
             Button("Play Now", systemImage: "play.fill") {
-                Task {
-                    await viewModel.playTrackNow(track)
-                }
+                Task { await viewModel.playTrackNow(track) }
             }
             Button("Play Next", systemImage: "text.insert") {
-                Task {
-                    await viewModel.queueTrackNext(track)
-                }
+                Task { await viewModel.queueTrackNext(track) }
             }
             Button("Play Later", systemImage: "text.append") {
-                Task {
-                    await viewModel.queueTrackLater(track)
-                }
+                Task { await viewModel.queueTrackLater(track) }
             }
         }
     }
+
+    // MARK: - Metadata Sections
 
     @ViewBuilder
     private var metadataSections: some View {
@@ -193,7 +204,7 @@ struct AlbumDetailView: View {
             sectionCard(title: "Review") {
                 Text(review)
                     .font(AlbumDetailTypography.font(for: .reviewBody))
-                    .foregroundStyle(Color.lunara(.textPrimary))
+                    .foregroundStyle(viewModel.palette.textPrimary)
             }
         }
 
@@ -213,11 +224,17 @@ struct AlbumDetailView: View {
     private func sectionCard<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(title)
-                .lunaraHeading(.section, weight: .semibold)
+                .font(sectionHeadingFont())
+                .foregroundStyle(viewModel.palette.textPrimary)
+                .animation(.easeInOut(duration: 0.4), value: viewModel.palette)
             content()
         }
         .padding(14)
-        .background(Color.lunara(.backgroundElevated), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(viewModel.palette.background.opacity(0.6))
+                .animation(.easeInOut(duration: 0.4), value: viewModel.palette)
+        }
     }
 
     private func tagSection(title: String, tags: [String]) -> some View {
@@ -231,14 +248,16 @@ struct AlbumDetailView: View {
                         .font(AlbumDetailTypography.font(for: .pill))
                         .lineLimit(1)
                         .fixedSize(horizontal: true, vertical: false)
-                        .foregroundStyle(Color.lunara(.textPrimary))
+                        .foregroundStyle(viewModel.palette.textPrimary)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
-                        .background(Color.lunara(.backgroundBase), in: Capsule())
+                        .background(viewModel.palette.background.opacity(0.4), in: Capsule())
                 }
             }
         }
     }
+
+    // MARK: - Helpers
 
     private var subtitleText: String {
         var parts: [String] = [viewModel.album.artistName]
@@ -248,5 +267,21 @@ struct AlbumDetailView: View {
         parts.append("\(viewModel.album.trackCount) tracks")
         parts.append(AlbumTrackPresentation.albumDuration(viewModel.album.duration))
         return parts.joined(separator: " • ")
+    }
+
+    private func sectionHeadingFont() -> Font {
+        let token = LunaraVisualTokens.headingToken(for: .section, weight: .semibold)
+        if UIFont(name: token.preferredFontName, size: token.size) != nil {
+            return .custom(token.preferredFontName, size: token.size, relativeTo: token.relativeTextStyle)
+        }
+        return .system(size: token.size, weight: token.fallbackWeight, design: .serif)
+    }
+
+    private func titleHeadingFont() -> Font {
+        let token = LunaraVisualTokens.headingToken(for: .title, weight: .semibold)
+        if UIFont(name: token.preferredFontName, size: token.size) != nil {
+            return .custom(token.preferredFontName, size: token.size, relativeTo: token.relativeTextStyle)
+        }
+        return .system(size: token.size, weight: token.fallbackWeight, design: .serif)
     }
 }

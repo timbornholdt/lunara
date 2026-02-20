@@ -31,8 +31,8 @@ If something isn't in this document, it's not in scope yet. If a task would viol
 - **Phase 1 (Shared Types + Plex Connectivity):** Complete
 - **Phase 2 (Playback Engine + Queue Manager):** Complete
 - **Phase 3 (Library Domain Core):** Complete
-- **Current phase:** Phase 4 (UI Shell)
-- **Last verified milestone:** Phase 3 acceptance verified in test suite on February 17, 2026.
+- **Phase 4 (UI Shell):** Complete
+- **Last verified milestone:** Phase 4 acceptance verified on February 20, 2026.
 
 ---
 
@@ -490,15 +490,25 @@ These two are built together because the PlaybackEngine needs someone to drive t
 ### Phase 4: UI Shell
 
 **Goal:** Browse and play. Functional and styled.
+**Status:** Complete (implemented and verified on February 20, 2026).
 
 **Build:**
-- Library grid (paginated, album art + title, artwork pipeline integrated).
-- Album detail (track list, play/queue actions via AppRouter).
-- Now playing bar (floating, current track, play/pause, buffering indicator).
-- Now playing screen (slides up, dismiss pull-down, artwork, controls, buffering state).
-- Error banner component (consistent across all screens).
-- Long-press queue menus on albums and tracks.
-- Visual design language applied (Playfair, linen, pill buttons).
+- Library grid (paginated, album art + title, artwork pipeline integrated). ✅
+- Album detail (track list, play/queue actions via AppRouter). ✅
+- Now playing bar (floating, current track, play/pause, buffering indicator). ✅
+- Now playing screen (slides up, dismiss pull-down, artwork, controls, buffering state). ✅
+- Error banner component (consistent across all screens). ✅
+- Long-press queue menus on albums and tracks. ✅
+- Visual design language applied (Playfair, linen, pill buttons). ✅
+
+**What was built:**
+- Full visual design system: semantic color tokens, Playfair Display typography, linen background texture, pill button component, tab bar theming — all in `Views/Components/`.
+- Error banner: non-blocking toast at top of screen, auto-dismiss, accessible, integrated into all current views.
+- Library grid: adaptive grid layout, artwork with async loading and placeholders, search with debounce, pull-to-refresh, loading/empty/error states.
+- Album detail: hero card with artwork + metadata, track list with async loading, genre/style/mood tags, context menus for queue operations on albums and tracks.
+- AppRouter: full playback and queue wiring (play now, play next, play later at album and track level).
+- Now Playing Bar: floating compact strip above the iOS 26 Liquid Glass tab bar. Shows artwork thumbnail, track title + artist (Playfair Display), play/pause/buffering/error states. Tapping opens full Now Playing screen. Hides when queue is empty.
+- Now Playing Screen: full-screen sheet with large artwork, track info (Playfair Display), seek bar, transport controls (previous/play-pause/next), up-next queue, artwork-derived color palette, star rating display for rated albums, pull-down dismiss gesture.
 
 **Acceptance:** Full flow: scroll library → tap album → play → now playing bar shows track with buffering then playing → full screen → skip/pause/resume. Errors show as banners. Looks like Lunara.
 

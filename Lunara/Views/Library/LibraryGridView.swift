@@ -4,6 +4,7 @@ import UIKit
 struct LibraryGridView: View {
     @State private var viewModel: LibraryGridViewModel
     @State private var selectedAlbum: Album?
+    @Binding var externalSelectedAlbum: Album?
     private let backgroundRefreshSuccessToken: Int
     private let backgroundRefreshFailureToken: Int
     private let backgroundRefreshErrorMessage: String?
@@ -16,12 +17,14 @@ struct LibraryGridView: View {
         viewModel: LibraryGridViewModel,
         backgroundRefreshSuccessToken: Int = 0,
         backgroundRefreshFailureToken: Int = 0,
-        backgroundRefreshErrorMessage: String? = nil
+        backgroundRefreshErrorMessage: String? = nil,
+        externalSelectedAlbum: Binding<Album?> = .constant(nil)
     ) {
         _viewModel = State(initialValue: viewModel)
         self.backgroundRefreshSuccessToken = backgroundRefreshSuccessToken
         self.backgroundRefreshFailureToken = backgroundRefreshFailureToken
         self.backgroundRefreshErrorMessage = backgroundRefreshErrorMessage
+        _externalSelectedAlbum = externalSelectedAlbum
     }
 
     var body: some View {
@@ -37,7 +40,8 @@ struct LibraryGridView: View {
                             .lineLimit(1)
                     }
                 }
-                .toolbarBackground(.hidden, for: .navigationBar)
+                .toolbarBackground(Color.lunara(.backgroundBase), for: .navigationBar)
+                .toolbarBackground(.visible, for: .navigationBar)
                 .searchable(text: $viewModel.searchQuery, placement: .navigationBarDrawer(displayMode: .automatic), prompt: Text("Search albums or artists"))
                 .navigationDestination(item: $selectedAlbum) { album in
                     AlbumDetailView(viewModel: viewModel.makeAlbumDetailViewModel(for: album))
@@ -58,6 +62,12 @@ struct LibraryGridView: View {
                 }
                 .refreshable {
                     await viewModel.refresh()
+                }
+                .onChange(of: externalSelectedAlbum) { _, newAlbum in
+                    if let newAlbum {
+                        selectedAlbum = newAlbum
+                        externalSelectedAlbum = nil
+                    }
                 }
         }
     }
