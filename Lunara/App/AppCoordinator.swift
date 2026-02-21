@@ -17,6 +17,7 @@ final class AppCoordinator {
     let playbackEngine: PlaybackEngineProtocol
     let queueManager: QueueManagerProtocol
     let appRouter: AppRouter
+    private let nowPlayingBridge: NowPlayingBridge
     private let logger = Logger(subsystem: "holdings.chinlock.lunara", category: "AppCoordinator")
 
     // MARK: - State
@@ -39,7 +40,8 @@ final class AppCoordinator {
         artworkPipeline: ArtworkPipelineProtocol,
         playbackEngine: PlaybackEngineProtocol,
         queueManager: QueueManagerProtocol,
-        appRouter: AppRouter
+        appRouter: AppRouter,
+        nowPlayingBridge: NowPlayingBridge
     ) {
         self.authManager = authManager
         self.plexClient = plexClient
@@ -48,6 +50,8 @@ final class AppCoordinator {
         self.playbackEngine = playbackEngine
         self.queueManager = queueManager
         self.appRouter = appRouter
+        self.nowPlayingBridge = nowPlayingBridge
+        nowPlayingBridge.configure()
     }
 
     convenience init() {
@@ -80,6 +84,13 @@ final class AppCoordinator {
         let queueManager = QueueManager(engine: playbackEngine)
         let appRouter = AppRouter(library: libraryRepo, queue: queueManager)
 
+        let nowPlayingBridge = NowPlayingBridge(
+            engine: playbackEngine,
+            queue: queueManager,
+            library: libraryRepo,
+            artwork: artworkPipeline
+        )
+
         self.init(
             authManager: authManager,
             plexClient: plexClient,
@@ -87,7 +98,8 @@ final class AppCoordinator {
             artworkPipeline: artworkPipeline,
             playbackEngine: playbackEngine,
             queueManager: queueManager,
-            appRouter: appRouter
+            appRouter: appRouter,
+            nowPlayingBridge: nowPlayingBridge
         )
     }
 

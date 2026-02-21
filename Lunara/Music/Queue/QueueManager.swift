@@ -163,11 +163,23 @@ final class QueueManager: QueueManagerProtocol {
     private func advanceAndPlayNextIfPossible() {
         guard let currentIndex else { return }
         let nextIndex = currentIndex + 1
-        guard items.indices.contains(nextIndex) else { return }
+        guard items.indices.contains(nextIndex) else {
+            handleQueueExhausted()
+            return
+        }
 
         self.currentIndex = nextIndex
         pendingSeekAfterNextPlay = nil
         playCurrentItem()
+    }
+
+    private func handleQueueExhausted() {
+        self.currentIndex = nil
+        observedTrackID = nil
+        pendingSeekAfterNextPlay = nil
+        lastPersistedElapsed = 0
+        engine.stop()
+        persistQueueState(elapsed: 0)
     }
 
     private func restorePersistedQueue() {
