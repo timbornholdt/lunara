@@ -370,6 +370,7 @@ private final class CoordinatorLibraryRepoMock: LibraryRepoProtocol {
     func collection(id: String) async throws -> Collection? {
         nil
     }
+    func collectionAlbums(collectionID: String) async throws -> [Album] { [] }
     func searchCollections(query: String) async throws -> [Collection] {
         []
     }

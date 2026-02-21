@@ -31,9 +31,11 @@ struct PlexDirectory: Codable {
     let genres: [String]
     let styles: [String]
     let moods: [String]
+    let collectionIDs: [String]
     let rating: Double?
     let addedAt: Int?               // Unix timestamp
     let leafCount: Int?             // Track count
+    let childCount: Int?            // Direct child count (e.g., album count for collections)
     let duration: Int?              // Total duration in milliseconds
     let summary: String?
     let titleSort: String?

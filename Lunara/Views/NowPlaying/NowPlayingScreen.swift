@@ -186,11 +186,11 @@ struct NowPlayingScreen: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.trackTitle)
-                    .font(.system(size: 14, weight: .medium))
+                    .font(upNextTitleFont())
                     .foregroundStyle(viewModel.palette.textPrimary)
                     .lineLimit(1)
                 Text(item.artistName)
-                    .font(.system(size: 12))
+                    .font(upNextSubtitleFont())
                     .foregroundStyle(viewModel.palette.textSecondary)
                     .lineLimit(1)
             }
@@ -251,6 +251,20 @@ struct NowPlayingScreen: View {
             return Font.custom("PlayfairDisplay-Regular", size: 16)
         }
         return .system(size: 16, design: .serif)
+    }
+
+    private func upNextTitleFont() -> Font {
+        if UIFont(name: "PlayfairDisplay-Medium", size: 14) != nil {
+            return Font.custom("PlayfairDisplay-Medium", size: 14)
+        }
+        return .system(size: 14, weight: .medium, design: .serif)
+    }
+
+    private func upNextSubtitleFont() -> Font {
+        if UIFont(name: "PlayfairDisplay-Regular", size: 12) != nil {
+            return Font.custom("PlayfairDisplay-Regular", size: 12)
+        }
+        return .system(size: 12, design: .serif)
     }
 
     private func sectionFont() -> Font {

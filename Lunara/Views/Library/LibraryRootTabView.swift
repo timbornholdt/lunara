@@ -3,14 +3,15 @@ import UIKit
 
 struct LibraryRootTabView: View {
     private enum Tab: Hashable {
+        case collections
         case albums
-        case debug
+        case artists
     }
 
     let coordinator: AppCoordinator
     let tabBarTheme: LunaraTabBarTheme
 
-    @State private var selectedTab: Tab = .albums
+    @State private var selectedTab: Tab = .collections
     @State private var selectedAlbumFromNowPlaying: Album?
     @State private var nowPlayingBarViewModel: NowPlayingBarViewModel
     @State private var nowPlayingScreenViewModel: NowPlayingScreenViewModel
@@ -42,6 +43,18 @@ struct LibraryRootTabView: View {
                 .ignoresSafeArea()
 
             TabView(selection: $selectedTab) {
+                CollectionsListView(
+                    viewModel: CollectionsListViewModel(
+                        library: coordinator.libraryRepo,
+                        artworkPipeline: coordinator.artworkPipeline,
+                        actions: coordinator
+                    )
+                )
+                .tabItem {
+                    Label("Collections", systemImage: "rectangle.stack")
+                }
+                .tag(Tab.collections)
+
                 LibraryGridView(
                     viewModel: LibraryGridViewModel(
                         library: coordinator.libraryRepo,
@@ -58,11 +71,11 @@ struct LibraryRootTabView: View {
                 }
                 .tag(Tab.albums)
 
-                DebugLibraryView(coordinator: coordinator)
+                artistsPlaceholder
                     .tabItem {
-                        Label("Debug View", systemImage: "ladybug")
+                        Label("Artists", systemImage: "music.mic")
                     }
-                    .tag(Tab.debug)
+                    .tag(Tab.artists)
             }
             .tint(Color.lunara(tabBarTheme.selectedTintRole))
             .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -76,6 +89,20 @@ struct LibraryRootTabView: View {
                 )
             }
         }
+    }
+
+    private var artistsPlaceholder: some View {
+        VStack(spacing: 16) {
+            Spacer()
+            Image(systemName: "music.mic")
+                .font(.system(size: 48))
+                .foregroundStyle(Color.lunara(.textSecondary))
+            Text("Artists coming soon")
+                .foregroundStyle(Color.lunara(.textSecondary))
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .lunaraLinenBackground()
     }
 }
 

@@ -265,6 +265,75 @@ struct AppRouterTests {
         #expect(subject.queue.playLaterCalls == [[QueueItem(trackID: track.plexID, url: streamURL)]])
     }
 
+    @Test
+    func playCollection_fetchesAlbumsTracksAndQueuesInOrder() async throws {
+        let subject = makeSubject()
+        let collection = makeCollection(id: "col-1")
+        let album = makeAlbum(id: "album-c1")
+        let track = makeTrack(id: "track-c1", albumID: album.plexID)
+        let streamURL = try #require(URL(string: "https://example.com/stream/track-c1.mp3"))
+
+        subject.library.collectionAlbumsByCollectionID[collection.plexID] = [album]
+        subject.library.tracksByAlbumID[album.plexID] = [track]
+        subject.library.streamURLByTrackID[track.plexID] = streamURL
+
+        try await subject.router.playCollection(collection)
+
+        #expect(subject.queue.playNowCalls.count == 1)
+        #expect(subject.queue.playNowCalls[0] == [QueueItem(trackID: track.plexID, url: streamURL)])
+    }
+
+    @Test
+    func shuffleCollection_fetchesAlbumsTracksAndQueuesShuffled() async throws {
+        let subject = makeSubject()
+        let collection = makeCollection(id: "col-2")
+        let album = makeAlbum(id: "album-c2")
+        let track1 = makeTrack(id: "track-s1", albumID: album.plexID)
+        let track2 = makeTrack(id: "track-s2", albumID: album.plexID)
+        let url1 = try #require(URL(string: "https://example.com/stream/track-s1.mp3"))
+        let url2 = try #require(URL(string: "https://example.com/stream/track-s2.mp3"))
+
+        subject.library.collectionAlbumsByCollectionID[collection.plexID] = [album]
+        subject.library.tracksByAlbumID[album.plexID] = [track1, track2]
+        subject.library.streamURLByTrackID[track1.plexID] = url1
+        subject.library.streamURLByTrackID[track2.plexID] = url2
+
+        try await subject.router.shuffleCollection(collection)
+
+        #expect(subject.queue.playNowCalls.count == 1)
+        let queuedTrackIDs = Set(subject.queue.playNowCalls[0].map(\.trackID))
+        #expect(queuedTrackIDs == Set(["track-s1", "track-s2"]))
+    }
+
+    @Test
+    func playCollection_whenNoAlbums_throwsResourceNotFound() async {
+        let subject = makeSubject()
+        let collection = makeCollection(id: "col-empty")
+        subject.library.collectionAlbumsByCollectionID[collection.plexID] = []
+
+        do {
+            try await subject.router.playCollection(collection)
+            Issue.record("Expected playCollection to throw")
+        } catch let error as LibraryError {
+            #expect(error == .resourceNotFound(type: "albums", id: collection.plexID))
+        } catch {
+            Issue.record("Expected LibraryError, got: \(error)")
+        }
+
+        #expect(subject.queue.playNowCalls.isEmpty)
+    }
+
+    private func makeCollection(id: String) -> Collection {
+        Collection(
+            plexID: id,
+            title: "Collection \(id)",
+            thumbURL: nil,
+            summary: nil,
+            albumCount: 5,
+            updatedAt: nil
+        )
+    }
+
     private func makeSubject() -> (
         router: AppRouter,
         library: LibraryRepoMock,
@@ -320,6 +389,7 @@ private final class LibraryRepoMock: LibraryRepoProtocol {
     var trackByID: [String: Track] = [:]
     var trackLookupRequests: [String] = []
     var trackLookupErrorByID: [String: Error] = [:]
+    var queriedAlbumsByFilter: [AlbumQueryFilter: [Album]] = [:]
 
     func albums(page: LibraryPage) async throws -> [Album] {
         albumPageRequests.append(page)
@@ -341,7 +411,7 @@ private final class LibraryRepoMock: LibraryRepoProtocol {
     }
 
     func queryAlbums(filter: AlbumQueryFilter) async throws -> [Album] {
-        []
+        queriedAlbumsByFilter[filter] ?? []
     }
 
     func tracks(forAlbum albumID: String) async throws -> [Track] {
@@ -381,6 +451,12 @@ private final class LibraryRepoMock: LibraryRepoProtocol {
 
     func collection(id: String) async throws -> Collection? {
         nil
+    }
+
+    var collectionAlbumsByCollectionID: [String: [Album]] = [:]
+
+    func collectionAlbums(collectionID: String) async throws -> [Album] {
+        collectionAlbumsByCollectionID[collectionID] ?? []
     }
 
     func searchCollections(query: String) async throws -> [Collection] {

@@ -81,6 +81,28 @@ extension LibraryStore {
         }
     }
 
+    func upsertAlbumCollections(_ albumCollectionIDs: [String: [String]], in run: LibrarySyncRun) async throws {
+        guard !albumCollectionIDs.isEmpty else {
+            return
+        }
+        try await dbQueue.write { db in
+            for (albumID, collectionIDs) in albumCollectionIDs {
+                for collectionID in collectionIDs {
+                    try db.execute(
+                        sql: """
+                        INSERT INTO album_collections (albumID, collectionID, lastSeenSyncID, lastSeenAt)
+                        VALUES (?, ?, ?, ?)
+                        ON CONFLICT(albumID, collectionID) DO UPDATE SET
+                            lastSeenSyncID = excluded.lastSeenSyncID,
+                            lastSeenAt = excluded.lastSeenAt
+                        """,
+                        arguments: [albumID, collectionID, run.id, run.startedAt]
+                    )
+                }
+            }
+        }
+    }
+
     func upsertPlaylists(_ playlists: [LibraryPlaylistSnapshot], in run: LibrarySyncRun) async throws {
         try await dbQueue.write { db in
             for playlist in playlists {

@@ -19,6 +19,7 @@ protocol LibraryRemoteDataSource: AnyObject {
     func fetchAlbum(id albumID: String) async throws -> Album?
     func fetchArtists() async throws -> [Artist]
     func fetchCollections() async throws -> [Collection]
+    func fetchCollectionAlbumIDs(collectionID: String) async throws -> [String]
     func fetchPlaylists() async throws -> [LibraryRemotePlaylist]
     func fetchPlaylistItems(playlistID: String) async throws -> [LibraryRemotePlaylistItem]
     func fetchTracks(forAlbum albumID: String) async throws -> [Track]
@@ -129,6 +130,18 @@ final class LibraryRepo: LibraryRepoProtocol {
 
     func collection(id: String) async throws -> Collection? {
         try await store.collection(id: id)
+    }
+
+    func collectionAlbums(collectionID: String) async throws -> [Album] {
+        let albumIDs = try await remote.fetchCollectionAlbumIDs(collectionID: collectionID)
+        guard !albumIDs.isEmpty else { return [] }
+        var albums: [Album] = []
+        for albumID in albumIDs {
+            if let album = try await store.fetchAlbum(id: albumID) {
+                albums.append(album)
+            }
+        }
+        return albums
     }
 
     func searchCollections(query: String) async throws -> [Collection] {

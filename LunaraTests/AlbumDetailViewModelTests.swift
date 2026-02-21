@@ -231,6 +231,7 @@ private final class AlbumDetailLibraryRepoMock: LibraryRepoProtocol {
 
     func collections() async throws -> [Collection] { [] }
     func collection(id: String) async throws -> Collection? { nil }
+    func collectionAlbums(collectionID: String) async throws -> [Album] { [] }
     func searchCollections(query: String) async throws -> [Collection] { [] }
     func artists() async throws -> [Artist] { [] }
     func artist(id: String) async throws -> Artist? { nil }

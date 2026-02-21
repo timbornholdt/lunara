@@ -189,6 +189,8 @@ private final class ProtocolRepoMock: LibraryRepoProtocol {
         return collectionByID[id]
     }
 
+    func collectionAlbums(collectionID: String) async throws -> [Album] { [] }
+
     func searchCollections(query: String) async throws -> [Collection] {
         searchCollectionQueries.append(query)
         return searchedCollectionsByQuery[query] ?? []

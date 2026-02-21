@@ -329,6 +329,7 @@ private final class ArtworkStoreMock: LibraryStoreProtocol {
     func upsertTracks(_ tracks: [Track], in run: LibrarySyncRun) async throws { }
     func replaceArtists(_ artists: [Artist], in run: LibrarySyncRun) async throws { }
     func replaceCollections(_ collections: [Collection], in run: LibrarySyncRun) async throws { }
+    func upsertAlbumCollections(_ albumCollectionIDs: [String: [String]], in run: LibrarySyncRun) async throws { }
     func fetchPlaylists() async throws -> [LibraryPlaylistSnapshot] { [] }
     func fetchPlaylistItems(playlistID: String) async throws -> [LibraryPlaylistItemSnapshot] { [] }
     func upsertPlaylists(_ playlists: [LibraryPlaylistSnapshot], in run: LibrarySyncRun) async throws { }

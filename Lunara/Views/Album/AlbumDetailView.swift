@@ -251,7 +251,7 @@ struct AlbumDetailView: View {
                         .foregroundStyle(viewModel.palette.textPrimary)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
-                        .background(viewModel.palette.background.opacity(0.4), in: Capsule())
+                        .background(viewModel.palette.textPrimary.opacity(0.15), in: Capsule())
                 }
             }
         }

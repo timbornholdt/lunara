@@ -366,6 +366,8 @@ private final class LibraryGridRepoMock: LibraryRepoProtocol {
         nil
     }
 
+    func collectionAlbums(collectionID: String) async throws -> [Album] { [] }
+
     func searchCollections(query: String) async throws -> [Collection] {
         []
     }
