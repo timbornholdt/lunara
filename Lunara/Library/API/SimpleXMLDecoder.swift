@@ -118,7 +118,8 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
                 titleSort: attrs["titleSort"],
                 updatedAt: updatedAt,
                 parentRatingKey: attrs["parentRatingKey"],
-                ratingKey: attrs["ratingKey"]
+                ratingKey: attrs["ratingKey"],
+                originallyAvailableAt: attrs["originallyAvailableAt"]
             )
         }
 

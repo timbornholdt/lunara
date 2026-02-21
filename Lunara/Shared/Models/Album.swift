@@ -15,6 +15,9 @@ struct Album: Identifiable, Codable, Equatable, Hashable, Sendable {
     /// Release year (if available)
     let year: Int?
 
+    /// Full release date (if available from Plex's originallyAvailableAt)
+    let releaseDate: Date?
+
     /// URL to album artwork thumbnail from Plex
     let thumbURL: String?
 
@@ -50,6 +53,7 @@ struct Album: Identifiable, Codable, Equatable, Hashable, Sendable {
         title: String,
         artistName: String,
         year: Int?,
+        releaseDate: Date? = nil,
         thumbURL: String?,
         genre: String?,
         rating: Int?,
@@ -65,6 +69,7 @@ struct Album: Identifiable, Codable, Equatable, Hashable, Sendable {
         self.title = title
         self.artistName = artistName
         self.year = year
+        self.releaseDate = releaseDate
         self.thumbURL = thumbURL
         self.genre = genre
         self.rating = rating
@@ -90,8 +95,14 @@ struct Album: Identifiable, Codable, Equatable, Hashable, Sendable {
         return String(format: "%d:%02d", minutes, seconds)
     }
 
-    /// Album display subtitle combining artist and year
+    /// Album display subtitle combining artist and release date/year
     var subtitle: String {
+        if let releaseDate {
+            let formatter = DateFormatter()
+            formatter.dateStyle = .medium
+            formatter.timeStyle = .none
+            return "\(artistName) • \(formatter.string(from: releaseDate))"
+        }
         if let year = year {
             return "\(artistName) • \(year)"
         }

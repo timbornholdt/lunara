@@ -245,6 +245,12 @@ enum LibraryStoreMigrations {
             try db.create(index: "playlist_items_seen_sync_idx", on: "playlist_items", columns: ["lastSeenSyncID"])
         }
 
+        migrator.registerMigration("v6_album_release_date") { db in
+            try db.alter(table: "albums") { table in
+                table.add(column: "releaseDate", .datetime)
+            }
+        }
+
         return migrator
     }
 }

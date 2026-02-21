@@ -64,12 +64,14 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
             let addedAtDate = directory.addedAt.map { Date(timeIntervalSince1970: TimeInterval($0)) }
             let durationSeconds = directory.duration.map { TimeInterval($0) / 1000.0 } ?? 0.0
             let resolvedGenres = dedupedTags(directory.genres + [directory.genre].compactMap { $0 })
+            let releaseDate = directory.originallyAvailableAt.flatMap { Self.parseReleaseDateString($0) }
 
             albums.append(Album(
                 plexID: albumID,
                 title: directory.title,
                 artistName: directory.parentTitle ?? "Unknown Artist",
                 year: directory.year,
+                releaseDate: releaseDate,
                 thumbURL: directory.thumb,
                 genre: resolvedGenres.first,
                 rating: directory.rating.map { Int($0) },

@@ -14,10 +14,8 @@ struct NowPlayingBar: View {
         if viewModel.isVisible {
             barContent
                 .background(screenViewModel.palette.background)
-                .overlay(alignment: .top) {
-                    Divider()
-                        .background(screenViewModel.palette.textSecondary.opacity(0.3))
-                }
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .padding(.horizontal, 12)
                 .onTapGesture {
                     showSheet = true
                 }
@@ -131,9 +129,13 @@ struct NowPlayingBar: View {
     private func barButton(systemImage: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.system(size: 20, weight: .semibold))
+                .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(screenViewModel.palette.textPrimary)
                 .frame(width: 36, height: 36)
+                .background(
+                    screenViewModel.palette.textPrimary.opacity(0.15),
+                    in: Capsule()
+                )
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)

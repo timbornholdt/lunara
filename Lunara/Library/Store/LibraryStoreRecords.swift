@@ -10,6 +10,7 @@ struct AlbumRecord: Codable, FetchableRecord, PersistableRecord, TableRecord {
     let titleSearch: String
     let artistNameSearch: String
     let year: Int?
+    let releaseDate: Date?
     let thumbURL: String?
     let genre: String?
     let review: String?
@@ -28,6 +29,7 @@ struct AlbumRecord: Codable, FetchableRecord, PersistableRecord, TableRecord {
         titleSearch = LibraryStoreSearchNormalizer.normalize(model.title)
         artistNameSearch = LibraryStoreSearchNormalizer.normalize(model.artistName)
         year = model.year
+        releaseDate = model.releaseDate
         thumbURL = model.thumbURL
         genre = model.genre
         review = model.review
@@ -46,6 +48,7 @@ struct AlbumRecord: Codable, FetchableRecord, PersistableRecord, TableRecord {
             title: title,
             artistName: artistName,
             year: year,
+            releaseDate: releaseDate,
             thumbURL: thumbURL,
             genre: genre,
             rating: rating,

@@ -42,6 +42,7 @@ struct PlexDirectory: Codable {
     let updatedAt: Int?
     let parentRatingKey: String?
     let ratingKey: String?
+    let originallyAvailableAt: String?
 }
 
 /// Individual metadata item (Album, Track, Artist, etc.)
