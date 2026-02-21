@@ -204,6 +204,20 @@ final class AlbumDetailViewModel {
         return error.localizedDescription
     }
 
+    func findArtist() async -> Artist? {
+        let artists = try? await library.searchArtists(query: album.artistName)
+        return artists?.first { $0.name == album.artistName }
+    }
+
+    func makeArtistDetailViewModel(for artist: Artist) -> ArtistDetailViewModel {
+        ArtistDetailViewModel(
+            artist: artist,
+            library: library,
+            artworkPipeline: artworkPipeline,
+            actions: actions as! ArtistsListActionRouting
+        )
+    }
+
     private static func normalizedTags(_ values: [String]) -> [String] {
         var deduped: [String] = []
         var seen = Set<String>()

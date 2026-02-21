@@ -187,6 +187,7 @@ private final class ProtocolStoreMock: LibraryStoreProtocol {
     }
     func fetchArtists() async throws -> [Artist] { [] }
     func fetchArtist(id: String) async throws -> Artist? { nil }
+    func fetchAlbumsByArtistName(_ artistName: String) async throws -> [Album] { [] }
     func fetchCollections() async throws -> [Collection] { [] }
     func collection(id: String) async throws -> Collection? {
         collectionLookupRequests.append(id)
@@ -228,6 +229,7 @@ private final class ProtocolStoreMock: LibraryStoreProtocol {
     ) async throws { }
     func markAlbumsSeen(_ albumIDs: [String], in run: LibrarySyncRun) async throws { }
     func markTracksSeen(_ trackIDs: [String], in run: LibrarySyncRun) async throws { }
+    func markTracksWithValidAlbumsSeen(in run: LibrarySyncRun) async throws { }
     func pruneRowsNotSeen(in run: LibrarySyncRun) async throws -> LibrarySyncPruneResult { .empty }
     func setSyncCheckpoint(_ checkpoint: LibrarySyncCheckpoint, in run: LibrarySyncRun?) async throws { }
     func syncCheckpoint(forKey key: String) async throws -> LibrarySyncCheckpoint? { nil }

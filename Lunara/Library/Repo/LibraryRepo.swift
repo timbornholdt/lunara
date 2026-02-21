@@ -160,6 +160,10 @@ final class LibraryRepo: LibraryRepoProtocol {
         try await store.searchArtists(query: query)
     }
 
+    func artistAlbums(artistName: String) async throws -> [Album] {
+        try await store.fetchAlbumsByArtistName(artistName)
+    }
+
     func playlists() async throws -> [LibraryPlaylistSnapshot] {
         try await store.fetchPlaylists()
     }

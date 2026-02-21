@@ -78,6 +78,20 @@ final class AppRouter {
         logger.info("shuffleCollection queued \(items.count, privacy: .public) shuffled items for collection id '\(collection.plexID, privacy: .public)'")
     }
 
+    func playArtist(_ artist: Artist) async throws {
+        logger.info("playArtist started for artist '\(artist.name, privacy: .public)' id '\(artist.plexID, privacy: .public)'")
+        let items = try await allQueueItemsForArtist(artist)
+        queue.playNow(items)
+        logger.info("playArtist queued \(items.count, privacy: .public) items for artist id '\(artist.plexID, privacy: .public)'")
+    }
+
+    func shuffleArtist(_ artist: Artist) async throws {
+        logger.info("shuffleArtist started for artist '\(artist.name, privacy: .public)' id '\(artist.plexID, privacy: .public)'")
+        let items = try await allQueueItemsForArtist(artist)
+        queue.playNow(items.shuffled())
+        logger.info("shuffleArtist queued \(items.count, privacy: .public) shuffled items for artist id '\(artist.plexID, privacy: .public)'")
+    }
+
     func pausePlayback() {
         queue.pause()
     }
@@ -143,18 +157,40 @@ final class AppRouter {
             throw LibraryError.resourceNotFound(type: "albums", id: collection.plexID)
         }
 
-        var allItems: [QueueItem] = []
-        for album in albums {
-            let tracks = try await library.tracks(forAlbum: album.plexID)
-            let items = try await queueItems(for: tracks, actionName: "collection-\(collection.plexID)")
-            allItems.append(contentsOf: items)
-        }
+        let allItems = try await allQueueItemsForAlbums(albums, actionName: "collection-\(collection.plexID)")
 
         guard !allItems.isEmpty else {
             logger.error("Found zero tracks across \(albums.count, privacy: .public) albums for collection id '\(collection.plexID, privacy: .public)'")
             throw LibraryError.resourceNotFound(type: "tracks", id: collection.plexID)
         }
 
+        return allItems
+    }
+
+    private func allQueueItemsForArtist(_ artist: Artist) async throws -> [QueueItem] {
+        let albums = try await library.artistAlbums(artistName: artist.name)
+        guard !albums.isEmpty else {
+            logger.error("Found zero albums for artist id '\(artist.plexID, privacy: .public)'")
+            throw LibraryError.resourceNotFound(type: "albums", id: artist.plexID)
+        }
+
+        let allItems = try await allQueueItemsForAlbums(albums, actionName: "artist-\(artist.plexID)")
+
+        guard !allItems.isEmpty else {
+            logger.error("Found zero tracks across \(albums.count, privacy: .public) albums for artist id '\(artist.plexID, privacy: .public)'")
+            throw LibraryError.resourceNotFound(type: "tracks", id: artist.plexID)
+        }
+
+        return allItems
+    }
+
+    private func allQueueItemsForAlbums(_ albums: [Album], actionName: String) async throws -> [QueueItem] {
+        var allItems: [QueueItem] = []
+        for album in albums {
+            let tracks = try await library.tracks(forAlbum: album.plexID)
+            let items = try await queueItems(for: tracks, actionName: actionName)
+            allItems.append(contentsOf: items)
+        }
         return allItems
     }
 

@@ -383,6 +383,7 @@ private final class CoordinatorLibraryRepoMock: LibraryRepoProtocol {
     func searchArtists(query: String) async throws -> [Artist] {
         []
     }
+    func artistAlbums(artistName: String) async throws -> [Album] { [] }
     func playlists() async throws -> [LibraryPlaylistSnapshot] { [] }
     func playlistItems(playlistID: String) async throws -> [LibraryPlaylistItemSnapshot] { [] }
     func refreshLibrary(reason: LibraryRefreshReason) async throws -> LibraryRefreshOutcome {

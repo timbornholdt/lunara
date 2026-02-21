@@ -55,6 +55,18 @@ extension LibraryStore {
         }
     }
 
+    func markTracksWithValidAlbumsSeen(in run: LibrarySyncRun) async throws {
+        try await dbQueue.write { db in
+            try db.execute(
+                sql: """
+                UPDATE tracks SET lastSeenSyncID = ?, lastSeenAt = ?
+                WHERE albumID IN (SELECT plexID FROM albums WHERE lastSeenSyncID = ?)
+                """,
+                arguments: [run.id, run.startedAt, run.id]
+            )
+        }
+    }
+
     func pruneRowsNotSeen(in run: LibrarySyncRun) async throws -> LibrarySyncPruneResult {
         try await dbQueue.write { db in
             let staleTrackIDs = try String.fetchAll(

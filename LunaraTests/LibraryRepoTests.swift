@@ -154,7 +154,7 @@ struct LibraryRepoTests {
     }
 
     @Test
-    func refreshLibrary_fetchesRemoteAlbumsAndTracks_thenPersistsIncrementalSync() async throws {
+    func refreshLibrary_fetchesRemoteAlbums_thenPersistsIncrementalSync() async throws {
         let now = Date(timeIntervalSince1970: 12_345)
         let subject = makeSubject(now: now)
         let albumA = makeAlbum(id: "album-a", trackCount: 2)
@@ -169,12 +169,6 @@ struct LibraryRepoTests {
             LibraryRemotePlaylistItem(trackID: "track-a1", position: 0),
             LibraryRemotePlaylistItem(trackID: "track-b1", position: 1)
         ]
-        subject.remote.tracksByAlbumID[albumA.plexID] = [
-            makeTrack(id: "track-a1", albumID: albumA.plexID, number: 1)
-        ]
-        subject.remote.tracksByAlbumID[albumB.plexID] = [
-            makeTrack(id: "track-b1", albumID: albumB.plexID, number: 1)
-        ]
         subject.store.cachedArtists = [makeArtist(id: "artist-1")]
         subject.store.cachedCollections = [makeCollection(id: "collection-1")]
         let outcome = try await subject.repo.refreshLibrary(reason: .userInitiated)
@@ -183,21 +177,20 @@ struct LibraryRepoTests {
         #expect(subject.remote.fetchCollectionsCallCount == 1)
         #expect(subject.remote.fetchPlaylistsCallCount == 1)
         #expect(subject.remote.fetchPlaylistItemsRequests == ["playlist-1"])
-        #expect(subject.remote.fetchTracksRequests == ["album-a", "album-b"])
+        #expect(subject.remote.fetchTracksRequests.isEmpty)
         #expect(subject.store.replaceLibraryCallCount == 0)
         #expect(subject.store.begunSyncRuns.count == 1)
         #expect(subject.store.upsertAlbumsCalls.count == 1)
-        #expect(subject.store.upsertTracksCalls.count == 1)
+        #expect(subject.store.upsertTracksCalls.isEmpty)
         #expect(subject.store.replaceArtistsCalls.count == 1)
         #expect(subject.store.replaceCollectionsCalls.count == 1)
         #expect(subject.store.upsertPlaylistsCalls.count == 1)
         #expect(subject.store.upsertPlaylistItemsCalls.count == 1)
         #expect(subject.store.markAlbumsSeenCalls.count == 1)
-        #expect(subject.store.markTracksSeenCalls.count == 1)
+        #expect(subject.store.markTracksWithValidAlbumsSeenCalls.count == 1)
         #expect(subject.store.pruneRowsNotSeenCalls.count == 1)
         #expect(subject.store.completeIncrementalSyncCalls.count == 1)
         #expect(subject.store.upsertAlbumsCalls.first?.0.map(\.plexID) == ["album-a", "album-b"])
-        #expect(subject.store.upsertTracksCalls.first?.0.map(\.plexID) == ["track-a1", "track-b1"])
         #expect(subject.store.replaceArtistsCalls.first?.0.map(\.plexID) == ["artist-a", "artist-b"])
         #expect(subject.store.replaceCollectionsCalls.first?.0.map(\.plexID) == ["collection-a"])
         #expect(subject.store.upsertPlaylistsCalls.first?.0.map(\.plexID) == ["playlist-1"])
@@ -208,7 +201,7 @@ struct LibraryRepoTests {
             reason: .userInitiated,
             refreshedAt: now,
             albumCount: 2,
-            trackCount: 2,
+            trackCount: 0,
             artistCount: 2,
             collectionCount: 1
         ))
@@ -219,7 +212,6 @@ struct LibraryRepoTests {
     func refreshLibrary_whenArtworkPreloadFails_stillPersistsMetadataSnapshot() async throws {
         let subject = makeSubject()
         subject.remote.albums = [makeAlbum(id: "album-1")]
-        subject.remote.tracksByAlbumID["album-1"] = [makeTrack(id: "track-1", albumID: "album-1", number: 1)]
         subject.artworkPipeline.fetchThumbnailError = .timeout
         let outcome = try await subject.repo.refreshLibrary(reason: .appLaunch)
         #expect(subject.store.completeIncrementalSyncCalls.count == 1)
@@ -232,45 +224,30 @@ struct LibraryRepoTests {
         let resolvedThumb = try #require(URL(string: "http://localhost:32400/library/metadata/96634/thumb/1769680528?X-Plex-Token=test"))
         subject.remote.albums = [makeAlbum(id: "album-1", thumbURL: relativeThumb)]
         subject.remote.artworkURLByRawValue[relativeThumb] = resolvedThumb
-        subject.remote.tracksByAlbumID["album-1"] = [makeTrack(id: "track-1", albumID: "album-1", number: 1)]
         _ = try await subject.repo.refreshLibrary(reason: .appLaunch)
         await waitForArtworkRequests(on: subject.artworkPipeline, expectedOwnerIDs: ["album-1"])
         #expect(subject.remote.artworkURLRequests == [relativeThumb])
         #expect(subject.artworkPipeline.thumbnailRequests.first?.sourceURL == resolvedThumb)
     }
     @Test
-    func refreshLibrary_withSplitAlbumGroups_mergesAlbumsAndRehomesTracksToCanonicalAlbum() async throws {
+    func refreshLibrary_withSplitAlbumGroups_mergesAlbumsToCanonicalAlbum() async throws {
         let subject = makeSubject()
         let splitAlbumA = makeAlbum(id: "album-b", title: "Shared Album", artistName: "Shared Artist", year: 1999, trackCount: 1)
         let splitAlbumB = makeAlbum(id: "album-a", title: "Shared Album", artistName: "Shared Artist", year: 1999, trackCount: 1)
         subject.remote.albums = [splitAlbumA, splitAlbumB]
-        subject.remote.tracksByAlbumID[splitAlbumA.plexID] = [
-            makeTrack(id: "track-b1", albumID: splitAlbumA.plexID, number: 2)
-        ]
-        subject.remote.tracksByAlbumID[splitAlbumB.plexID] = [
-            makeTrack(id: "track-a1", albumID: splitAlbumB.plexID, number: 1)
-        ]
         let outcome = try await subject.repo.refreshLibrary(reason: .userInitiated)
         let upsertedAlbums = try #require(subject.store.upsertAlbumsCalls.first?.0)
-        let upsertedTracks = try #require(subject.store.upsertTracksCalls.first?.0)
         #expect(upsertedAlbums.map(\.plexID) == ["album-a"])
-        #expect(upsertedAlbums.first?.trackCount == 2)
-        #expect(upsertedTracks.map(\.plexID) == ["track-a1", "track-b1"])
-        #expect(upsertedTracks.map(\.albumID) == ["album-a", "album-a"])
+        #expect(subject.store.upsertTracksCalls.isEmpty)
+        #expect(subject.remote.fetchTracksRequests.isEmpty)
         #expect(outcome.albumCount == 1)
-        #expect(outcome.trackCount == 2)
+        #expect(outcome.trackCount == 0)
     }
     @Test
     func refreshLibrary_withDifferentRemoteOrder_keepsCanonicalAlbumSelectionStable() async throws {
         let subject = makeSubject()
         let splitAlbumA = makeAlbum(id: "album-b", title: "Shared Album", artistName: "Shared Artist", year: 1999, trackCount: 1)
         let splitAlbumB = makeAlbum(id: "album-a", title: "Shared Album", artistName: "Shared Artist", year: 1999, trackCount: 1)
-        subject.remote.tracksByAlbumID[splitAlbumA.plexID] = [
-            makeTrack(id: "track-b1", albumID: splitAlbumA.plexID, number: 2)
-        ]
-        subject.remote.tracksByAlbumID[splitAlbumB.plexID] = [
-            makeTrack(id: "track-a1", albumID: splitAlbumB.plexID, number: 1)
-        ]
         subject.remote.albums = [splitAlbumA, splitAlbumB]
         _ = try await subject.repo.refreshLibrary(reason: .appLaunch)
         let firstCanonicalIDs = subject.store.upsertAlbumsCalls.first?.0.map(\.plexID)
@@ -301,7 +278,6 @@ struct LibraryRepoTests {
         subject.remote.albums = [makeAlbum(id: "album-1", trackCount: 1)]
         subject.remote.artists = [makeArtist(id: "artist-1")]
         subject.remote.collections = [makeCollection(id: "collection-1")]
-        subject.remote.tracksByAlbumID["album-1"] = [makeTrack(id: "track-1", albumID: "album-1", number: 1)]
         subject.store.upsertAlbumsError = .databaseCorrupted
         do {
             _ = try await subject.repo.refreshLibrary(reason: .appLaunch)
@@ -317,7 +293,6 @@ struct LibraryRepoTests {
     func refreshLibrary_whenArtistReplacementFails_propagatesError() async {
         let subject = makeSubject()
         subject.remote.albums = [makeAlbum(id: "album-1", trackCount: 1)]
-        subject.remote.tracksByAlbumID["album-1"] = [makeTrack(id: "track-1", albumID: "album-1", number: 1)]
         subject.remote.artists = [makeArtist(id: "artist-1")]
         subject.remote.collections = [makeCollection(id: "collection-1")]
         subject.store.replaceArtistsError = .databaseCorrupted
@@ -355,16 +330,9 @@ struct LibraryRepoTests {
         let deletedAlbum = makeRollupAlbum(id: "album-deleted", title: "Removed")
         subject.store.albumsByPage[1] = [unchangedAlbum, changedCachedAlbum, deletedAlbum]
 
-        subject.store.tracksByAlbumID[unchangedAlbum.plexID] = [makeTrack(id: "track-unchanged", albumID: unchangedAlbum.plexID, number: 1)]
-        subject.store.tracksByAlbumID[changedCachedAlbum.plexID] = [makeTrack(id: "track-changed", albumID: changedCachedAlbum.plexID, number: 1)]
-        subject.store.tracksByAlbumID[deletedAlbum.plexID] = [makeTrack(id: "track-deleted", albumID: deletedAlbum.plexID, number: 1)]
-
         let changedRemoteAlbum = makeRollupAlbum(id: "album-changed", title: "New")
         let newAlbum = makeRollupAlbum(id: "album-new", title: "Brand New")
         subject.remote.albums = [unchangedAlbum, changedRemoteAlbum, newAlbum]
-        subject.remote.tracksByAlbumID[unchangedAlbum.plexID] = [makeTrack(id: "track-unchanged", albumID: unchangedAlbum.plexID, number: 1)]
-        subject.remote.tracksByAlbumID[changedRemoteAlbum.plexID] = [makeTrack(id: "track-changed", albumID: changedRemoteAlbum.plexID, number: 2)]
-        subject.remote.tracksByAlbumID[newAlbum.plexID] = [makeTrack(id: "track-new", albumID: newAlbum.plexID, number: 1)]
 
         _ = try await subject.repo.refreshLibrary(reason: .userInitiated)
 
@@ -372,10 +340,7 @@ struct LibraryRepoTests {
         #expect(subject.store.syncCheckpointByKey["reconciliation.albums.changed"]?.value == "1")
         #expect(subject.store.syncCheckpointByKey["reconciliation.albums.unchanged"]?.value == "1")
         #expect(subject.store.syncCheckpointByKey["reconciliation.albums.deleted"]?.value == "1")
-        #expect(subject.store.syncCheckpointByKey["reconciliation.tracks.new"]?.value == "1")
-        #expect(subject.store.syncCheckpointByKey["reconciliation.tracks.changed"]?.value == "1")
-        #expect(subject.store.syncCheckpointByKey["reconciliation.tracks.unchanged"]?.value == "1")
-        #expect(subject.store.syncCheckpointByKey["reconciliation.tracks.deleted"]?.value == "1")
+        #expect(subject.store.syncCheckpointByKey["reconciliation.tracks.new"] == nil)
     }
 
     @Test
@@ -383,9 +348,7 @@ struct LibraryRepoTests {
         let subject = makeSubject()
         let album = makeAlbum(id: "album-1", thumbURL: "/library/metadata/1/thumb/1", trackCount: 1)
         subject.store.albumsByPage[1] = [album]
-        subject.store.tracksByAlbumID[album.plexID] = [makeTrack(id: "track-1", albumID: album.plexID, number: 1)]
         subject.remote.albums = [album]
-        subject.remote.tracksByAlbumID[album.plexID] = [makeTrack(id: "track-1", albumID: album.plexID, number: 1)]
 
         let cachedPath = FileManager.default.temporaryDirectory
             .appendingPathComponent("library-repo-artwork-\(UUID().uuidString).jpg")
@@ -405,9 +368,7 @@ struct LibraryRepoTests {
         let cachedAlbum = makeAlbum(id: "album-2", thumbURL: "/library/metadata/2/thumb/old", trackCount: 1)
         let refreshedAlbum = makeAlbum(id: "album-2", thumbURL: "/library/metadata/2/thumb/new", trackCount: 1)
         subject.store.albumsByPage[1] = [cachedAlbum]
-        subject.store.tracksByAlbumID[cachedAlbum.plexID] = [makeTrack(id: "track-2", albumID: cachedAlbum.plexID, number: 1)]
         subject.remote.albums = [refreshedAlbum]
-        subject.remote.tracksByAlbumID[refreshedAlbum.plexID] = [makeTrack(id: "track-2", albumID: refreshedAlbum.plexID, number: 1)]
 
         let resolved = try #require(URL(string: "http://localhost:32400/library/metadata/2/thumb/new?X-Plex-Token=test"))
         let refreshedThumb = try #require(refreshedAlbum.thumbURL)
@@ -427,7 +388,6 @@ struct LibraryRepoTests {
         let subject = makeSubject()
         let activeAlbum = makeAlbum(id: "album-active", thumbURL: "/library/metadata/active/thumb", trackCount: 1)
         subject.remote.albums = [activeAlbum]
-        subject.remote.tracksByAlbumID[activeAlbum.plexID] = [makeTrack(id: "track-active", albumID: activeAlbum.plexID, number: 1)]
         subject.store.pruneResult = LibrarySyncPruneResult(
             prunedAlbumIDs: ["album-deleted"],
             prunedTrackIDs: ["track-deleted"]

@@ -141,6 +141,7 @@ protocol LibraryStoreProtocol: AnyObject {
 
     func fetchArtists() async throws -> [Artist]
     func fetchArtist(id: String) async throws -> Artist?
+    func fetchAlbumsByArtistName(_ artistName: String) async throws -> [Album]
 
     func fetchCollections() async throws -> [Collection]
     func collection(id: String) async throws -> Collection?
@@ -222,6 +223,10 @@ protocol LibraryStoreProtocol: AnyObject {
     /// Marks track rows as observed in the active sync run.
     /// - Transaction guarantee: all track IDs in this call are marked together or none are marked.
     func markTracksSeen(_ trackIDs: [String], in run: LibrarySyncRun) async throws
+
+    /// Marks all tracks whose album was seen in the current sync run as seen, preventing pruning of cached tracks.
+    /// - Transaction guarantee: all matching track rows are updated atomically.
+    func markTracksWithValidAlbumsSeen(in run: LibrarySyncRun) async throws
 
     /// Prunes rows not seen during the provided sync run.
     /// - Transaction guarantee: album/track pruning must complete atomically so callers never observe half-pruned state.

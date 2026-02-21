@@ -209,6 +209,8 @@ private final class ProtocolRepoMock: LibraryRepoProtocol {
         return searchedArtistsByQuery[query] ?? []
     }
 
+    func artistAlbums(artistName: String) async throws -> [Album] { [] }
+
     func playlists() async throws -> [LibraryPlaylistSnapshot] { [] }
 
     func playlistItems(playlistID: String) async throws -> [LibraryPlaylistItemSnapshot] { [] }
