@@ -93,6 +93,7 @@ struct LibraryRootTabView: View {
                         selectedAlbumFromNowPlaying = album
                     }
                 )
+                .padding(.bottom, 56)
             }
         }
     }
