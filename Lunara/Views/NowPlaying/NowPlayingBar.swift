@@ -13,10 +13,10 @@ struct NowPlayingBar: View {
     var body: some View {
         if viewModel.isVisible {
             barContent
-                .background(Color.lunara(.backgroundElevated))
+                .background(screenViewModel.palette.background)
                 .overlay(alignment: .top) {
                     Divider()
-                        .background(Color.lunara(.borderSubtle))
+                        .background(screenViewModel.palette.textSecondary.opacity(0.3))
                 }
                 .onTapGesture {
                     showSheet = true
@@ -30,6 +30,7 @@ struct NowPlayingBar: View {
                         }
                     )
                 }
+                .animation(.easeInOut(duration: 0.4), value: screenViewModel.palette)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
                 .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isVisible)
         }
@@ -73,11 +74,11 @@ struct NowPlayingBar: View {
 
     private var artworkPlaceholder: some View {
         RoundedRectangle(cornerRadius: 6, style: .continuous)
-            .fill(Color.lunara(.borderSubtle))
+            .fill(screenViewModel.palette.textSecondary.opacity(0.3))
             .overlay {
                 Image(systemName: "music.note")
                     .font(.system(size: 18))
-                    .foregroundStyle(Color.lunara(.textSecondary))
+                    .foregroundStyle(screenViewModel.palette.textSecondary)
             }
     }
 
@@ -87,14 +88,14 @@ struct NowPlayingBar: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(viewModel.trackTitle ?? "")
                 .font(playfairFont(size: 14))
-                .foregroundStyle(Color.lunara(.textPrimary))
+                .foregroundStyle(screenViewModel.palette.textPrimary)
                 .lineLimit(1)
                 .accessibilityLabel("Now playing: \(viewModel.trackTitle ?? "unknown")")
 
             if let artist = viewModel.artistName {
                 Text(artist)
                     .font(playfairFont(size: 12))
-                    .foregroundStyle(Color.lunara(.textSecondary))
+                    .foregroundStyle(screenViewModel.palette.textSecondary)
                     .lineLimit(1)
             }
         }
@@ -105,13 +106,7 @@ struct NowPlayingBar: View {
     @ViewBuilder
     private var playPauseButton: some View {
         switch viewModel.playbackState {
-        case .buffering:
-            ProgressView()
-                .tint(Color.lunara(.accentPrimary))
-                .frame(width: 36, height: 36)
-                .accessibilityLabel("Loading")
-
-        case .playing:
+        case .buffering, .playing:
             barButton(systemImage: "pause.fill", label: "Pause") {
                 viewModel.togglePlayPause()
             }
@@ -137,7 +132,7 @@ struct NowPlayingBar: View {
         Button(action: action) {
             Image(systemName: systemImage)
                 .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(Color.lunara(.accentPrimary))
+                .foregroundStyle(screenViewModel.palette.textPrimary)
                 .frame(width: 36, height: 36)
         }
         .buttonStyle(.plain)

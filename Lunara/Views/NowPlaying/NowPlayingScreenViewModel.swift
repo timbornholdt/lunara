@@ -14,9 +14,9 @@ final class NowPlayingScreenViewModel {
     private(set) var albumID: String?
     private(set) var artworkImage: UIImage?
     private(set) var palette: ArtworkPaletteTheme = .default
-    private(set) var playbackState: PlaybackState = .idle
-    private(set) var elapsed: TimeInterval = 0
-    private(set) var duration: TimeInterval = 0
+    var playbackState: PlaybackState { engine.playbackState }
+    var elapsed: TimeInterval { engine.elapsed }
+    var duration: TimeInterval { engine.duration }
     private(set) var upNextItems: [UpNextItem] = []
     private(set) var currentAlbum: Album?
 
@@ -54,12 +54,6 @@ final class NowPlayingScreenViewModel {
         self.artworkPipeline = artworkPipeline
 
         observeQueue()
-        observeEngine()
-        observeElapsed()
-
-        playbackState = engine.playbackState
-        elapsed = engine.elapsed
-        duration = engine.duration
         handleCurrentItemChange()
         resolveUpNext()
     }
@@ -106,38 +100,6 @@ final class NowPlayingScreenViewModel {
         }
     }
 
-    private func observeElapsed() {
-        withObservationTracking { [weak self] in
-            guard let self else { return }
-            _ = self.engine.elapsed
-            _ = self.engine.duration
-        } onChange: { [weak self] in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                let newElapsed = self.engine.elapsed
-                let newDuration = self.engine.duration
-                if self.elapsed != newElapsed { self.elapsed = newElapsed }
-                if self.duration != newDuration { self.duration = newDuration }
-                self.observeElapsed()
-            }
-        }
-    }
-
-    private func observeEngine() {
-        withObservationTracking { [weak self] in
-            guard let self else { return }
-            _ = self.engine.playbackState
-        } onChange: { [weak self] in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                let newState = self.engine.playbackState
-                if self.playbackState != newState {
-                    self.playbackState = newState
-                }
-                self.observeEngine()
-            }
-        }
-    }
 
     // MARK: - Track Resolution
 
