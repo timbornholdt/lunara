@@ -203,10 +203,17 @@ final class NowPlayingScreenViewModel {
         for item in slice {
             guard !Task.isCancelled else { return }
             let track = try? await library.track(id: item.trackID)
+            let albumID = track?.albumID ?? item.trackID
+            let sourceURL: URL?
+            if let track, let album = try? await library.album(id: track.albumID) {
+                sourceURL = try? await library.authenticatedArtworkURL(for: album.thumbURL)
+            } else {
+                sourceURL = nil
+            }
             let thumbURL = try? await artworkPipeline.fetchThumbnail(
-                for: track?.albumID ?? item.trackID,
+                for: albumID,
                 ownerKind: .album,
-                sourceURL: nil
+                sourceURL: sourceURL
             )
             var thumbImage: UIImage?
             if let thumbURL, let data = try? Data(contentsOf: thumbURL) {

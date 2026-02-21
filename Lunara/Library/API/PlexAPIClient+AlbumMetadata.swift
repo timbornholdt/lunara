@@ -16,12 +16,14 @@ extension PlexAPIClient {
         let addedAtDate = directory.addedAt.map { Date(timeIntervalSince1970: TimeInterval($0)) }
         let durationSeconds = directory.duration.map { TimeInterval($0) / 1000.0 } ?? 0.0
         let resolvedGenres = dedupedTags(directory.genres + [directory.genre].compactMap { $0 })
+        let releaseDate = directory.originallyAvailableAt.flatMap { Self.parseReleaseDateString($0) }
 
         return Album(
             plexID: directory.ratingKey ?? albumID,
             title: directory.title,
             artistName: directory.parentTitle ?? "Unknown Artist",
             year: directory.year,
+            releaseDate: releaseDate,
             thumbURL: directory.thumb,
             genre: resolvedGenres.first,
             rating: directory.rating.map { Int($0) },
@@ -33,6 +35,18 @@ extension PlexAPIClient {
             styles: dedupedTags(directory.styles),
             moods: dedupedTags(directory.moods)
         )
+    }
+
+    private static let releaseDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        return formatter
+    }()
+
+    static func parseReleaseDateString(_ string: String) -> Date? {
+        releaseDateFormatter.date(from: string)
     }
 
     func dedupedTags(_ values: [String]) -> [String] {
