@@ -11,7 +11,7 @@ final class DownloadManager: DownloadManagerProtocol {
     private let offlineDirectory: URL
     private let logger = Logger(subsystem: "holdings.chinlock.lunara", category: "DownloadManager")
 
-    var storageLimitBytes: Int64 = 10 * 1024 * 1024 * 1024 // 10 GB default
+    var storageLimitBytes: Int64 = 128 * 1024 * 1024 * 1024 // 128 GB default
     var wifiOnly: Bool = true
 
     private(set) var albumStates: [String: AlbumDownloadState] = [:]

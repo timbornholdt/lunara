@@ -8,7 +8,7 @@ struct OfflineSettings: Equatable, Sendable {
         Int64(storageLimitGB * 1024 * 1024 * 1024)
     }
 
-    static let `default` = OfflineSettings(storageLimitGB: 10, wifiOnly: true)
+    static let `default` = OfflineSettings(storageLimitGB: 128, wifiOnly: true)
 
     private static let storageLimitKey = "offline_storage_limit_gb"
     private static let wifiOnlyKey = "offline_wifi_only"
