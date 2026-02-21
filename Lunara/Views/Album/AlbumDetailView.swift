@@ -3,6 +3,7 @@ import UIKit
 
 struct AlbumDetailView: View {
     @State private var viewModel: AlbumDetailViewModel
+    @State private var selectedArtist: Artist?
 
     init(viewModel: AlbumDetailViewModel) {
         _viewModel = State(initialValue: viewModel)
@@ -38,6 +39,9 @@ struct AlbumDetailView: View {
             }
         }
         .lunaraErrorBanner(using: viewModel.errorBannerState)
+        .navigationDestination(item: $selectedArtist) { artist in
+            ArtistDetailView(viewModel: viewModel.makeArtistDetailViewModel(for: artist))
+        }
         .task {
             await viewModel.loadIfNeeded()
         }
@@ -56,7 +60,20 @@ struct AlbumDetailView: View {
                 .foregroundStyle(viewModel.palette.textPrimary)
                 .animation(.easeInOut(duration: 0.4), value: viewModel.palette)
 
-            Text(subtitleText)
+            Button {
+                Task {
+                    if let artist = await viewModel.findArtist() {
+                        selectedArtist = artist
+                    }
+                }
+            } label: {
+                Text(viewModel.album.artistName)
+                    .font(AlbumDetailTypography.font(for: .subtitleMetadata))
+                    .foregroundStyle(viewModel.palette.textSecondary)
+            }
+            .animation(.easeInOut(duration: 0.4), value: viewModel.palette)
+
+            Text(metadataText)
                 .font(AlbumDetailTypography.font(for: .subtitleMetadata))
                 .foregroundStyle(viewModel.palette.textSecondary)
                 .animation(.easeInOut(duration: 0.4), value: viewModel.palette)
@@ -259,13 +276,15 @@ struct AlbumDetailView: View {
 
     // MARK: - Helpers
 
-    private var subtitleText: String {
-        var parts: [String] = [viewModel.album.artistName]
+    private var metadataText: String {
+        var parts: [String] = []
         if let year = viewModel.album.year {
             parts.append(String(year))
         }
-        parts.append("\(viewModel.album.trackCount) tracks")
-        parts.append(AlbumTrackPresentation.albumDuration(viewModel.album.duration))
+        let trackCount = viewModel.tracks.isEmpty ? viewModel.album.trackCount : viewModel.tracks.count
+        let duration = viewModel.tracks.isEmpty ? viewModel.album.duration : viewModel.tracks.reduce(0) { $0 + max(0, $1.duration) }
+        parts.append("\(trackCount) \(trackCount == 1 ? "track" : "tracks")")
+        parts.append(AlbumTrackPresentation.albumDuration(duration))
         return parts.joined(separator: " • ")
     }
 
