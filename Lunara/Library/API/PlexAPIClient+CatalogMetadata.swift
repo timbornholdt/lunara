@@ -26,7 +26,7 @@ extension PlexAPIClient {
                     thumbURL: directory.thumb,
                     genre: directory.genre,
                     summary: directory.summary,
-                    albumCount: directory.leafCount ?? 0
+                    albumCount: directory.childCount ?? directory.leafCount ?? 0
                 )
             )
         }

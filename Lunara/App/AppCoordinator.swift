@@ -133,6 +133,14 @@ final class AppCoordinator {
         try await appRouter.shuffleCollection(collection)
     }
 
+    func playArtist(_ artist: Artist) async throws {
+        try await appRouter.playArtist(artist)
+    }
+
+    func shuffleArtist(_ artist: Artist) async throws {
+        try await appRouter.shuffleArtist(artist)
+    }
+
     func pausePlayback() {
         appRouter.pausePlayback()
     }

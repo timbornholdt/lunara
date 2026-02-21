@@ -3,25 +3,26 @@ import Testing
 @testable import Lunara
 
 @MainActor
-struct CollectionDetailViewModelTests {
+struct ArtistDetailViewModelTests {
     @Test
-    func loadIfNeeded_fetchesAlbumsForCollectionAndMarksLoaded() async {
+    func loadIfNeeded_fetchesAlbumsForArtistAndMarksLoaded() async {
         let subject = makeSubject()
-        subject.library.collectionAlbumsByID[subject.collection.plexID] = [
-            makeAlbum(id: "album-1"),
-            makeAlbum(id: "album-2")
+        subject.library.artistAlbumsByName[subject.artist.name] = [
+            makeAlbum(id: "album-1", year: 1997),
+            makeAlbum(id: "album-2", year: 2005),
+            makeAlbum(id: "album-3", year: nil)
         ]
 
         await subject.viewModel.loadIfNeeded()
 
-        #expect(subject.viewModel.albums.map(\.plexID) == ["album-1", "album-2"])
+        #expect(subject.viewModel.albums.map(\.plexID) == ["album-1", "album-2", "album-3"])
         #expect(subject.viewModel.loadingState == .loaded)
     }
 
     @Test
     func loadIfNeeded_whenFails_setsErrorState() async {
         let subject = makeSubject()
-        subject.library.collectionAlbumsError = .timeout
+        subject.library.artistAlbumsError = .timeout
 
         await subject.viewModel.loadIfNeeded()
 
@@ -39,7 +40,7 @@ struct CollectionDetailViewModelTests {
 
         await subject.viewModel.playAll()
 
-        #expect(subject.actions.playCollectionRequests == [subject.collection.plexID])
+        #expect(subject.actions.playArtistRequests == [subject.artist.plexID])
     }
 
     @Test
@@ -48,13 +49,13 @@ struct CollectionDetailViewModelTests {
 
         await subject.viewModel.shuffle()
 
-        #expect(subject.actions.shuffleCollectionRequests == [subject.collection.plexID])
+        #expect(subject.actions.shuffleArtistRequests == [subject.artist.plexID])
     }
 
     @Test
     func playAll_whenThrows_showsErrorBanner() async {
         let subject = makeSubject()
-        subject.actions.playCollectionError = MusicError.trackUnavailable
+        subject.actions.playArtistError = MusicError.trackUnavailable
 
         await subject.viewModel.playAll()
 
@@ -64,7 +65,7 @@ struct CollectionDetailViewModelTests {
     @Test
     func shuffle_whenThrows_showsErrorBanner() async {
         let subject = makeSubject()
-        subject.actions.shuffleCollectionError = MusicError.trackUnavailable
+        subject.actions.shuffleArtistError = MusicError.trackUnavailable
 
         await subject.viewModel.shuffle()
 
@@ -82,42 +83,43 @@ struct CollectionDetailViewModelTests {
     }
 
     private func makeSubject(
-        collectionID: String = "col-1",
-        collectionTitle: String = "Test Collection"
+        artistID: String = "artist-1",
+        artistName: String = "Test Artist"
     ) -> (
-        viewModel: CollectionDetailViewModel,
-        collection: Collection,
-        library: CollectionDetailRepoMock,
+        viewModel: ArtistDetailViewModel,
+        artist: Artist,
+        library: ArtistDetailRepoMock,
         artwork: ArtworkPipelineMock,
-        actions: CollectionDetailActionsMock
+        actions: ArtistDetailActionsMock
     ) {
-        let collection = Collection(
-            plexID: collectionID,
-            title: collectionTitle,
+        let artist = Artist(
+            plexID: artistID,
+            name: artistName,
+            sortName: nil,
             thumbURL: nil,
-            summary: "A test collection",
-            albumCount: 5,
-            updatedAt: nil
+            genre: "Rock",
+            summary: "A test artist",
+            albumCount: 5
         )
-        let library = CollectionDetailRepoMock()
+        let library = ArtistDetailRepoMock()
         let artwork = ArtworkPipelineMock()
-        let actions = CollectionDetailActionsMock()
-        let viewModel = CollectionDetailViewModel(
-            collection: collection,
+        let actions = ArtistDetailActionsMock()
+        let viewModel = ArtistDetailViewModel(
+            artist: artist,
             library: library,
             artworkPipeline: artwork,
             actions: actions
         )
 
-        return (viewModel, collection, library, artwork, actions)
+        return (viewModel, artist, library, artwork, actions)
     }
 
-    private func makeAlbum(id: String, title: String? = nil) -> Album {
+    private func makeAlbum(id: String, title: String? = nil, year: Int? = nil) -> Album {
         Album(
             plexID: id,
             title: title ?? "Album \(id)",
             artistName: "Artist",
-            year: nil,
+            year: year,
             thumbURL: nil,
             genre: nil,
             rating: nil,
@@ -129,18 +131,18 @@ struct CollectionDetailViewModelTests {
 }
 
 @MainActor
-private final class CollectionDetailRepoMock: LibraryRepoProtocol {
-    var collectionAlbumsByID: [String: [Album]] = [:]
-    var collectionAlbumsError: LibraryError?
+private final class ArtistDetailRepoMock: LibraryRepoProtocol {
+    var queriedAlbumsByFilter: [AlbumQueryFilter: [Album]] = [:]
+    var queryAlbumsError: LibraryError?
 
     func albums(page: LibraryPage) async throws -> [Album] { [] }
     func album(id: String) async throws -> Album? { nil }
     func searchAlbums(query: String) async throws -> [Album] { [] }
-    func queryAlbums(filter: AlbumQueryFilter) async throws -> [Album] { [] }
-    func collectionAlbums(collectionID: String) async throws -> [Album] {
-        if let collectionAlbumsError { throw collectionAlbumsError }
-        return collectionAlbumsByID[collectionID] ?? []
+    func queryAlbums(filter: AlbumQueryFilter) async throws -> [Album] {
+        if let queryAlbumsError { throw queryAlbumsError }
+        return queriedAlbumsByFilter[filter] ?? []
     }
+    func collectionAlbums(collectionID: String) async throws -> [Album] { [] }
     func tracks(forAlbum albumID: String) async throws -> [Track] { [] }
     func track(id: String) async throws -> Track? { nil }
     func refreshAlbumDetail(albumID: String) async throws -> AlbumDetailRefreshOutcome {
@@ -152,7 +154,12 @@ private final class CollectionDetailRepoMock: LibraryRepoProtocol {
     func artists() async throws -> [Artist] { [] }
     func artist(id: String) async throws -> Artist? { nil }
     func searchArtists(query: String) async throws -> [Artist] { [] }
-    func artistAlbums(artistName: String) async throws -> [Album] { [] }
+    var artistAlbumsByName: [String: [Album]] = [:]
+    var artistAlbumsError: LibraryError?
+    func artistAlbums(artistName: String) async throws -> [Album] {
+        if let artistAlbumsError { throw artistAlbumsError }
+        return artistAlbumsByName[artistName] ?? []
+    }
     func playlists() async throws -> [LibraryPlaylistSnapshot] { [] }
     func playlistItems(playlistID: String) async throws -> [LibraryPlaylistItemSnapshot] { [] }
     func refreshLibrary(reason: LibraryRefreshReason) async throws -> LibraryRefreshOutcome {
@@ -169,20 +176,20 @@ private final class CollectionDetailRepoMock: LibraryRepoProtocol {
 }
 
 @MainActor
-private final class CollectionDetailActionsMock: CollectionsListActionRouting {
-    var playCollectionRequests: [String] = []
-    var shuffleCollectionRequests: [String] = []
+private final class ArtistDetailActionsMock: ArtistsListActionRouting {
+    var playArtistRequests: [String] = []
+    var shuffleArtistRequests: [String] = []
     var playAlbumRequests: [String] = []
-    var playCollectionError: Error?
-    var shuffleCollectionError: Error?
+    var playArtistError: Error?
+    var shuffleArtistError: Error?
 
-    func playCollection(_ collection: Collection) async throws {
-        playCollectionRequests.append(collection.plexID)
-        if let playCollectionError { throw playCollectionError }
+    func playArtist(_ artist: Artist) async throws {
+        playArtistRequests.append(artist.plexID)
+        if let playArtistError { throw playArtistError }
     }
-    func shuffleCollection(_ collection: Collection) async throws {
-        shuffleCollectionRequests.append(collection.plexID)
-        if let shuffleCollectionError { throw shuffleCollectionError }
+    func shuffleArtist(_ artist: Artist) async throws {
+        shuffleArtistRequests.append(artist.plexID)
+        if let shuffleArtistError { throw shuffleArtistError }
     }
     func playAlbum(_ album: Album) async throws {
         playAlbumRequests.append(album.plexID)

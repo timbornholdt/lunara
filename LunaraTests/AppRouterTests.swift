@@ -306,6 +306,64 @@ struct AppRouterTests {
     }
 
     @Test
+    func playArtist_fetchesAlbumsTracksAndQueuesInOrder() async throws {
+        let subject = makeSubject()
+        let artist = makeArtist(id: "artist-1")
+        let album = makeAlbum(id: "album-a1")
+        let track = makeTrack(id: "track-a1", albumID: album.plexID)
+        let streamURL = try #require(URL(string: "https://example.com/stream/track-a1.mp3"))
+
+        subject.library.artistAlbumsByName[artist.name] = [album]
+        subject.library.tracksByAlbumID[album.plexID] = [track]
+        subject.library.streamURLByTrackID[track.plexID] = streamURL
+
+        try await subject.router.playArtist(artist)
+
+        #expect(subject.queue.playNowCalls.count == 1)
+        #expect(subject.queue.playNowCalls[0] == [QueueItem(trackID: track.plexID, url: streamURL)])
+    }
+
+    @Test
+    func shuffleArtist_fetchesAlbumsTracksAndQueuesShuffled() async throws {
+        let subject = makeSubject()
+        let artist = makeArtist(id: "artist-2")
+        let album = makeAlbum(id: "album-a2")
+        let track1 = makeTrack(id: "track-sa1", albumID: album.plexID)
+        let track2 = makeTrack(id: "track-sa2", albumID: album.plexID)
+        let url1 = try #require(URL(string: "https://example.com/stream/track-sa1.mp3"))
+        let url2 = try #require(URL(string: "https://example.com/stream/track-sa2.mp3"))
+
+        subject.library.artistAlbumsByName[artist.name] = [album]
+        subject.library.tracksByAlbumID[album.plexID] = [track1, track2]
+        subject.library.streamURLByTrackID[track1.plexID] = url1
+        subject.library.streamURLByTrackID[track2.plexID] = url2
+
+        try await subject.router.shuffleArtist(artist)
+
+        #expect(subject.queue.playNowCalls.count == 1)
+        let queuedTrackIDs = Set(subject.queue.playNowCalls[0].map(\.trackID))
+        #expect(queuedTrackIDs == Set(["track-sa1", "track-sa2"]))
+    }
+
+    @Test
+    func playArtist_whenNoAlbums_throwsResourceNotFound() async {
+        let subject = makeSubject()
+        let artist = makeArtist(id: "artist-empty")
+        subject.library.artistAlbumsByName[artist.name] = []
+
+        do {
+            try await subject.router.playArtist(artist)
+            Issue.record("Expected playArtist to throw")
+        } catch let error as LibraryError {
+            #expect(error == .resourceNotFound(type: "albums", id: artist.plexID))
+        } catch {
+            Issue.record("Expected LibraryError, got: \(error)")
+        }
+
+        #expect(subject.queue.playNowCalls.isEmpty)
+    }
+
+    @Test
     func playCollection_whenNoAlbums_throwsResourceNotFound() async {
         let subject = makeSubject()
         let collection = makeCollection(id: "col-empty")
@@ -357,6 +415,18 @@ struct AppRouterTests {
             addedAt: nil,
             trackCount: 0,
             duration: 0
+        )
+    }
+
+    private func makeArtist(id: String) -> Artist {
+        Artist(
+            plexID: id,
+            name: "Artist \(id)",
+            sortName: nil,
+            thumbURL: nil,
+            genre: nil,
+            summary: nil,
+            albumCount: 0
         )
     }
 
@@ -473,6 +543,11 @@ private final class LibraryRepoMock: LibraryRepoProtocol {
 
     func searchArtists(query: String) async throws -> [Artist] {
         []
+    }
+
+    var artistAlbumsByName: [String: [Album]] = [:]
+    func artistAlbums(artistName: String) async throws -> [Album] {
+        artistAlbumsByName[artistName] ?? []
     }
 
     func playlists() async throws -> [LibraryPlaylistSnapshot] { [] }

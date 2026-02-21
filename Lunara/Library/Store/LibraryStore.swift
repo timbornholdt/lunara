@@ -82,8 +82,40 @@ final class LibraryStore: LibraryStoreProtocol {
 
     func fetchArtists() async throws -> [Artist] {
         try await dbQueue.read { db in
-            let records = try ArtistRecord
-                .order(Column("sortName").asc, Column("name").asc)
+            let rows = try Row.fetchAll(db, sql: """
+                SELECT a.*,
+                       COALESCE(ac.cnt, 0) AS computedAlbumCount
+                FROM artists a
+                LEFT JOIN (
+                    SELECT artistName, COUNT(*) AS cnt
+                    FROM albums
+                    GROUP BY artistName
+                ) ac ON ac.artistName = a.name
+                ORDER BY COALESCE(a.sortName, a.name) ASC, a.name ASC
+                """)
+            return try rows.map { row in
+                let record = try ArtistRecord(row: row)
+                let base = record.model
+                let count: Int = row["computedAlbumCount"]
+                return Artist(
+                    plexID: base.plexID,
+                    name: base.name,
+                    sortName: base.sortName,
+                    thumbURL: base.thumbURL,
+                    genre: base.genre,
+                    summary: base.summary,
+                    albumCount: count
+                )
+            }
+        }
+    }
+
+    func fetchAlbumsByArtistName(_ artistName: String) async throws -> [Album] {
+        let targetName = artistName
+        return try await dbQueue.read { db in
+            let records = try AlbumRecord
+                .filter(Column("artistName") == targetName)
+                .order(Column("year").asc, Column("title").asc, Column("plexID").asc)
                 .fetchAll(db)
             return records.map(\.model)
         }
@@ -91,7 +123,26 @@ final class LibraryStore: LibraryStoreProtocol {
 
     func fetchArtist(id: String) async throws -> Artist? {
         try await dbQueue.read { db in
-            try ArtistRecord.fetchOne(db, key: id)?.model
+            guard let row = try Row.fetchOne(db, sql: """
+                SELECT a.*,
+                       (SELECT COUNT(*) FROM albums WHERE artistName = a.name) AS computedAlbumCount
+                FROM artists a
+                WHERE a.plexID = ?
+                """, arguments: [id]) else {
+                return nil
+            }
+            let record = try ArtistRecord(row: row)
+            let base = record.model
+            let count: Int = row["computedAlbumCount"]
+            return Artist(
+                plexID: base.plexID,
+                name: base.name,
+                sortName: base.sortName,
+                thumbURL: base.thumbURL,
+                genre: base.genre,
+                summary: base.summary,
+                albumCount: count
+            )
         }
     }
 

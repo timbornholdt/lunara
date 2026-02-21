@@ -253,6 +253,8 @@ final class LibraryStoreMock: LibraryStoreProtocol {
         artistsByID[id]
     }
 
+    func fetchAlbumsByArtistName(_ artistName: String) async throws -> [Album] { [] }
+
     func fetchCollections() async throws -> [Collection] {
         if !cachedCollections.isEmpty {
             return cachedCollections
@@ -417,6 +419,12 @@ final class LibraryStoreMock: LibraryStoreProtocol {
             throw markTracksSeenError
         }
         markTracksSeenCalls.append((trackIDs, run))
+    }
+
+    var markTracksWithValidAlbumsSeenCalls: [LibrarySyncRun] = []
+
+    func markTracksWithValidAlbumsSeen(in run: LibrarySyncRun) async throws {
+        markTracksWithValidAlbumsSeenCalls.append(run)
     }
 
     func pruneRowsNotSeen(in run: LibrarySyncRun) async throws -> LibrarySyncPruneResult {

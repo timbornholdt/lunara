@@ -71,7 +71,13 @@ struct LibraryRootTabView: View {
                 }
                 .tag(Tab.albums)
 
-                artistsPlaceholder
+                ArtistsListView(
+                    viewModel: ArtistsListViewModel(
+                        library: coordinator.libraryRepo,
+                        artworkPipeline: coordinator.artworkPipeline,
+                        actions: coordinator
+                    )
+                )
                     .tabItem {
                         Label("Artists", systemImage: "music.mic")
                     }
@@ -91,19 +97,6 @@ struct LibraryRootTabView: View {
         }
     }
 
-    private var artistsPlaceholder: some View {
-        VStack(spacing: 16) {
-            Spacer()
-            Image(systemName: "music.mic")
-                .font(.system(size: 48))
-                .foregroundStyle(Color.lunara(.textSecondary))
-            Text("Artists coming soon")
-                .foregroundStyle(Color.lunara(.textSecondary))
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .lunaraLinenBackground()
-    }
 }
 
 #Preview {

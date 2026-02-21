@@ -51,6 +51,8 @@ protocol LibraryRepoProtocol: AnyObject {
     func searchCollections(query: String) async throws -> [Collection]
     func artists() async throws -> [Artist]
     func artist(id: String) async throws -> Artist?
+    /// Fetches albums for an artist by exact artist name match against `albums.artistName`.
+    func artistAlbums(artistName: String) async throws -> [Album]
 
     /// Reads all persisted playlists from cache, ordered by title.
     /// Playlists are populated during `refreshLibrary`; this method does not trigger a remote fetch.
@@ -166,6 +168,10 @@ extension PlexAPIClient: LibraryRepoProtocol {
 
     func searchArtists(query: String) async throws -> [Artist] {
         throw LibraryError.operationFailed(reason: "Artist search is not implemented on PlexAPIClient-backed LibraryRepo yet.")
+    }
+
+    func artistAlbums(artistName: String) async throws -> [Album] {
+        throw LibraryError.operationFailed(reason: "Artist albums is not implemented on PlexAPIClient-backed LibraryRepo yet.")
     }
 
     func playlists() async throws -> [LibraryPlaylistSnapshot] {

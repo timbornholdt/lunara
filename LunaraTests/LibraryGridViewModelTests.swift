@@ -384,6 +384,8 @@ private final class LibraryGridRepoMock: LibraryRepoProtocol {
         []
     }
 
+    func artistAlbums(artistName: String) async throws -> [Album] { [] }
+
     func playlists() async throws -> [LibraryPlaylistSnapshot] { [] }
 
     func playlistItems(playlistID: String) async throws -> [LibraryPlaylistItemSnapshot] { [] }

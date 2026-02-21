@@ -7,10 +7,6 @@ extension LibraryRepo {
         let changedAlbumIDs: [String]
         let unchangedAlbumIDs: [String]
         let deletedAlbumIDs: [String]
-        let newTrackIDs: [String]
-        let changedTrackIDs: [String]
-        let unchangedTrackIDs: [String]
-        let deletedTrackIDs: [String]
     }
 
     func refreshLibrary(reason: LibraryRefreshReason) async throws -> LibraryRefreshOutcome {
@@ -22,43 +18,37 @@ extension LibraryRepo {
             async let remoteCollectionsTask = remote.fetchCollections()
             async let remotePlaylistsTask = remote.fetchPlaylists()
             let remoteAlbums = try await remote.fetchAlbums()
-            let remoteTracks = try await fetchRemoteTracks(for: remoteAlbums)
             let remoteArtists = try await remoteArtistsTask
             let remoteCollections = try await remoteCollectionsTask
             let remotePlaylists = try await remotePlaylistsTask
             let remotePlaylistItems = try await fetchRemotePlaylistItems(for: remotePlaylists)
-            let dedupedLibrary = dedupeLibrary(albums: remoteAlbums, tracks: remoteTracks)
+            let dedupedLibrary = dedupeLibrary(albums: remoteAlbums, tracks: [])
 
             let cachedAlbums = try await fetchAllCachedAlbums()
-            let cachedTracks = try await fetchTracks(for: cachedAlbums)
             logger.info(
-                "refresh start reason=\(String(describing: reason), privacy: .public) cachedAlbums=\(cachedAlbums.count) cachedTracks=\(cachedTracks.count)"
+                "refresh start reason=\(String(describing: reason), privacy: .public) cachedAlbums=\(cachedAlbums.count)"
             )
             logger.info(
                 """
                 refresh remote reason=\(String(describing: reason), privacy: .public) \
-                remoteAlbums=\(remoteAlbums.count) remoteTracks=\(remoteTracks.count) remoteArtists=\(remoteArtists.count) remoteCollections=\(remoteCollections.count) remotePlaylists=\(remotePlaylists.count) \
-                dedupedAlbums=\(dedupedLibrary.albums.count) dedupedTracks=\(dedupedLibrary.tracks.count)
+                remoteAlbums=\(remoteAlbums.count) remoteArtists=\(remoteArtists.count) remoteCollections=\(remoteCollections.count) remotePlaylists=\(remotePlaylists.count) \
+                dedupedAlbums=\(dedupedLibrary.albums.count)
                 """
             )
             let delta = buildReconciliationDelta(
                 cachedAlbums: cachedAlbums,
-                cachedTracks: cachedTracks,
-                remoteAlbums: dedupedLibrary.albums,
-                remoteTracks: dedupedLibrary.tracks
+                remoteAlbums: dedupedLibrary.albums
             )
             logger.info(
                 """
                 refresh delta reason=\(String(describing: reason), privacy: .public) \
-                albums[new=\(delta.newAlbumIDs.count),changed=\(delta.changedAlbumIDs.count),unchanged=\(delta.unchangedAlbumIDs.count),deleted=\(delta.deletedAlbumIDs.count)] \
-                tracks[new=\(delta.newTrackIDs.count),changed=\(delta.changedTrackIDs.count),unchanged=\(delta.unchangedTrackIDs.count),deleted=\(delta.deletedTrackIDs.count)]
+                albums[new=\(delta.newAlbumIDs.count),changed=\(delta.changedAlbumIDs.count),unchanged=\(delta.unchangedAlbumIDs.count),deleted=\(delta.deletedAlbumIDs.count)]
                 """
             )
 
             let run = try await store.beginIncrementalSync(startedAt: refreshedAt)
             try await persistReconciliationDelta(delta, in: run, refreshedAt: refreshedAt)
             try await store.upsertAlbums(dedupedLibrary.albums, in: run)
-            try await store.upsertTracks(dedupedLibrary.tracks, in: run)
             try await store.replaceArtists(remoteArtists, in: run)
             try await store.replaceCollections(remoteCollections, in: run)
             try await store.upsertPlaylists(remotePlaylists.map {
@@ -77,7 +67,7 @@ extension LibraryRepo {
                 )
             }
             try await store.markAlbumsSeen(dedupedLibrary.albums.map(\.plexID), in: run)
-            try await store.markTracksSeen(dedupedLibrary.tracks.map(\.plexID), in: run)
+            try await store.markTracksWithValidAlbumsSeen(in: run)
             let pruneResult = try await store.pruneRowsNotSeen(in: run)
             logger.info(
                 "refresh prune reason=\(String(describing: reason), privacy: .public) prunedAlbums=\(pruneResult.prunedAlbumIDs.count) prunedTracks=\(pruneResult.prunedTrackIDs.count)"
@@ -100,13 +90,13 @@ extension LibraryRepo {
             let cachedArtists = try await store.fetchArtists()
             let cachedCollections = try await store.fetchCollections()
             logger.info(
-                "refresh complete reason=\(String(describing: reason), privacy: .public) refreshedAt=\(refreshedAt.timeIntervalSince1970) albums=\(dedupedLibrary.albums.count) tracks=\(dedupedLibrary.tracks.count) artists=\(cachedArtists.count) collections=\(cachedCollections.count)"
+                "refresh complete reason=\(String(describing: reason), privacy: .public) refreshedAt=\(refreshedAt.timeIntervalSince1970) albums=\(dedupedLibrary.albums.count) artists=\(cachedArtists.count) collections=\(cachedCollections.count)"
             )
             return LibraryRefreshOutcome(
                 reason: reason,
                 refreshedAt: refreshedAt,
                 albumCount: dedupedLibrary.albums.count,
-                trackCount: dedupedLibrary.tracks.count,
+                trackCount: 0,
                 artistCount: cachedArtists.count,
                 collectionCount: cachedCollections.count
             )
@@ -121,15 +111,6 @@ extension LibraryRepo {
             )
             throw LibraryError.operationFailed(reason: "Library refresh failed: \(error.localizedDescription)")
         }
-    }
-
-    private func fetchRemoteTracks(for albums: [Album]) async throws -> [Track] {
-        var tracks: [Track] = []
-        for album in albums {
-            let albumTracks = try await remote.fetchTracks(forAlbum: album.plexID)
-            tracks.append(contentsOf: albumTracks)
-        }
-        return tracks
     }
 
     private func fetchRemotePlaylistItems(
@@ -162,33 +143,17 @@ extension LibraryRepo {
         return allAlbums
     }
 
-    private func fetchTracks(for albums: [Album]) async throws -> [Track] {
-        var tracks: [Track] = []
-        for album in albums {
-            let albumTracks = try await store.fetchTracks(forAlbum: album.plexID)
-            tracks.append(contentsOf: albumTracks)
-        }
-        return tracks
-    }
-
     private func buildReconciliationDelta(
         cachedAlbums: [Album],
-        cachedTracks: [Track],
-        remoteAlbums: [Album],
-        remoteTracks: [Track]
+        remoteAlbums: [Album]
     ) -> ReconciliationDelta {
         let albumDelta = categorizeRows(cached: cachedAlbums, remote: remoteAlbums, id: \.plexID)
-        let trackDelta = categorizeRows(cached: cachedTracks, remote: remoteTracks, id: \.plexID)
 
         return ReconciliationDelta(
             newAlbumIDs: albumDelta.newIDs,
             changedAlbumIDs: albumDelta.changedIDs,
             unchangedAlbumIDs: albumDelta.unchangedIDs,
-            deletedAlbumIDs: albumDelta.deletedIDs,
-            newTrackIDs: trackDelta.newIDs,
-            changedTrackIDs: trackDelta.changedIDs,
-            unchangedTrackIDs: trackDelta.unchangedIDs,
-            deletedTrackIDs: trackDelta.deletedIDs
+            deletedAlbumIDs: albumDelta.deletedIDs
         )
     }
 
@@ -216,26 +181,6 @@ extension LibraryRepo {
             LibrarySyncCheckpoint(
                 key: "reconciliation.albums.deleted",
                 value: String(delta.deletedAlbumIDs.count),
-                updatedAt: refreshedAt
-            ),
-            LibrarySyncCheckpoint(
-                key: "reconciliation.tracks.new",
-                value: String(delta.newTrackIDs.count),
-                updatedAt: refreshedAt
-            ),
-            LibrarySyncCheckpoint(
-                key: "reconciliation.tracks.changed",
-                value: String(delta.changedTrackIDs.count),
-                updatedAt: refreshedAt
-            ),
-            LibrarySyncCheckpoint(
-                key: "reconciliation.tracks.unchanged",
-                value: String(delta.unchangedTrackIDs.count),
-                updatedAt: refreshedAt
-            ),
-            LibrarySyncCheckpoint(
-                key: "reconciliation.tracks.deleted",
-                value: String(delta.deletedTrackIDs.count),
                 updatedAt: refreshedAt
             )
         ]
