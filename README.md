@@ -32,7 +32,9 @@ If something isn't in this document, it's not in scope yet. If a task would viol
 - **Phase 2 (Playback Engine + Queue Manager):** Complete
 - **Phase 3 (Library Domain Core):** Complete
 - **Phase 4 (UI Shell):** Complete
-- **Last verified milestone:** Phase 4 acceptance verified on February 20, 2026.
+- **Phase 5 (Collections + Artists):** Complete
+- **Phase 6 (Lock Screen + Remote Controls):** Complete
+- **Last verified milestone:** Phase 6 acceptance verified on February 21, 2026.
 
 ---
 
@@ -399,7 +401,7 @@ class AppRouter {
 | LibraryRepo | PlexAPIClient, LibraryStore, Artwork Pipeline | Music Domain |
 | QueueManager | PlaybackEngine, its own persistence | Library Domain |
 | PlaybackEngine | Nothing. It is called and observed. | Everything |
-| NowPlayingBridge | PlaybackEngine (observe), QueueManager (observe) | Library Domain |
+| NowPlayingBridge | PlaybackEngine (observe), QueueManager (observe), LibraryRepo (read metadata), ArtworkPipeline (read artwork) | — |
 | AuthManager | Keychain | Everything else (it's injected into PlexAPIClient) |
 
 ---
@@ -519,13 +521,14 @@ These two are built together because the PlaybackEngine needs someone to drive t
 ### Phase 5: Collections + Artists
 
 **Goal:** Browse by collection and by artist.
+**Status:** Complete (implemented and verified on February 21, 2026).
 
 **Build:**
-- Collections tab with artwork. "Current Vibes" and "The Key Albums" pinned top.
-- Collection detail: albums, hero header, Play / Shuffle All.
-- Artists tab: alphabetical, artist detail with hero art, summary, genre pills, albums by year.
-- Tab bar: Collections | All Albums | Artists.
-- Naive shuffle (random order, no anti-annoyance rules yet).
+- Collections tab with artwork. "Current Vibes" and "The Key Albums" pinned top. ✅
+- Collection detail: albums, hero header, Play / Shuffle All. ✅
+- Artists tab: alphabetical, artist detail with hero art, summary, genre pills, albums by year. ✅
+- Tab bar: Collections | All Albums | Artists. ✅
+- Naive shuffle (random order, no anti-annoyance rules yet). ✅
 
 **Acceptance:** Browse collections, browse artists, start playback from any view.
 
@@ -536,12 +539,21 @@ These two are built together because the PlaybackEngine needs someone to drive t
 ### Phase 6: Lock Screen + Remote Controls
 
 **Goal:** Control playback without opening the app.
+**Status:** Complete (implemented and verified on February 21, 2026).
 
 **Build:**
-- `NowPlayingBridge`: MPNowPlayingInfoCenter metadata + artwork.
-- MPRemoteCommandCenter: play, pause, next, previous.
+- `NowPlayingBridge`: MPNowPlayingInfoCenter metadata + artwork. ✅
+- MPRemoteCommandCenter: play, pause, next, previous, scrub. ✅
+- Artwork retry logic for uncached artwork on first play. ✅
+- Queue exhaustion handling: engine stops and lock screen clears when album ends. ✅
 
-**Acceptance:** Lock phone. Correct track on lock screen with artwork. Tap next — correct track plays. Phone call pauses, resumes after.
+**What was built:**
+- `NowPlayingBridge` in `Lunara/Music/NowPlaying/`: observes PlaybackEngine and QueueManager via `withObservationTracking`, publishes track metadata (title, artist, album, duration) and playback position (elapsed + playbackRate for iOS-interpolated progress) to `MPNowPlayingInfoCenter`. Registers `MPRemoteCommandCenter` handlers for play, pause, next, previous, and scrub-to-position.
+- Artwork: fetches full-size album artwork via ArtworkPipeline. If artwork isn't cached yet (first play of an album), retries up to 3 times with exponential backoff (2s/4s/6s). Guards against stale artwork overwrites on rapid track changes.
+- Queue index tracking: detects skip-back-to-same-track by observing `queue.currentIndex` changes, not just trackID changes. Ensures metadata and artwork re-publish on every track transition.
+- Queue exhaustion fix in `QueueManager`: when the last track in the queue finishes, the engine is stopped, `currentIndex` is nilled, and persisted state is reset. This clears the lock screen and the in-app now playing bar.
+
+**Acceptance:** Lock phone. Correct track on lock screen with artwork. Tap next — correct track plays. Phone call pauses, resumes after. Album ends — lock screen clears.
 
 **AI scope:** One session.
 

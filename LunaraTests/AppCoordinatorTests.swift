@@ -184,14 +184,16 @@ struct AppCoordinatorTests {
         let now = Date(timeIntervalSince1970: 123)
         let repo = LibraryRepo(remote: remote, store: store, artworkPipeline: artworkPipeline, nowProvider: { now })
         let queue = CoordinatorQueueManagerMock()
+        let engine = CoordinatorPlaybackEngineMock()
         let coordinator = AppCoordinator(
             authManager: authManager,
             plexClient: plexClient,
             libraryRepo: repo,
             artworkPipeline: artworkPipeline,
-            playbackEngine: CoordinatorPlaybackEngineMock(),
+            playbackEngine: engine,
             queueManager: queue,
-            appRouter: AppRouter(library: repo, queue: queue)
+            appRouter: AppRouter(library: repo, queue: queue),
+            nowPlayingBridge: NowPlayingBridge(engine: engine, queue: queue, library: repo, artwork: artworkPipeline)
         )
         remote.albums = [
             makeAlbum(id: "fresh-1", thumbURL: "/library/metadata/fresh-1/thumb/1"),
@@ -244,7 +246,8 @@ struct AppCoordinatorTests {
             artworkPipeline: artworkPipeline,
             playbackEngine: playbackEngine,
             queueManager: queue,
-            appRouter: appRouter
+            appRouter: appRouter,
+            nowPlayingBridge: NowPlayingBridge(engine: playbackEngine, queue: queue, library: library, artwork: artworkPipeline)
         )
         return (coordinator, queue, library, artworkPipeline)
     }
