@@ -135,13 +135,15 @@ final class LibraryRepo: LibraryRepoProtocol {
     func collectionAlbums(collectionID: String) async throws -> [Album] {
         let albumIDs = try await remote.fetchCollectionAlbumIDs(collectionID: collectionID)
         guard !albumIDs.isEmpty else { return [] }
+        var seen = Set<String>()
         var albums: [Album] = []
         for albumID in albumIDs {
+            guard seen.insert(albumID).inserted else { continue }
             if let album = try await store.fetchAlbum(id: albumID) {
                 albums.append(album)
             }
         }
-        return albums
+        return dedupeLibrary(albums: albums, tracks: []).albums
     }
 
     func searchCollections(query: String) async throws -> [Collection] {

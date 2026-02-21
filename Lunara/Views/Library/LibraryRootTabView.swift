@@ -6,6 +6,7 @@ struct LibraryRootTabView: View {
         case collections
         case albums
         case artists
+        case settings
     }
 
     let coordinator: AppCoordinator
@@ -47,7 +48,9 @@ struct LibraryRootTabView: View {
                     viewModel: CollectionsListViewModel(
                         library: coordinator.libraryRepo,
                         artworkPipeline: coordinator.artworkPipeline,
-                        actions: coordinator
+                        actions: coordinator,
+                        downloadManager: coordinator.downloadManager,
+                        offlineStore: coordinator.offlineStore
                     )
                 )
                 .tabItem {
@@ -59,7 +62,8 @@ struct LibraryRootTabView: View {
                     viewModel: LibraryGridViewModel(
                         library: coordinator.libraryRepo,
                         artworkPipeline: coordinator.artworkPipeline,
-                        actions: coordinator
+                        actions: coordinator,
+                        downloadManager: coordinator.downloadManager
                     ),
                     backgroundRefreshSuccessToken: coordinator.backgroundRefreshSuccessToken,
                     backgroundRefreshFailureToken: coordinator.backgroundRefreshFailureToken,
@@ -75,13 +79,27 @@ struct LibraryRootTabView: View {
                     viewModel: ArtistsListViewModel(
                         library: coordinator.libraryRepo,
                         artworkPipeline: coordinator.artworkPipeline,
-                        actions: coordinator
+                        actions: coordinator,
+                        downloadManager: coordinator.downloadManager
                     )
                 )
                     .tabItem {
                         Label("Artists", systemImage: "music.mic")
                     }
                     .tag(Tab.artists)
+
+                SettingsView(
+                    viewModel: SettingsViewModel(
+                        offlineStore: coordinator.offlineStore,
+                        downloadManager: coordinator.downloadManager,
+                        library: coordinator.libraryRepo,
+                        signOutAction: { coordinator.signOut() }
+                    )
+                )
+                .tabItem {
+                    Label("Settings", systemImage: "gearshape")
+                }
+                .tag(Tab.settings)
             }
             .tint(Color.lunara(tabBarTheme.selectedTintRole))
             .safeAreaInset(edge: .bottom, spacing: 0) {

@@ -381,6 +381,35 @@ struct AppRouterTests {
         #expect(subject.queue.playNowCalls.isEmpty)
     }
 
+    @Test
+    func resolveURL_returnsLocalFileWhenOfflineTrackExists() async throws {
+        let offlineStore = MockOfflineStore()
+        let subject = makeSubject(offlineStore: offlineStore)
+        let track = makeTrack(id: "track-offline")
+        let localURL = try #require(URL(string: "file:///offline/track-offline.flac"))
+        offlineStore.localFileURLsByTrackID[track.plexID] = localURL
+
+        let resolvedURL = try await subject.router.resolveURL(for: track)
+
+        #expect(resolvedURL == localURL)
+        // Should NOT have called streamURL
+        #expect(subject.library.streamURLRequests.isEmpty)
+    }
+
+    @Test
+    func resolveURL_fallsBackToStreamWhenNoOfflineTrack() async throws {
+        let offlineStore = MockOfflineStore()
+        let subject = makeSubject(offlineStore: offlineStore)
+        let track = makeTrack(id: "track-stream")
+        let streamURL = try #require(URL(string: "https://example.com/stream/track-stream.mp3"))
+        subject.library.streamURLByTrackID[track.plexID] = streamURL
+
+        let resolvedURL = try await subject.router.resolveURL(for: track)
+
+        #expect(resolvedURL == streamURL)
+        #expect(subject.library.streamURLRequests == [track.plexID])
+    }
+
     private func makeCollection(id: String) -> Collection {
         Collection(
             plexID: id,
@@ -392,15 +421,16 @@ struct AppRouterTests {
         )
     }
 
-    private func makeSubject() -> (
+    private func makeSubject(offlineStore: MockOfflineStore? = nil) -> (
         router: AppRouter,
         library: LibraryRepoMock,
-        queue: QueueManagerMock
+        queue: QueueManagerMock,
+        offlineStore: MockOfflineStore?
     ) {
         let library = LibraryRepoMock()
         let queue = QueueManagerMock()
-        let router = AppRouter(library: library, queue: queue)
-        return (router, library, queue)
+        let router = AppRouter(library: library, queue: queue, offlineStore: offlineStore)
+        return (router, library, queue, offlineStore)
     }
 
     private func makeAlbum(id: String) -> Album {

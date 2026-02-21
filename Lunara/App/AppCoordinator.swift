@@ -17,6 +17,8 @@ final class AppCoordinator {
     let playbackEngine: PlaybackEngineProtocol
     let queueManager: QueueManagerProtocol
     let appRouter: AppRouter
+    let offlineStore: OfflineStoreProtocol
+    let downloadManager: DownloadManager
     private let nowPlayingBridge: NowPlayingBridge
     private let logger = Logger(subsystem: "holdings.chinlock.lunara", category: "AppCoordinator")
 
@@ -41,6 +43,8 @@ final class AppCoordinator {
         playbackEngine: PlaybackEngineProtocol,
         queueManager: QueueManagerProtocol,
         appRouter: AppRouter,
+        offlineStore: OfflineStoreProtocol,
+        downloadManager: DownloadManager,
         nowPlayingBridge: NowPlayingBridge
     ) {
         self.authManager = authManager
@@ -50,6 +54,8 @@ final class AppCoordinator {
         self.playbackEngine = playbackEngine
         self.queueManager = queueManager
         self.appRouter = appRouter
+        self.offlineStore = offlineStore
+        self.downloadManager = downloadManager
         self.nowPlayingBridge = nowPlayingBridge
         nowPlayingBridge.configure()
     }
@@ -82,7 +88,26 @@ final class AppCoordinator {
         let libraryRepo = LibraryRepo(remote: plexClient, store: libraryStore, artworkPipeline: artworkPipeline)
         let playbackEngine = AVQueuePlayerEngine(audioSession: AudioSession())
         let queueManager = QueueManager(engine: playbackEngine)
-        let appRouter = AppRouter(library: libraryRepo, queue: queueManager)
+
+        let offlineStore: OfflineStoreProtocol
+        let offlineDirectory: URL
+        do {
+            offlineDirectory = try Self.offlineDirectory()
+            offlineStore = OfflineStore(dbQueue: (libraryStore as! LibraryStore).dbQueue, offlineDirectory: offlineDirectory)
+        } catch {
+            fatalError("Failed to initialize OfflineStore: \(error)")
+        }
+
+        let appRouter = AppRouter(library: libraryRepo, queue: queueManager, offlineStore: offlineStore)
+
+        let downloadManager = DownloadManager(
+            offlineStore: offlineStore,
+            library: libraryRepo,
+            offlineDirectory: offlineDirectory
+        )
+        let loadedSettings = OfflineSettings.load()
+        downloadManager.storageLimitBytes = loadedSettings.storageLimitBytes
+        downloadManager.wifiOnly = loadedSettings.wifiOnly
 
         let nowPlayingBridge = NowPlayingBridge(
             engine: playbackEngine,
@@ -99,6 +124,8 @@ final class AppCoordinator {
             playbackEngine: playbackEngine,
             queueManager: queueManager,
             appRouter: appRouter,
+            offlineStore: offlineStore,
+            downloadManager: downloadManager,
             nowPlayingBridge: nowPlayingBridge
         )
     }
@@ -178,6 +205,27 @@ final class AppCoordinator {
         }
     }
 
+    /// Reconciles all synced collections against their current album lists.
+    /// Called on app launch after library refresh.
+    func syncAllCollections() async {
+        do {
+            let syncedIDs = try await offlineStore.syncedCollectionIDs()
+            guard !syncedIDs.isEmpty else { return }
+
+            logger.info("syncAllCollections: reconciling \(syncedIDs.count) synced collections")
+            for collectionID in syncedIDs {
+                do {
+                    let albums = try await libraryRepo.collectionAlbums(collectionID: collectionID)
+                    await downloadManager.syncCollection(collectionID, albums: albums, library: libraryRepo)
+                } catch {
+                    logger.warning("syncAllCollections: failed to sync collection '\(collectionID, privacy: .public)': \(error.localizedDescription, privacy: .public)")
+                }
+            }
+        } catch {
+            logger.warning("syncAllCollections: failed to load synced collection IDs: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
     // MARK: - Private Helpers
 
     private func syncAlbums(refreshReason: LibraryRefreshReason) async throws -> [Album] {
@@ -215,7 +263,9 @@ final class AppCoordinator {
             lastBackgroundRefreshErrorMessage = nil
             logger.info("Background refresh succeeded for reason '\(String(describing: reason), privacy: .public)' at \(outcome.refreshedAt, privacy: .public)")
 
-            if reason != .appLaunch {
+            if reason == .appLaunch {
+                await syncAllCollections()
+            } else {
                 await reconcileQueueAfterCatalogUpdate(trigger: "background-refresh-\(String(describing: reason))")
             }
         } catch let error as LunaraError {
@@ -272,6 +322,13 @@ final class AppCoordinator {
             session: URLSession.shared,
             cacheDirectoryURL: artworkCacheDirectoryURL
         )
+    }
+
+    private static func offlineDirectory() throws -> URL {
+        let appDir = try appDirectory()
+        let offlineDir = appDir.appendingPathComponent("offline-tracks", isDirectory: true)
+        try FileManager.default.createDirectory(at: offlineDir, withIntermediateDirectories: true)
+        return offlineDir
     }
 
     private static func appDirectory() throws -> URL {

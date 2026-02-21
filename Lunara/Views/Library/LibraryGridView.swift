@@ -124,13 +124,13 @@ struct LibraryGridView: View {
     }
 
     private func albumCard(for album: Album) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Button {
-                selectedAlbum = album
-            } label: {
-                VStack(alignment: .leading, spacing: 10) {
-                    artworkView(for: album)
+        Button {
+            selectedAlbum = album
+        } label: {
+            VStack(alignment: .leading, spacing: 0) {
+                artworkView(for: album)
 
+                VStack(alignment: .leading, spacing: 2) {
                     Text(album.title)
                         .font(albumTitleFont)
                         .lineLimit(2)
@@ -141,19 +141,16 @@ struct LibraryGridView: View {
                         .lineLimit(2)
                         .foregroundStyle(Color.lunara(.textSecondary))
                 }
+                .padding(.horizontal, 10)
+                .padding(.top, 8)
+                .padding(.bottom, 10)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .buttonStyle(.plain)
-
-            Button("Play") {
-                Task {
-                    await viewModel.playAlbum(album)
-                }
-            }
-            .buttonStyle(LunaraPillButtonStyle())
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
-        .padding(12)
-        .background(Color.lunara(.backgroundElevated), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .buttonStyle(.plain)
+        .background(Color.lunara(.backgroundElevated))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     @ViewBuilder
@@ -161,8 +158,7 @@ struct LibraryGridView: View {
         let thumbnailURL = viewModel.thumbnailURL(for: album.plexID)
 
         ZStack {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.lunara(.backgroundBase))
+            Color.lunara(.backgroundBase)
 
             if let thumbnailURL {
                 AsyncImage(url: thumbnailURL) { image in
@@ -182,25 +178,24 @@ struct LibraryGridView: View {
         .frame(maxWidth: .infinity)
         .aspectRatio(1, contentMode: .fit)
         .clipped()
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .task {
             viewModel.loadThumbnailIfNeeded(for: album)
         }
     }
 
     private var albumTitleFont: Font {
-        let size: CGFloat = 20
+        let size: CGFloat = 15
         if UIFont(name: "PlayfairDisplay-SemiBold", size: size) != nil {
-            return .custom("PlayfairDisplay-SemiBold", size: size, relativeTo: .title3)
+            return .custom("PlayfairDisplay-SemiBold", size: size, relativeTo: .subheadline)
         }
 
         return .system(size: size, weight: .semibold, design: .serif)
     }
 
     private var albumSubtitleFont: Font {
-        let size: CGFloat = 16
+        let size: CGFloat = 13
         if UIFont(name: "PlayfairDisplay-Regular", size: size) != nil {
-            return .custom("PlayfairDisplay-Regular", size: size, relativeTo: .subheadline)
+            return .custom("PlayfairDisplay-Regular", size: size, relativeTo: .caption)
         }
 
         return .system(size: size, weight: .regular, design: .serif)

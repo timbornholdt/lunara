@@ -12,15 +12,20 @@ struct QueueReconciliationOutcome: Equatable {
 final class AppRouter {
     private let library: LibraryRepoProtocol
     private let queue: QueueManagerProtocol
+    private let offlineStore: OfflineStoreProtocol?
     private let logger = Logger(subsystem: "holdings.chinlock.lunara", category: "AppRouter")
 
-    init(library: LibraryRepoProtocol, queue: QueueManagerProtocol) {
+    init(library: LibraryRepoProtocol, queue: QueueManagerProtocol, offlineStore: OfflineStoreProtocol? = nil) {
         self.library = library
         self.queue = queue
+        self.offlineStore = offlineStore
     }
 
     func resolveURL(for track: Track) async throws -> URL {
-        try await library.streamURL(for: track)
+        if let offlineStore, let localURL = try await offlineStore.localFileURL(forTrackID: track.plexID) {
+            return localURL
+        }
+        return try await library.streamURL(for: track)
     }
 
     func playAlbum(_ album: Album) async throws {

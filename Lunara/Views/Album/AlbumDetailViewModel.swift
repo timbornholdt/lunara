@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import os
 import UIKit
 
 @MainActor
@@ -36,9 +37,13 @@ final class AlbumDetailViewModel {
     var artworkURL: URL?
     var palette: ArtworkPaletteTheme = .default
 
+    var albumDownloadState: AlbumDownloadState = .idle
+
     private let library: LibraryRepoProtocol
     private let artworkPipeline: ArtworkPipelineProtocol
     private let actions: AlbumDetailActionRouting
+    private let downloadManager: DownloadManagerProtocol?
+    private let logger = Logger(subsystem: "holdings.chinlock.lunara", category: "AlbumDetailViewModel")
     private var backgroundRefreshTask: Task<Void, Never>?
 
     init(
@@ -46,6 +51,7 @@ final class AlbumDetailViewModel {
         library: LibraryRepoProtocol,
         artworkPipeline: ArtworkPipelineProtocol,
         actions: AlbumDetailActionRouting,
+        downloadManager: DownloadManagerProtocol? = nil,
         review: String? = nil,
         genres: [String]? = nil,
         styles: [String] = [],
@@ -55,6 +61,7 @@ final class AlbumDetailViewModel {
         self.library = library
         self.artworkPipeline = artworkPipeline
         self.actions = actions
+        self.downloadManager = downloadManager
         self.review = (review ?? album.review)?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
         self.genres = Self.normalizedTags(genres ?? (!album.genres.isEmpty ? album.genres : (album.genre.map { [$0] } ?? [])))
         self.styles = Self.normalizedTags(styles.isEmpty ? album.styles : styles)
@@ -107,6 +114,41 @@ final class AlbumDetailViewModel {
         await runAction {
             try await actions.queueTrackLater(track)
         }
+    }
+
+    func downloadAlbum() async {
+        guard let downloadManager else {
+            logger.warning("downloadAlbum: no downloadManager — skipping")
+            return
+        }
+        let albumID = self.album.plexID
+        let trackList = self.tracks
+        logger.info("downloadAlbum: starting for album '\(albumID, privacy: .public)' with \(trackList.count) tracks")
+        if trackList.isEmpty {
+            logger.warning("downloadAlbum: track list is empty — nothing to download")
+            return
+        }
+        await downloadManager.downloadAlbum(self.album, tracks: trackList)
+        self.albumDownloadState = downloadManager.downloadState(forAlbum: albumID)
+        let stateDesc = String(describing: self.albumDownloadState)
+        logger.info("downloadAlbum: finished with state \(stateDesc, privacy: .public)")
+    }
+
+    func removeDownload() async {
+        guard let downloadManager else { return }
+        try? await downloadManager.removeDownload(forAlbum: album.plexID)
+        albumDownloadState = downloadManager.downloadState(forAlbum: album.plexID)
+    }
+
+    func refreshDownloadState() async {
+        guard let downloadManager else {
+            logger.info("refreshDownloadState: no downloadManager")
+            return
+        }
+        albumDownloadState = await downloadManager.resolvedDownloadState(
+            forAlbum: album.plexID,
+            totalTrackCount: tracks.isEmpty ? album.trackCount : tracks.count
+        )
     }
 
     private func loadTracks() async {
@@ -214,7 +256,8 @@ final class AlbumDetailViewModel {
             artist: artist,
             library: library,
             artworkPipeline: artworkPipeline,
-            actions: actions as! ArtistsListActionRouting
+            actions: actions as! ArtistsListActionRouting,
+            downloadManager: downloadManager
         )
     }
 

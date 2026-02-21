@@ -217,6 +217,41 @@ struct LibraryMetadataRecord: Codable, FetchableRecord, PersistableRecord, Table
     let value: String
 }
 
+struct OfflineTrackRecord: Codable, FetchableRecord, PersistableRecord, TableRecord {
+    static let databaseTableName = "offline_tracks"
+
+    let trackID: String
+    let albumID: String
+    let filename: String
+    let downloadedAt: Date
+    let fileSizeBytes: Int64
+
+    init(model: OfflineTrack) {
+        trackID = model.trackID
+        albumID = model.albumID
+        filename = model.filename
+        downloadedAt = model.downloadedAt
+        fileSizeBytes = model.fileSizeBytes
+    }
+
+    var model: OfflineTrack {
+        OfflineTrack(
+            trackID: trackID,
+            albumID: albumID,
+            filename: filename,
+            downloadedAt: downloadedAt,
+            fileSizeBytes: fileSizeBytes
+        )
+    }
+}
+
+struct SyncedCollectionRecord: Codable, FetchableRecord, PersistableRecord, TableRecord {
+    static let databaseTableName = "synced_collections"
+
+    let collectionID: String
+    let syncedAt: Date
+}
+
 struct LibrarySyncCheckpointRecord: Codable, FetchableRecord, PersistableRecord, TableRecord {
     static let databaseTableName = "library_sync_checkpoints"
 
