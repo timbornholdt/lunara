@@ -591,14 +591,15 @@ These two are built together because the PlaybackEngine needs someone to drive t
 
 ### Future Phases (Not Scoped — Do Not Build)
 
-- **CarPlay:** Browse, shuffle, now playing.
-- **Personal Notes:** Album session notes → Rails API.
-- **Marked for Deletion:** Curation workflow → Rails API + web dashboard.
-- **Theming:** Artwork colors, era/genre, personal memory themes.
-- **Deep Linking:** Action button → random album instantly.
-- **Gapless / Crossfade:** AVAudioEngine migration.
+- **Last.fm Sync**: Songs scrobble automatically to Last.fm
 - **Wikipedia Context:** Album history, cached locally.
+- **Deep Linking:** Action button → random album instantly.
 - **Digital Gardening ("The Weeder"):** Library maintenance todos.
+	- **Personal Notes:** Album session notes → Rails API.
+	- **Marked for Deletion:** Curation workflow → Rails API + web dashboard.
+- **CarPlay:** Browse, shuffle, now playing.
+- **Theming:** Artwork colors, era/genre, personal memory themes.
+- **Gapless / Crossfade:** AVAudioEngine migration.
 
 ---
 
@@ -608,7 +609,7 @@ Warm, textured, personal. More vinyl shelf than streaming app.
 
 ### Typography
 - **Display/headings:** Playfair Display.
-- **Body/controls:** San Francisco (system default).
+- **Body/controls:** Playfire Display.
 
 ### Color + Texture
 - **Background:** Linen texture, generated programmatically, adapts to theme.
@@ -646,6 +647,7 @@ Warm, textured, personal. More vinyl shelf than streaming app.
 12. **Shared types are sacred.** Propose changes, don't just make them.
 13. **Errors are never swallowed.** No `try?` with silent nil. Every failure surfaces to the user or is explicitly documented as intentionally ignored with a comment explaining why.
 14. **Handle every PlaybackState in UI.** Every view that shows playback state must handle `idle`, `buffering`, `playing`, `paused`, and `error`. No state can be left unconsidered.
+15. **Main must always be buildable.** Ensure you check that main is up to date and create a new branch per phase.
 
 ---
 
@@ -677,5 +679,3 @@ Warm, textured, personal. More vinyl shelf than streaming app.
 1. Copy `Lunara/LocalConfig.sample.plist` → `Lunara/LocalConfig.plist`.
 2. Add to app target (Debug only).
 3. Launch Debug → "Quick Sign-In" button.
-
-Required: `PLEX_SERVER_URL`. Optional: `AUTO_START_AUTH = true`.

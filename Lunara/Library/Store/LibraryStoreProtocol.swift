@@ -191,6 +191,11 @@ protocol LibraryStoreProtocol: AnyObject {
     /// - Transaction guarantee: all collection rows in this call are upserted atomically or no collection rows are changed.
     func replaceCollections(_ collections: [Collection], in run: LibrarySyncRun) async throws
 
+    /// Upserts album↔collection join rows for the provided sync run.
+    /// - Parameter albumCollectionIDs: mapping of album plexID → array of collection plexIDs.
+    /// - Transaction guarantee: all join rows are written atomically or none are changed.
+    func upsertAlbumCollections(_ albumCollectionIDs: [String: [String]], in run: LibrarySyncRun) async throws
+
     /// Reconciles playlist rows for the provided sync run using Plex playlist IDs as canonical keys.
     /// - Transaction guarantee: all playlist rows in this call are upserted atomically or no playlist rows are changed.
     func upsertPlaylists(_ playlists: [LibraryPlaylistSnapshot], in run: LibrarySyncRun) async throws

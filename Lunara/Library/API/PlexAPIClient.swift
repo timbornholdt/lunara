@@ -61,12 +61,8 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
                 throw LibraryError.invalidResponse
             }
 
-            // Convert addedAt timestamp to Date
             let addedAtDate = directory.addedAt.map { Date(timeIntervalSince1970: TimeInterval($0)) }
-
-            // Convert duration from milliseconds to seconds
             let durationSeconds = directory.duration.map { TimeInterval($0) / 1000.0 } ?? 0.0
-
             let resolvedGenres = dedupedTags(directory.genres + [directory.genre].compactMap { $0 })
 
             albums.append(Album(

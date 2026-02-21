@@ -125,6 +125,14 @@ final class AppCoordinator {
         try await appRouter.queueTrackLater(track)
     }
 
+    func playCollection(_ collection: Collection) async throws {
+        try await appRouter.playCollection(collection)
+    }
+
+    func shuffleCollection(_ collection: Collection) async throws {
+        try await appRouter.shuffleCollection(collection)
+    }
+
     func pausePlayback() {
         appRouter.pausePlayback()
     }

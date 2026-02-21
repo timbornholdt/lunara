@@ -41,6 +41,8 @@ protocol LibraryRepoProtocol: AnyObject {
     func refreshAlbumDetail(albumID: String) async throws -> AlbumDetailRefreshOutcome
     func collections() async throws -> [Collection]
     func collection(id: String) async throws -> Collection?
+    /// Fetches albums belonging to a collection, querying the remote API for membership.
+    func collectionAlbums(collectionID: String) async throws -> [Album]
     /// Queries cached artists by name and sort name.
     /// - Sorting guarantee: results are fully sorted by source ordering (`sortName`, then `name`).
     func searchArtists(query: String) async throws -> [Artist]
@@ -144,6 +146,10 @@ extension PlexAPIClient: LibraryRepoProtocol {
 
     func collection(id: String) async throws -> Collection? {
         throw LibraryError.operationFailed(reason: "Collection lookup is not implemented on PlexAPIClient-backed LibraryRepo yet.")
+    }
+
+    func collectionAlbums(collectionID: String) async throws -> [Album] {
+        throw LibraryError.operationFailed(reason: "Collection albums is not implemented on PlexAPIClient-backed LibraryRepo yet.")
     }
 
     func searchCollections(query: String) async throws -> [Collection] {

@@ -64,6 +64,20 @@ final class AppRouter {
         queue.playLater([item])
     }
 
+    func playCollection(_ collection: Collection) async throws {
+        logger.info("playCollection started for collection '\(collection.title, privacy: .public)' id '\(collection.plexID, privacy: .public)'")
+        let items = try await allQueueItemsForCollection(collection)
+        queue.playNow(items)
+        logger.info("playCollection queued \(items.count, privacy: .public) items for collection id '\(collection.plexID, privacy: .public)'")
+    }
+
+    func shuffleCollection(_ collection: Collection) async throws {
+        logger.info("shuffleCollection started for collection '\(collection.title, privacy: .public)' id '\(collection.plexID, privacy: .public)'")
+        let items = try await allQueueItemsForCollection(collection)
+        queue.playNow(items.shuffled())
+        logger.info("shuffleCollection queued \(items.count, privacy: .public) shuffled items for collection id '\(collection.plexID, privacy: .public)'")
+    }
+
     func pausePlayback() {
         queue.pause()
     }
@@ -120,6 +134,28 @@ final class AppRouter {
             removedTrackIDs: sortedMissingTrackIDs,
             removedItemCount: removedItemCount
         )
+    }
+
+    private func allQueueItemsForCollection(_ collection: Collection) async throws -> [QueueItem] {
+        let albums = try await library.collectionAlbums(collectionID: collection.plexID)
+        guard !albums.isEmpty else {
+            logger.error("Found zero albums for collection id '\(collection.plexID, privacy: .public)'")
+            throw LibraryError.resourceNotFound(type: "albums", id: collection.plexID)
+        }
+
+        var allItems: [QueueItem] = []
+        for album in albums {
+            let tracks = try await library.tracks(forAlbum: album.plexID)
+            let items = try await queueItems(for: tracks, actionName: "collection-\(collection.plexID)")
+            allItems.append(contentsOf: items)
+        }
+
+        guard !allItems.isEmpty else {
+            logger.error("Found zero tracks across \(albums.count, privacy: .public) albums for collection id '\(collection.plexID, privacy: .public)'")
+            throw LibraryError.resourceNotFound(type: "tracks", id: collection.plexID)
+        }
+
+        return allItems
     }
 
     private func tracks(forAlbum album: Album) async throws -> [Track] {

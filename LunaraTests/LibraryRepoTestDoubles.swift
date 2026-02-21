@@ -13,7 +13,6 @@ final class LibraryRemoteMock: LibraryRemoteDataSource {
     var tracksByID: [String: Track] = [:]
     var streamURLByTrackID: [String: URL] = [:]
     var artworkURLByRawValue: [String: URL] = [:]
-
     var fetchAlbumsCallCount = 0
     var fetchArtistsCallCount = 0
     var fetchCollectionsCallCount = 0
@@ -60,12 +59,20 @@ final class LibraryRemoteMock: LibraryRemoteDataSource {
         return artists
     }
 
+    var collectionAlbumIDsByCollectionID: [String: [String]] = [:]
+    var fetchCollectionAlbumIDsRequests: [String] = []
+
     func fetchCollections() async throws -> [Collection] {
         fetchCollectionsCallCount += 1
         if let fetchCollectionsError {
             throw fetchCollectionsError
         }
         return collections
+    }
+
+    func fetchCollectionAlbumIDs(collectionID: String) async throws -> [String] {
+        fetchCollectionAlbumIDsRequests.append(collectionID)
+        return collectionAlbumIDsByCollectionID[collectionID] ?? []
     }
 
     func fetchPlaylists() async throws -> [LibraryRemotePlaylist] {
@@ -258,6 +265,14 @@ final class LibraryStoreMock: LibraryStoreProtocol {
         return collectionsByID[id]
     }
 
+    var collectionAlbumsByCollectionID: [String: [Album]] = [:]
+    var collectionAlbumsRequests: [String] = []
+
+    func collectionAlbums(collectionID: String) async throws -> [Album] {
+        collectionAlbumsRequests.append(collectionID)
+        return collectionAlbumsByCollectionID[collectionID] ?? []
+    }
+
     func searchAlbums(query: String) async throws -> [Album] {
         searchedAlbumQueries.append(query)
         return searchedAlbumsByQuery[query] ?? []
@@ -354,6 +369,10 @@ final class LibraryStoreMock: LibraryStoreProtocol {
         replaceCollectionsCalls.append((collections, run))
         cachedCollections = collections
         collectionsByID = Dictionary(uniqueKeysWithValues: collections.map { ($0.plexID, $0) })
+    }
+
+    func upsertAlbumCollections(_ albumCollectionIDs: [String: [String]], in run: LibrarySyncRun) async throws {
+        // No-op for test double
     }
 
     func fetchPlaylists() async throws -> [LibraryPlaylistSnapshot] {

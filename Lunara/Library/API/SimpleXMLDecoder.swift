@@ -21,6 +21,7 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
         var genres: [String]
         var styles: [String]
         var moods: [String]
+        var collectionIDs: [String]
     }
 
     private var metadataItems: [ParsedMetadataItem] = []
@@ -88,6 +89,7 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
             let rating = attrs["rating"].flatMap { Double($0) }
             let addedAt = attrs["addedAt"].flatMap { Int($0) }
             let leafCount = attrs["leafCount"].flatMap { Int($0) }
+            let childCount = attrs["childCount"].flatMap { Int($0) }
             let duration = attrs["duration"].flatMap { Int($0) }
             let updatedAt = attrs["updatedAt"].flatMap { Int($0) }
 
@@ -106,9 +108,11 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
                 genres: directoryItem.genres,
                 styles: directoryItem.styles,
                 moods: directoryItem.moods,
+                collectionIDs: directoryItem.collectionIDs,
                 rating: rating,
                 addedAt: addedAt,
                 leafCount: leafCount,
+                childCount: childCount,
                 duration: duration,
                 summary: attrs["summary"],
                 titleSort: attrs["titleSort"],
@@ -154,7 +158,8 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
                     attributes: attributeDict,
                     genres: [],
                     styles: [],
-                    moods: []
+                    moods: [],
+                    collectionIDs: []
                 )
             )
             currentDirectoryIndex = directoryItems.count - 1
@@ -173,6 +178,12 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
                   let tag = attributeDict["tag"],
                   !tag.isEmpty {
             directoryItems[directoryIndex].moods.append(tag)
+        } else if elementName == "Collection",
+                  let directoryIndex = currentDirectoryIndex {
+            let resolvedID = attributeDict["id"] ?? attributeDict["ratingKey"]
+            if let resolvedID, !resolvedID.isEmpty {
+                directoryItems[directoryIndex].collectionIDs.append(resolvedID)
+            }
         }
     }
 

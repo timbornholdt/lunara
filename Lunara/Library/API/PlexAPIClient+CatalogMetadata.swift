@@ -101,6 +101,36 @@ extension PlexAPIClient {
         return items
     }
 
+    /// Fetch album IDs that belong to a specific collection.
+    func fetchCollectionAlbumIDs(collectionID: String) async throws -> [String] {
+        let request = try await buildRequest(
+            path: "/library/collections/\(collectionID)/children",
+            requiresAuth: true
+        )
+        let (data, _) = try await executeLoggedRequest(request, operation: "fetchCollectionAlbumIDs[\(collectionID)]")
+        let container = try xmlDecoder.decode(PlexMediaContainer.self, from: data)
+
+        var albumIDs: [String] = []
+
+        if let directories = container.directories {
+            for directory in directories where directory.type == "album" {
+                if let ratingKey = directory.ratingKey, !ratingKey.isEmpty {
+                    albumIDs.append(ratingKey)
+                }
+            }
+        }
+
+        if let metadata = container.metadata {
+            for entry in metadata where entry.type == "album" {
+                if !entry.ratingKey.isEmpty {
+                    albumIDs.append(entry.ratingKey)
+                }
+            }
+        }
+
+        return albumIDs
+    }
+
     private func parseCollections(from directories: [PlexDirectory]) throws -> [Collection] {
         var collections: [Collection] = []
         collections.reserveCapacity(directories.count)
@@ -116,7 +146,7 @@ extension PlexAPIClient {
                     title: directory.title,
                     thumbURL: directory.thumb,
                     summary: directory.summary,
-                    albumCount: directory.leafCount ?? 0,
+                    albumCount: directory.childCount ?? directory.leafCount ?? 0,
                     updatedAt: updatedAt
                 )
             )
