@@ -22,6 +22,7 @@ final class ArtistsListViewModel {
     private let library: LibraryRepoProtocol
     private let artworkPipeline: ArtworkPipelineProtocol
     let actions: ArtistsListActionRouting
+    private let downloadManager: DownloadManagerProtocol?
 
     var artists: [Artist] = []
     var searchQuery = "" {
@@ -54,11 +55,13 @@ final class ArtistsListViewModel {
     init(
         library: LibraryRepoProtocol,
         artworkPipeline: ArtworkPipelineProtocol,
-        actions: ArtistsListActionRouting
+        actions: ArtistsListActionRouting,
+        downloadManager: DownloadManagerProtocol? = nil
     ) {
         self.library = library
         self.artworkPipeline = artworkPipeline
         self.actions = actions
+        self.downloadManager = downloadManager
     }
 
     func loadInitialIfNeeded() async {
@@ -83,7 +86,8 @@ final class ArtistsListViewModel {
             artist: artist,
             library: library,
             artworkPipeline: artworkPipeline,
-            actions: actions
+            actions: actions,
+            downloadManager: downloadManager
         )
     }
 

@@ -20,6 +20,7 @@ struct AlbumDetailView: View {
                     headerCard
                     trackList
                     metadataSections
+                    downloadButton
                 }
                 .padding(.horizontal, AlbumDetailLayout.horizontalPadding)
                 .padding(.top, AlbumDetailLayout.topContentPadding)
@@ -44,6 +45,7 @@ struct AlbumDetailView: View {
         }
         .task {
             await viewModel.loadIfNeeded()
+            await viewModel.refreshDownloadState()
         }
     }
 
@@ -118,6 +120,62 @@ struct AlbumDetailView: View {
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    // MARK: - Download Button
+
+    @ViewBuilder
+    private var downloadButton: some View {
+        switch viewModel.albumDownloadState {
+        case .idle:
+            Button {
+                Task { await viewModel.downloadAlbum() }
+            } label: {
+                HStack {
+                    Image(systemName: "arrow.down.circle")
+                    Text("Download for Offline")
+                    Spacer()
+                }
+                .font(.subheadline)
+                .foregroundStyle(viewModel.palette.textSecondary)
+            }
+
+        case .downloading(let completed, let total):
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.down.circle")
+                    .foregroundStyle(viewModel.palette.textSecondary)
+                Text("Downloading...")
+                    .font(.subheadline)
+                    .foregroundStyle(viewModel.palette.textSecondary)
+                Spacer()
+                Text("\(completed)/\(total)")
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundStyle(viewModel.palette.textSecondary)
+            }
+
+        case .complete:
+            HStack {
+                Image(systemName: "checkmark.circle.fill")
+                Text("Downloaded")
+                Spacer()
+            }
+            .font(.subheadline)
+            .foregroundStyle(viewModel.palette.textSecondary)
+            .contextMenu {
+                Button("Remove Download", systemImage: "trash", role: .destructive) {
+                    Task { await viewModel.removeDownload() }
+                }
+            }
+
+        case .failed(let message):
+            HStack {
+                Image(systemName: "exclamationmark.circle")
+                Text(message)
+                Spacer()
+            }
+            .font(.subheadline)
+            .foregroundStyle(.red)
+        }
     }
 
     // MARK: - Track List

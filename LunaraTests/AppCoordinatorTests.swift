@@ -193,6 +193,8 @@ struct AppCoordinatorTests {
             playbackEngine: engine,
             queueManager: queue,
             appRouter: AppRouter(library: repo, queue: queue),
+            offlineStore: MockOfflineStore(),
+            downloadManager: DownloadManager(offlineStore: MockOfflineStore(), library: repo, offlineDirectory: FileManager.default.temporaryDirectory),
             nowPlayingBridge: NowPlayingBridge(engine: engine, queue: queue, library: repo, artwork: artworkPipeline)
         )
         remote.albums = [
@@ -247,6 +249,8 @@ struct AppCoordinatorTests {
             playbackEngine: playbackEngine,
             queueManager: queue,
             appRouter: appRouter,
+            offlineStore: MockOfflineStore(),
+            downloadManager: DownloadManager(offlineStore: MockOfflineStore(), library: library, offlineDirectory: FileManager.default.temporaryDirectory),
             nowPlayingBridge: NowPlayingBridge(engine: playbackEngine, queue: queue, library: library, artwork: artworkPipeline)
         )
         return (coordinator, queue, library, artworkPipeline)

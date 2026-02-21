@@ -251,6 +251,25 @@ enum LibraryStoreMigrations {
             }
         }
 
+        migrator.registerMigration("v7_offline_tracks") { db in
+            try db.create(table: "offline_tracks") { table in
+                table.column("trackID", .text).primaryKey()
+                table.column("albumID", .text).notNull()
+                table.column("filename", .text).notNull()
+                table.column("downloadedAt", .datetime).notNull()
+                table.column("fileSizeBytes", .integer).notNull()
+            }
+
+            try db.create(index: "offline_tracks_album_idx", on: "offline_tracks", columns: ["albumID"])
+        }
+
+        migrator.registerMigration("v8_synced_collections") { db in
+            try db.create(table: "synced_collections") { table in
+                table.column("collectionID", .text).primaryKey()
+                table.column("syncedAt", .datetime).notNull()
+            }
+        }
+
         return migrator
     }
 }

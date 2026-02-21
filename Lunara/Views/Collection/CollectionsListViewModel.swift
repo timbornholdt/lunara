@@ -22,6 +22,8 @@ final class CollectionsListViewModel {
     private let library: LibraryRepoProtocol
     private let artworkPipeline: ArtworkPipelineProtocol
     let actions: CollectionsListActionRouting
+    private let downloadManager: DownloadManagerProtocol?
+    private let offlineStore: OfflineStoreProtocol?
 
     var collections: [Collection] = []
     var searchQuery = "" {
@@ -56,11 +58,15 @@ final class CollectionsListViewModel {
     init(
         library: LibraryRepoProtocol,
         artworkPipeline: ArtworkPipelineProtocol,
-        actions: CollectionsListActionRouting
+        actions: CollectionsListActionRouting,
+        downloadManager: DownloadManagerProtocol? = nil,
+        offlineStore: OfflineStoreProtocol? = nil
     ) {
         self.library = library
         self.artworkPipeline = artworkPipeline
         self.actions = actions
+        self.downloadManager = downloadManager
+        self.offlineStore = offlineStore
     }
 
     func loadInitialIfNeeded() async {
@@ -85,7 +91,9 @@ final class CollectionsListViewModel {
             collection: collection,
             library: library,
             artworkPipeline: artworkPipeline,
-            actions: actions
+            actions: actions,
+            downloadManager: downloadManager,
+            offlineStore: offlineStore
         )
     }
 

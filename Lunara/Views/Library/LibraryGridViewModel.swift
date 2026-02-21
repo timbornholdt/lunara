@@ -19,6 +19,7 @@ final class LibraryGridViewModel {
     let library: LibraryRepoProtocol
     private let artworkPipeline: ArtworkPipelineProtocol
     private let actions: LibraryGridActionRouting
+    private let downloadManager: DownloadManagerProtocol?
 
     private var pendingArtworkAlbumIDs: Set<String> = []
     private var searchRequestID = 0
@@ -46,11 +47,13 @@ final class LibraryGridViewModel {
     init(
         library: LibraryRepoProtocol,
         artworkPipeline: ArtworkPipelineProtocol,
-        actions: LibraryGridActionRouting
+        actions: LibraryGridActionRouting,
+        downloadManager: DownloadManagerProtocol? = nil
     ) {
         self.library = library
         self.artworkPipeline = artworkPipeline
         self.actions = actions
+        self.downloadManager = downloadManager
     }
 
     func loadInitialIfNeeded() async {
@@ -86,6 +89,7 @@ final class LibraryGridViewModel {
             library: library,
             artworkPipeline: artworkPipeline,
             actions: actions,
+            downloadManager: downloadManager,
             review: album.review,
             genres: album.genres.isEmpty ? nil : album.genres,
             styles: album.styles,

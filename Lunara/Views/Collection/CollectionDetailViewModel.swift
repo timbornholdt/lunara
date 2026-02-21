@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import os
 
 @MainActor
 @Observable
@@ -11,16 +12,27 @@ final class CollectionDetailViewModel {
         case error(String)
     }
 
+    enum CollectionSyncState: Equatable {
+        case idle
+        case syncing(currentAlbum: Int, totalAlbums: Int)
+        case synced
+        case failed(String)
+    }
+
     let collection: Collection
     private let library: LibraryRepoProtocol
     private let artworkPipeline: ArtworkPipelineProtocol
     private let actions: CollectionsListActionRouting
+    private let downloadManager: DownloadManagerProtocol?
+    private let offlineStore: OfflineStoreProtocol?
+    private let logger = Logger(subsystem: "holdings.chinlock.lunara", category: "CollectionDetailViewModel")
 
     var albums: [Album] = []
     var loadingState: LoadingState = .idle
     var errorBannerState = ErrorBannerState()
     var artworkURL: URL?
     var artworkByAlbumID: [String: URL] = [:]
+    var syncState: CollectionSyncState = .idle
 
     private var pendingArtworkAlbumIDs: Set<String> = []
 
@@ -28,12 +40,16 @@ final class CollectionDetailViewModel {
         collection: Collection,
         library: LibraryRepoProtocol,
         artworkPipeline: ArtworkPipelineProtocol,
-        actions: CollectionsListActionRouting
+        actions: CollectionsListActionRouting,
+        downloadManager: DownloadManagerProtocol? = nil,
+        offlineStore: OfflineStoreProtocol? = nil
     ) {
         self.collection = collection
         self.library = library
         self.artworkPipeline = artworkPipeline
         self.actions = actions
+        self.downloadManager = downloadManager
+        self.offlineStore = offlineStore
     }
 
     func loadIfNeeded() async {
@@ -44,6 +60,7 @@ final class CollectionDetailViewModel {
         loadingState = .loading
         await loadAlbums()
         await loadCollectionArtwork()
+        await refreshSyncState()
     }
 
     func playAll() async {
@@ -76,12 +93,69 @@ final class CollectionDetailViewModel {
         }
     }
 
+    func toggleSync() async {
+        guard let downloadManager, let offlineStore else {
+            logger.warning("toggleSync: no downloadManager or offlineStore")
+            return
+        }
+
+        if case .synced = syncState {
+            await stopSyncing()
+            return
+        }
+
+        guard !albums.isEmpty else { return }
+
+        let totalAlbums = albums.count
+        for (index, album) in albums.enumerated() {
+            syncState = .syncing(currentAlbum: index + 1, totalAlbums: totalAlbums)
+            do {
+                let tracks = try await library.tracks(forAlbum: album.plexID)
+                guard !tracks.isEmpty else { continue }
+                await downloadManager.downloadAlbum(album, tracks: tracks)
+                let state = downloadManager.downloadState(forAlbum: album.plexID)
+                if case .failed(let msg) = state {
+                    let albumTitle = album.title
+                    logger.warning("toggleSync: album '\(albumTitle, privacy: .public)' failed: \(msg, privacy: .public)")
+                    syncState = .failed("Failed on \(album.title)")
+                    return
+                }
+            } catch {
+                syncState = .failed("Failed to load tracks for \(album.title)")
+                return
+            }
+        }
+
+        // Mark as synced after all downloads complete
+        try? await offlineStore.addSyncedCollection(collection.plexID)
+        syncState = .synced
+    }
+
+    func stopSyncing() async {
+        guard let downloadManager else { return }
+        await downloadManager.unsyncCollection(collection.plexID, library: library)
+        syncState = .idle
+    }
+
+    func refreshSyncState() async {
+        guard let offlineStore else { return }
+        let isSynced = (try? await offlineStore.isSyncedCollection(collection.plexID)) ?? false
+        if isSynced {
+            syncState = .synced
+        } else if case .syncing = syncState {
+            // Don't override active syncing state
+        } else {
+            syncState = .idle
+        }
+    }
+
     func makeAlbumDetailViewModel(for album: Album) -> AlbumDetailViewModel {
         AlbumDetailViewModel(
             album: album,
             library: library,
             artworkPipeline: artworkPipeline,
             actions: actions,
+            downloadManager: downloadManager,
             review: album.review,
             genres: album.genres.isEmpty ? nil : album.genres,
             styles: album.styles,
