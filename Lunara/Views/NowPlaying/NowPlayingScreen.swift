@@ -4,6 +4,7 @@ import UIKit
 struct NowPlayingScreen: View {
     let viewModel: NowPlayingScreenViewModel
     var onNavigateToAlbum: ((Album) -> Void)?
+    var onNavigateToArtist: ((Artist) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
 
@@ -78,10 +79,15 @@ struct NowPlayingScreen: View {
                 .animation(.easeInOut(duration: 0.4), value: viewModel.palette)
 
             if let artist = viewModel.artistName {
-                Text(artist)
-                    .font(subtitleFont())
-                    .foregroundStyle(viewModel.palette.textSecondary)
-                    .lineLimit(1)
+                Button {
+                    navigateToArtist()
+                } label: {
+                    Text(artist)
+                        .font(subtitleFont())
+                        .foregroundStyle(viewModel.palette.textSecondary)
+                        .lineLimit(1)
+                }
+                .buttonStyle(.plain)
             }
 
             if let albumTitle = viewModel.albumTitle {
@@ -96,9 +102,7 @@ struct NowPlayingScreen: View {
                 .buttonStyle(.plain)
             }
 
-            if let rating = viewModel.currentAlbum?.rating, rating > 0 {
-                starRating(rating)
-            }
+
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -209,33 +213,18 @@ struct NowPlayingScreen: View {
             }
     }
 
-    // MARK: - Star Rating
-
-    private func starRating(_ rating: Int) -> some View {
-        let fullStars = rating / 2
-        let hasHalf = rating % 2 != 0
-
-        return HStack(spacing: 4) {
-            ForEach(0..<5, id: \.self) { index in
-                if index < fullStars {
-                    Image(systemName: "star.fill")
-                } else if index == fullStars && hasHalf {
-                    Image(systemName: "star.leadinghalf.filled")
-                } else {
-                    Image(systemName: "star")
-                }
-            }
-        }
-        .font(.system(size: 14))
-        .foregroundStyle(viewModel.palette.accent)
-    }
-
     // MARK: - Helpers
 
     private func navigateToAlbum() {
         guard let album = viewModel.currentAlbum else { return }
         dismiss()
         onNavigateToAlbum?(album)
+    }
+
+    private func navigateToArtist() {
+        guard let artist = viewModel.currentArtist else { return }
+        dismiss()
+        onNavigateToArtist?(artist)
     }
 
     private func titleFont() -> Font {
@@ -308,11 +297,11 @@ private struct NowPlayingSeekBar: View {
 
             HStack {
                 Text(formatTime(isSeeking ? seekTime : viewModel.elapsed))
-                    .font(.system(size: 12, weight: .medium).monospacedDigit())
+                    .font(timestampFont())
                     .foregroundStyle(viewModel.palette.textSecondary)
                 Spacer()
-                Text(formatTime(viewModel.duration))
-                    .font(.system(size: 12, weight: .medium).monospacedDigit())
+                Text(formatCountdown(elapsed: isSeeking ? seekTime : viewModel.elapsed, duration: viewModel.duration))
+                    .font(timestampFont())
                     .foregroundStyle(viewModel.palette.textSecondary)
             }
         }
@@ -323,5 +312,19 @@ private struct NowPlayingSeekBar: View {
         let minutes = totalSeconds / 60
         let seconds = totalSeconds % 60
         return String(format: "%d:%02d", minutes, seconds)
+    }
+
+    private func formatCountdown(elapsed: TimeInterval, duration: TimeInterval) -> String {
+        let remaining = Int(max(0, duration - elapsed))
+        let minutes = remaining / 60
+        let seconds = remaining % 60
+        return String(format: "-%d:%02d", minutes, seconds)
+    }
+
+    private func timestampFont() -> Font {
+        if UIFont(name: "PlayfairDisplay-Regular", size: 12) != nil {
+            return Font.custom("PlayfairDisplay-Regular", size: 12)
+        }
+        return .system(size: 12, design: .serif)
     }
 }

@@ -14,6 +14,7 @@ struct LibraryRootTabView: View {
 
     @State private var selectedTab: Tab = .collections
     @State private var selectedAlbumFromNowPlaying: Album?
+    @State private var selectedArtistFromNowPlaying: Artist?
     @State private var nowPlayingBarViewModel: NowPlayingBarViewModel
     @State private var nowPlayingScreenViewModel: NowPlayingScreenViewModel
 
@@ -81,7 +82,8 @@ struct LibraryRootTabView: View {
                         artworkPipeline: coordinator.artworkPipeline,
                         actions: coordinator,
                         downloadManager: coordinator.downloadManager
-                    )
+                    ),
+                    externalSelectedArtist: $selectedArtistFromNowPlaying
                 )
                     .tabItem {
                         Label("Artists", systemImage: "music.mic")
@@ -111,6 +113,10 @@ struct LibraryRootTabView: View {
                     onNavigateToAlbum: { album in
                         selectedTab = .albums
                         selectedAlbumFromNowPlaying = album
+                    },
+                    onNavigateToArtist: { artist in
+                        selectedTab = .artists
+                        selectedArtistFromNowPlaying = artist
                     }
                 )
                 .padding(.bottom, 56)
