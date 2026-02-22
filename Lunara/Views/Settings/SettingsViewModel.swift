@@ -14,17 +14,23 @@ final class SettingsViewModel {
     let downloadManager: DownloadManager
     private let library: LibraryRepoProtocol
     private let signOutAction: () -> Void
+    let lastFMAuthManager: LastFMAuthManager?
+    let scrobbleManager: ScrobbleManager?
 
     init(
         offlineStore: OfflineStoreProtocol,
         downloadManager: DownloadManager,
         library: LibraryRepoProtocol,
-        signOutAction: @escaping () -> Void
+        signOutAction: @escaping () -> Void,
+        lastFMAuthManager: LastFMAuthManager? = nil,
+        scrobbleManager: ScrobbleManager? = nil
     ) {
         self.offlineStore = offlineStore
         self.downloadManager = downloadManager
         self.library = library
         self.signOutAction = signOutAction
+        self.lastFMAuthManager = lastFMAuthManager
+        self.scrobbleManager = scrobbleManager
         self.settings = OfflineSettings.load()
     }
 
@@ -162,6 +168,42 @@ final class SettingsViewModel {
 
     func signOut() {
         signOutAction()
+    }
+
+    // MARK: - Last.fm
+
+    var isLastFMAuthenticated: Bool {
+        lastFMAuthManager?.isAuthenticated ?? false
+    }
+
+    var lastFMUsername: String? {
+        lastFMAuthManager?.username
+    }
+
+    var isScrobblingEnabled: Bool {
+        get { scrobbleManager?.isEnabled ?? false }
+        set { scrobbleManager?.isEnabled = newValue }
+    }
+
+    func signInToLastFM() async {
+        do {
+            try await lastFMAuthManager?.authenticate()
+        } catch {
+            print("[LastFM] Sign-in failed: \(error)")
+        }
+    }
+
+    func completePendingLastFMAuth() async {
+        guard let authManager = lastFMAuthManager, authManager.hasPendingAuth else { return }
+        do {
+            try await authManager.completePendingAuthentication()
+        } catch {
+            print("[LastFM] Auth completion failed: \(error)")
+        }
+    }
+
+    func signOutOfLastFM() {
+        lastFMAuthManager?.signOut()
     }
 
     var formattedUsage: String {

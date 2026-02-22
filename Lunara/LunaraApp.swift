@@ -23,6 +23,12 @@ struct LunaraApp: App {
                     SignInView(coordinator: coordinator)
                 }
             }
+            .onOpenURL { url in
+                guard url.scheme == "lunara", url.host == "lastfm-callback" else { return }
+                Task {
+                    try? await coordinator.lastFMAuthManager.handleCallback(url: url)
+                }
+            }
         }
     }
 }
