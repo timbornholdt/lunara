@@ -93,7 +93,9 @@ struct LibraryRootTabView: View {
                         offlineStore: coordinator.offlineStore,
                         downloadManager: coordinator.downloadManager,
                         library: coordinator.libraryRepo,
-                        signOutAction: { coordinator.signOut() }
+                        signOutAction: { coordinator.signOut() },
+                        lastFMAuthManager: coordinator.lastFMAuthManager,
+                        scrobbleManager: coordinator.scrobbleManager
                     )
                 )
                 .tabItem {

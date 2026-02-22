@@ -10,6 +10,7 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             List {
+                lastFMSection
                 storageSection
                 syncedCollectionsSection
                 activeDownloadsSection
@@ -23,6 +24,9 @@ struct SettingsView: View {
             }
             .task {
                 await viewModel.observeDownloadProgress()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+                Task { await viewModel.completePendingLastFMAuth() }
             }
         }
     }
@@ -164,6 +168,40 @@ struct SettingsView: View {
             Text(ByteCountFormatter.string(fromByteCount: sizeBytes, countStyle: .file))
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+    }
+
+    private var lastFMSection: some View {
+        Section("Last.fm") {
+            if viewModel.isLastFMAuthenticated {
+                HStack {
+                    Text("Connected")
+                    Spacer()
+                    Text(viewModel.lastFMUsername ?? "")
+                        .foregroundStyle(.secondary)
+                }
+
+                Toggle(
+                    "Scrobbling",
+                    isOn: Binding(
+                        get: { viewModel.isScrobblingEnabled },
+                        set: { viewModel.isScrobblingEnabled = $0 }
+                    )
+                )
+
+                Button("Sign Out of Last.fm", role: .destructive) {
+                    viewModel.signOutOfLastFM()
+                }
+            } else {
+                Button("Sign In to Last.fm") {
+                    print("[LastFM] Button tapped")
+                    Task {
+                        print("[LastFM] Task started, authManager: \(String(describing: viewModel.lastFMAuthManager))")
+                        await viewModel.signInToLastFM()
+                        print("[LastFM] signInToLastFM returned")
+                    }
+                }
+            }
         }
     }
 
