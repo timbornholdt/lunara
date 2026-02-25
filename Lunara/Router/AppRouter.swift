@@ -97,6 +97,17 @@ final class AppRouter {
         logger.info("shuffleArtist queued \(items.count, privacy: .public) shuffled items for artist id '\(artist.plexID, privacy: .public)'")
     }
 
+    func shuffleAllAlbums() async throws {
+        logger.info("shuffleAllAlbums started")
+        let albums = try await library.fetchAlbums()
+        let items = try await allQueueItemsForAlbums(albums, actionName: "shuffle-all")
+        guard !items.isEmpty else {
+            throw LibraryError.resourceNotFound(type: "tracks", id: "all")
+        }
+        queue.playNow(items.shuffled())
+        logger.info("shuffleAllAlbums queued \(items.count, privacy: .public) shuffled items")
+    }
+
     func pausePlayback() {
         queue.pause()
     }

@@ -35,7 +35,8 @@ If something isn't in this document, it's not in scope yet. If a task would viol
 - **Phase 5 (Collections + Artists):** Complete
 - **Phase 6 (Lock Screen + Remote Controls):** Complete
 - **Phase 7 (Offline Playback):** Complete
-- **Last verified milestone:** Phase 7 acceptance verified on February 21, 2026.
+- **Last.fm Scrobbling:** Complete
+- **Last verified milestone:** Last.fm scrobbling verified on February 22, 2026.
 
 ---
 
@@ -97,6 +98,7 @@ The app is split into two domains, a coordinator that bridges them, and a shared
          │ QueueManager  │   │  AuthManager       │
          │ NowPlaying    │   │  LibraryStore      │
          │   Bridge      │   │  (GRDB/SQLite)     │
+         │ Scrobbling    │   │                    │
          │ AudioSession  │   │                    │
          │               │   │  Albums            │
          │               │   │  Collections       │
@@ -319,6 +321,14 @@ The `buffering` state is entered when `play()` or `prepareNext()` is called and 
 - Observes PlaybackEngine + QueueManager.
 - ~100 lines of iOS system integration glue.
 
+**Last.fm Scrobbling**
+- `LastFMClient`: API client for Last.fm REST endpoints (`auth.getToken`, `auth.getSession`, `track.updateNowPlaying`, `track.scrobble`). Signs requests with MD5 hash per Last.fm spec. Protocol-based (`LastFMClientProtocol`). API key and shared secret loaded from `LocalConfig.plist`.
+- `LastFMAuthManager`: Manages Last.fm session key (stored in Keychain via `KeychainHelper`). Web auth flow: fetches token → opens Safari → user approves → app exchanges token on foreground return. Exposes `isAuthenticated`, `username`, `authenticate()`, `signOut()`.
+- `ScrobbleManager`: Observes PlaybackEngine (same `withObservationTracking` loop as `NowPlayingBridge`). Sends "now playing" on track start. Scrobbles when elapsed >= 50% of duration or >= 4 minutes (Last.fm rule). Skips tracks < 30 seconds. Only counts `.playing` time (not buffering/paused).
+- `ScrobbleQueue`: Actor-based offline queue. Persists pending scrobbles to JSON file. On scrobble failure, enqueues. Retries in batches of 50 on next successful API call or app launch.
+- `LastFMSettings`: UserDefaults toggle for enabling/disabling scrobbling independently of auth state.
+- Settings UI: Last.fm section with connected status, username, sign in/out button, scrobbling toggle.
+
 **AudioSession**
 - Configures AVAudioSession (category: `.playback`, mode: `.default`).
 - Handles interruptions (phone calls, Siri) — pauses on interruption, optionally resumes after.
@@ -403,6 +413,7 @@ class AppRouter {
 | QueueManager | PlaybackEngine, its own persistence | Library Domain |
 | PlaybackEngine | Nothing. It is called and observed. | Everything |
 | NowPlayingBridge | PlaybackEngine (observe), QueueManager (observe), LibraryRepo (read metadata), ArtworkPipeline (read artwork) | — |
+| ScrobbleManager | PlaybackEngine (observe), LibraryRepo (read metadata), LastFMClient, LastFMAuthManager, ScrobbleQueue | — |
 | AuthManager | Keychain | Everything else (it's injected into PlexAPIClient) |
 
 ---
@@ -591,32 +602,8 @@ These two are built together because the PlaybackEngine needs someone to drive t
 
 ---
 
-### Phase 8: Shuffle with Anti-Annoyance Rules
-
-**Goal:** The primary listening mode, done right.
-
-**Build:**
-- Collection shuffle + library shuffle in QueueManager.
-- No same artist within 3 tracks, no back-to-back same album.
-- ~500 track default queue.
-
-**Acceptance:** Shuffle large collection, 20+ tracks. No artist clusters, no same-album repeats.
-
-**AI scope:** QueueManager logic + heavy unit testing. UI is just wiring a button.
-
----
-
-### Phase 9: Settings + Polish
-
-**Build:**
-- Settings: sign out, storage limit, Wi-Fi-only, dedup debug toggle, sync diagnostics.
-- Placeholder toggles for future features.
-
----
-
 ### Future Phases (Not Scoped — Do Not Build)
 
-- **Last.fm Sync**: Songs scrobble automatically to Last.fm
 - **Wikipedia Context:** Album history, cached locally.
 - **Deep Linking:** Action button → random album instantly.
 - **Digital Gardening ("The Weeder"):** Library maintenance todos.
@@ -703,4 +690,6 @@ Warm, textured, personal. More vinyl shelf than streaming app.
 
 1. Copy `Lunara/LocalConfig.sample.plist` → `Lunara/LocalConfig.plist`.
 2. Add to app target (Debug only).
-3. Launch Debug → "Quick Sign-In" button.
+3. Fill in your Plex server URL and auth token for quick sign-in.
+4. Fill in `LASTFM_API_KEY` and `LASTFM_API_SECRET` (shared secret) from your [Last.fm API account](https://www.last.fm/api/accounts).
+5. Launch Debug → "Quick Sign-In" button.

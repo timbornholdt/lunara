@@ -3,6 +3,7 @@ import UIKit
 
 struct AlbumDetailView: View {
     @State private var viewModel: AlbumDetailViewModel
+    @Environment(\.showNowPlaying) private var showNowPlaying
     @State private var selectedArtist: Artist?
 
     init(viewModel: AlbumDetailViewModel) {
@@ -81,7 +82,10 @@ struct AlbumDetailView: View {
                 .animation(.easeInOut(duration: 0.4), value: viewModel.palette)
 
             Button("Play Album") {
-                Task { await viewModel.playAlbum() }
+                Task {
+                    await viewModel.playAlbum()
+                    showNowPlaying.wrappedValue = true
+                }
             }
             .buttonStyle(LunaraPillButtonStyle())
         }
@@ -222,7 +226,10 @@ struct AlbumDetailView: View {
         )
 
         return Button {
-            Task { await viewModel.playTrackNow(track) }
+            Task {
+                await viewModel.playTrackNow(track)
+                showNowPlaying.wrappedValue = true
+            }
         } label: {
             HStack(alignment: .top, spacing: 10) {
                 Text("\(track.trackNumber)")
@@ -260,7 +267,10 @@ struct AlbumDetailView: View {
         .buttonStyle(.plain)
         .contextMenu {
             Button("Play Now", systemImage: "play.fill") {
-                Task { await viewModel.playTrackNow(track) }
+                Task {
+                    await viewModel.playTrackNow(track)
+                    showNowPlaying.wrappedValue = true
+                }
             }
             Button("Play Next", systemImage: "text.insert") {
                 Task { await viewModel.queueTrackNext(track) }

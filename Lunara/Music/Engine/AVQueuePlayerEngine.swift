@@ -106,10 +106,6 @@ final class AVQueuePlayerEngine: PlaybackEngineProtocol {
         driver.play(url: url, trackID: trackID)
     }
 
-    func prepareNext(url: URL, trackID: String) {
-        driver.prepareNext(url: url, trackID: trackID)
-    }
-
     func pause() {
         cancelBufferingTimeout()
         driver.pause()
@@ -158,11 +154,10 @@ final class AVQueuePlayerEngine: PlaybackEngineProtocol {
 
         driver.onCurrentItemEnded = { [weak self] in
             guard let self else { return }
-            if self.currentTrackID == nil {
-                self.playbackState = .idle
-                self.elapsed = 0
-                self.duration = 0
-            }
+            self.currentTrackID = nil
+            self.playbackState = .idle
+            self.elapsed = 0
+            self.duration = 0
         }
 
         driver.onElapsedChanged = { [weak self] elapsed in

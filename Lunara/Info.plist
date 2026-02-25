@@ -16,5 +16,16 @@
 		<string>PlayfairDisplay-Regular.ttf</string>
 		<string>PlayfairDisplay-SemiBold.ttf</string>
 	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>lunara</string>
+			</array>
+			<key>CFBundleURLName</key>
+			<string>holdings.chinlock.lunara.lastfm-callback</string>
+		</dict>
+	</array>
 </dict>
 </plist>

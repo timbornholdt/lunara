@@ -6,9 +6,9 @@ import UIKit
 struct NowPlayingBar: View {
     let viewModel: NowPlayingBarViewModel
     let screenViewModel: NowPlayingScreenViewModel
+    @Binding var showSheet: Bool
     var onNavigateToAlbum: ((Album) -> Void)?
-
-    @State private var showSheet = false
+    var onNavigateToArtist: ((Artist) -> Void)?
 
     var body: some View {
         if viewModel.isVisible {
@@ -24,7 +24,15 @@ struct NowPlayingBar: View {
                         viewModel: screenViewModel,
                         onNavigateToAlbum: { album in
                             showSheet = false
-                            onNavigateToAlbum?(album)
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                                onNavigateToAlbum?(album)
+                            }
+                        },
+                        onNavigateToArtist: { artist in
+                            showSheet = false
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                                onNavigateToArtist?(artist)
+                            }
                         }
                     )
                 }

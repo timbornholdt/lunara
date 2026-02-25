@@ -8,6 +8,10 @@ import os
 @Observable
 final class AppCoordinator {
 
+    // MARK: - Shared (for App Intents)
+
+    static var shared: AppCoordinator?
+
     // MARK: - Dependencies
 
     let authManager: AuthManager
@@ -20,6 +24,8 @@ final class AppCoordinator {
     let offlineStore: OfflineStoreProtocol
     let downloadManager: DownloadManager
     private let nowPlayingBridge: NowPlayingBridge
+    let lastFMAuthManager: LastFMAuthManager
+    let scrobbleManager: ScrobbleManager
     private let logger = Logger(subsystem: "holdings.chinlock.lunara", category: "AppCoordinator")
 
     // MARK: - State
@@ -45,7 +51,9 @@ final class AppCoordinator {
         appRouter: AppRouter,
         offlineStore: OfflineStoreProtocol,
         downloadManager: DownloadManager,
-        nowPlayingBridge: NowPlayingBridge
+        nowPlayingBridge: NowPlayingBridge,
+        lastFMAuthManager: LastFMAuthManager,
+        scrobbleManager: ScrobbleManager
     ) {
         self.authManager = authManager
         self.plexClient = plexClient
@@ -57,7 +65,10 @@ final class AppCoordinator {
         self.offlineStore = offlineStore
         self.downloadManager = downloadManager
         self.nowPlayingBridge = nowPlayingBridge
+        self.lastFMAuthManager = lastFMAuthManager
+        self.scrobbleManager = scrobbleManager
         nowPlayingBridge.configure()
+        scrobbleManager.configure()
     }
 
     convenience init() {
@@ -116,6 +127,16 @@ final class AppCoordinator {
             artwork: artworkPipeline
         )
 
+        let lastFMClient = LastFMClient()
+        let lastFMAuthManager = LastFMAuthManager(client: lastFMClient, keychain: keychain)
+        let scrobbleManager = ScrobbleManager(
+            engine: playbackEngine,
+            queue: queueManager,
+            library: libraryRepo,
+            client: lastFMClient,
+            authManager: lastFMAuthManager
+        )
+
         self.init(
             authManager: authManager,
             plexClient: plexClient,
@@ -126,7 +147,9 @@ final class AppCoordinator {
             appRouter: appRouter,
             offlineStore: offlineStore,
             downloadManager: downloadManager,
-            nowPlayingBridge: nowPlayingBridge
+            nowPlayingBridge: nowPlayingBridge,
+            lastFMAuthManager: lastFMAuthManager,
+            scrobbleManager: scrobbleManager
         )
     }
 
@@ -178,6 +201,10 @@ final class AppCoordinator {
 
     func shuffleArtist(_ artist: Artist) async throws {
         try await appRouter.shuffleArtist(artist)
+    }
+
+    func shuffleAllAlbums() async throws {
+        try await appRouter.shuffleAllAlbums()
     }
 
     func pausePlayback() {

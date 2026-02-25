@@ -12,7 +12,13 @@ import UIKit
 struct LunaraApp: App {
 
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    @State private var coordinator = AppCoordinator()
+    @State private var coordinator: AppCoordinator
+
+    init() {
+        let coord = AppCoordinator()
+        _coordinator = State(initialValue: coord)
+        AppCoordinator.shared = coord
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -21,6 +27,12 @@ struct LunaraApp: App {
                     LibraryRootTabView(coordinator: coordinator)
                 } else {
                     SignInView(coordinator: coordinator)
+                }
+            }
+            .onOpenURL { url in
+                guard url.scheme == "lunara", url.host == "lastfm-callback" else { return }
+                Task {
+                    try? await coordinator.lastFMAuthManager.handleCallback(url: url)
                 }
             }
         }

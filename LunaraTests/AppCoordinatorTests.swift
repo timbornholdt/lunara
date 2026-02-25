@@ -195,7 +195,9 @@ struct AppCoordinatorTests {
             appRouter: AppRouter(library: repo, queue: queue),
             offlineStore: MockOfflineStore(),
             downloadManager: DownloadManager(offlineStore: MockOfflineStore(), library: repo, offlineDirectory: FileManager.default.temporaryDirectory),
-            nowPlayingBridge: NowPlayingBridge(engine: engine, queue: queue, library: repo, artwork: artworkPipeline)
+            nowPlayingBridge: NowPlayingBridge(engine: engine, queue: queue, library: repo, artwork: artworkPipeline),
+            lastFMAuthManager: makeLastFMAuthManager(keychain: keychain),
+            scrobbleManager: makeScrobbleManager(engine: engine, queue: queue, library: repo, keychain: keychain)
         )
         remote.albums = [
             makeAlbum(id: "fresh-1", thumbURL: "/library/metadata/fresh-1/thumb/1"),
@@ -251,10 +253,27 @@ struct AppCoordinatorTests {
             appRouter: appRouter,
             offlineStore: MockOfflineStore(),
             downloadManager: DownloadManager(offlineStore: MockOfflineStore(), library: library, offlineDirectory: FileManager.default.temporaryDirectory),
-            nowPlayingBridge: NowPlayingBridge(engine: playbackEngine, queue: queue, library: library, artwork: artworkPipeline)
+            nowPlayingBridge: NowPlayingBridge(engine: playbackEngine, queue: queue, library: library, artwork: artworkPipeline),
+            lastFMAuthManager: makeLastFMAuthManager(keychain: keychain),
+            scrobbleManager: makeScrobbleManager(engine: playbackEngine, queue: queue, library: library, keychain: keychain)
         )
         return (coordinator, queue, library, artworkPipeline)
     }
+    private func makeLastFMAuthManager(keychain: KeychainHelperProtocol) -> LastFMAuthManager {
+        LastFMAuthManager(client: LastFMClientMock(), keychain: keychain, urlOpener: URLOpenerMock())
+    }
+
+    private func makeScrobbleManager(
+        engine: PlaybackEngineProtocol,
+        queue: QueueManagerProtocol,
+        library: LibraryRepoProtocol,
+        keychain: KeychainHelperProtocol
+    ) -> ScrobbleManager {
+        let client = LastFMClientMock()
+        let authManager = LastFMAuthManager(client: client, keychain: keychain, urlOpener: URLOpenerMock())
+        return ScrobbleManager(engine: engine, queue: queue, library: library, client: client, authManager: authManager)
+    }
+
     private func makeAlbum(id: String, thumbURL: String? = nil) -> Album {
         Album(
             plexID: id,
@@ -434,7 +453,6 @@ private final class CoordinatorPlaybackEngineMock: PlaybackEngineProtocol {
     var duration: TimeInterval = 0
     var currentTrackID: String?
     func play(url: URL, trackID: String) { }
-    func prepareNext(url: URL, trackID: String) { }
     func pause() { }
     func resume() { }
     func seek(to time: TimeInterval) { }

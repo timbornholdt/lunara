@@ -2,6 +2,7 @@ import SwiftUI
 import UIKit
 
 struct LibraryGridView: View {
+    @Environment(\.showNowPlaying) private var showNowPlaying
     @State private var viewModel: LibraryGridViewModel
     @State private var selectedAlbum: Album?
     @Binding var externalSelectedAlbum: Album?
@@ -38,6 +39,17 @@ struct LibraryGridView: View {
                         Text("Albums")
                             .lunaraHeading(.section, weight: .semibold)
                             .lineLimit(1)
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            Task {
+                                await viewModel.shuffleAll()
+                                showNowPlaying.wrappedValue = true
+                            }
+                        } label: {
+                            Image(systemName: "shuffle")
+                        }
+                        .disabled(viewModel.albums.isEmpty)
                     }
                 }
                 .toolbarBackground(Color.lunara(.backgroundBase), for: .navigationBar)

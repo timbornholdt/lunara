@@ -19,6 +19,7 @@ final class NowPlayingScreenViewModel {
     var duration: TimeInterval { engine.duration }
     private(set) var upNextItems: [UpNextItem] = []
     private(set) var currentAlbum: Album?
+    private(set) var currentArtist: Artist?
 
     struct UpNextItem: Identifiable {
         let id: String
@@ -118,6 +119,7 @@ final class NowPlayingScreenViewModel {
             artworkImage = nil
             palette = .default
             currentAlbum = nil
+            currentArtist = nil
             return
         }
 
@@ -147,6 +149,12 @@ final class NowPlayingScreenViewModel {
             guard !Task.isCancelled else { return }
             albumTitle = album.title
             currentAlbum = album
+        }
+
+        // Resolve artist
+        if let artists = try? await library.searchArtists(query: track.artistName) {
+            guard !Task.isCancelled else { return }
+            currentArtist = artists.first { $0.name == track.artistName }
         }
 
         // Fetch full-size artwork

@@ -6,8 +6,10 @@
 	<string>http://YOUR_PLEX_SERVER_IP:32400</string>
 	<key>PLEX_AUTH_TOKEN</key>
 	<string>YOUR_PLEX_AUTH_TOKEN_HERE</string>
-	<key>PLEX_MUSIC_SECTION_ID</key>
-	<string>1</string>
+	<key>LASTFM_API_KEY</key>
+	<string>YOUR_LASTFM_API_KEY</string>
+	<key>LASTFM_API_SECRET</key>
+	<string>YOUR_LASTFM_SHARED_SECRET</string>
 	<key>AUTO_START_AUTH</key>
 	<true/>
 </dict>

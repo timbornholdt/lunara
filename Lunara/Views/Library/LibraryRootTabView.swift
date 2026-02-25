@@ -14,8 +14,10 @@ struct LibraryRootTabView: View {
 
     @State private var selectedTab: Tab = .collections
     @State private var selectedAlbumFromNowPlaying: Album?
+    @State private var selectedArtistFromNowPlaying: Artist?
     @State private var nowPlayingBarViewModel: NowPlayingBarViewModel
     @State private var nowPlayingScreenViewModel: NowPlayingScreenViewModel
+    @State private var showNowPlayingSheet = false
 
     init(coordinator: AppCoordinator, tabBarTheme: LunaraTabBarTheme = .garden) {
         self.coordinator = coordinator
@@ -81,7 +83,8 @@ struct LibraryRootTabView: View {
                         artworkPipeline: coordinator.artworkPipeline,
                         actions: coordinator,
                         downloadManager: coordinator.downloadManager
-                    )
+                    ),
+                    externalSelectedArtist: $selectedArtistFromNowPlaying
                 )
                     .tabItem {
                         Label("Artists", systemImage: "music.mic")
@@ -93,7 +96,9 @@ struct LibraryRootTabView: View {
                         offlineStore: coordinator.offlineStore,
                         downloadManager: coordinator.downloadManager,
                         library: coordinator.libraryRepo,
-                        signOutAction: { coordinator.signOut() }
+                        signOutAction: { coordinator.signOut() },
+                        lastFMAuthManager: coordinator.lastFMAuthManager,
+                        scrobbleManager: coordinator.scrobbleManager
                     )
                 )
                 .tabItem {
@@ -101,14 +106,20 @@ struct LibraryRootTabView: View {
                 }
                 .tag(Tab.settings)
             }
+            .environment(\.showNowPlaying, $showNowPlayingSheet)
             .tint(Color.lunara(tabBarTheme.selectedTintRole))
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 NowPlayingBar(
                     viewModel: nowPlayingBarViewModel,
                     screenViewModel: nowPlayingScreenViewModel,
+                    showSheet: $showNowPlayingSheet,
                     onNavigateToAlbum: { album in
                         selectedTab = .albums
                         selectedAlbumFromNowPlaying = album
+                    },
+                    onNavigateToArtist: { artist in
+                        selectedTab = .artists
+                        selectedArtistFromNowPlaying = artist
                     }
                 )
                 .padding(.bottom, 56)

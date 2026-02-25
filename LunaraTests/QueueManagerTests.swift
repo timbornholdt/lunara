@@ -5,7 +5,7 @@ import Testing
 @MainActor
 struct QueueManagerTests {
     @Test
-    func playNow_startsFirstTrackAndPreloadsSecond() async throws {
+    func playNow_startsFirstTrack() async throws {
         let subject = makeSubject()
         let queueItems = try makeQueueItems(count: 3)
 
@@ -16,7 +16,6 @@ struct QueueManagerTests {
         #expect(subject.engine.playCalls.count == 1)
         #expect(subject.engine.playCalls.first?.1 == queueItems[0].trackID)
         #expect(subject.manager.currentItem?.trackID == queueItems[0].trackID)
-        #expect(subject.engine.prepareNextCalls.contains(where: { $0.1 == queueItems[1].trackID }))
 
         let savedSnapshot = try #require(subject.persistence.savedSnapshots.last)
         #expect(savedSnapshot.currentIndex == 0)
@@ -24,7 +23,7 @@ struct QueueManagerTests {
     }
 
     @Test
-    func playNext_insertsImmediatelyAfterCurrentTrackAndPreloadsInsertedTrack() async throws {
+    func playNext_insertsImmediatelyAfterCurrentTrack() async throws {
         let subject = makeSubject()
         let nowItems = try makeQueueItems(count: 3, prefix: "now")
         let nextItems = try makeQueueItems(count: 2, prefix: "next")
@@ -40,11 +39,10 @@ struct QueueManagerTests {
             nowItems[1].trackID,
             nowItems[2].trackID
         ])
-        #expect(subject.engine.prepareNextCalls.last?.1 == nextItems[0].trackID)
     }
 
     @Test
-    func playLater_appendsToQueueAndKeepsImmediateNextPreload() async throws {
+    func playLater_appendsToQueue() async throws {
         let subject = makeSubject()
         let nowItems = try makeQueueItems(count: 2, prefix: "now")
         let laterItems = try makeQueueItems(count: 2, prefix: "later")
@@ -59,7 +57,6 @@ struct QueueManagerTests {
             laterItems[0].trackID,
             laterItems[1].trackID
         ])
-        #expect(subject.engine.prepareNextCalls.last?.1 == nowItems[1].trackID)
     }
 
     @Test
@@ -76,24 +73,6 @@ struct QueueManagerTests {
         #expect(subject.manager.currentItem?.trackID == queueItems[1].trackID)
         #expect(subject.engine.playCalls.count == 2)
         #expect(subject.engine.playCalls.last?.1 == queueItems[1].trackID)
-    }
-
-    @Test
-    func engineTrackIDChange_updatesCurrentIndexAndPreloadsFollowingTrack() async throws {
-        let subject = makeSubject()
-        let queueItems = try makeQueueItems(count: 3)
-        subject.manager.playNow(queueItems)
-        await settleObservation()
-
-        subject.engine.currentTrackID = queueItems[1].trackID
-        subject.engine.playbackState = .playing
-        subject.engine.elapsed = 12
-        await settleObservation()
-        await waitUntil { subject.persistence.savedSnapshots.contains(where: { $0.currentIndex == 1 }) }
-
-        #expect(subject.manager.currentItem?.trackID == queueItems[1].trackID)
-        #expect(subject.engine.prepareNextCalls.last?.1 == queueItems[2].trackID)
-        #expect(subject.persistence.savedSnapshots.last?.currentIndex == 1)
     }
 
     @Test
@@ -152,29 +131,6 @@ struct QueueManagerTests {
         #expect(subject.manager.currentIndex == nil)
         #expect(subject.engine.stopCallCount == 1)
         #expect(subject.persistence.clearCallCount == 1)
-    }
-
-    @Test
-    func duplicateTrackIDs_trackStartedEventResolvesToNearestForwardOccurrence() async throws {
-        let subject = makeSubject()
-        let duplicateURL = try #require(URL(string: "https://example.com/dup.mp3"))
-        let items = [
-            QueueItem(trackID: "dup", url: duplicateURL),
-            QueueItem(trackID: "other", url: try #require(URL(string: "https://example.com/other.mp3"))),
-            QueueItem(trackID: "dup", url: duplicateURL),
-            QueueItem(trackID: "third", url: try #require(URL(string: "https://example.com/third.mp3")))
-        ]
-
-        subject.manager.playNow(items)
-        await settleObservation()
-        subject.manager.skipToNext()
-        await settleObservation()
-
-        subject.engine.currentTrackID = "dup"
-        subject.engine.playbackState = .playing
-        await settleObservation()
-
-        #expect(subject.manager.currentIndex == 2)
     }
 
     @Test
