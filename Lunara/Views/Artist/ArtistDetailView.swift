@@ -3,6 +3,7 @@ import UIKit
 
 struct ArtistDetailView: View {
     @State private var viewModel: ArtistDetailViewModel
+    @Environment(\.showNowPlaying) private var showNowPlaying
     @State private var selectedAlbum: Album?
     @State private var isBioExpanded = false
 
@@ -91,12 +92,18 @@ struct ArtistDetailView: View {
 
             HStack(spacing: 12) {
                 Button("Play All") {
-                    Task { await viewModel.playAll() }
+                    Task {
+                        await viewModel.playAll()
+                        showNowPlaying.wrappedValue = true
+                    }
                 }
                 .buttonStyle(LunaraPillButtonStyle())
 
                 Button("Shuffle") {
-                    Task { await viewModel.shuffle() }
+                    Task {
+                        await viewModel.shuffle()
+                        showNowPlaying.wrappedValue = true
+                    }
                 }
                 .buttonStyle(LunaraPillButtonStyle(role: .secondary))
             }
@@ -191,6 +198,7 @@ struct ArtistDetailView: View {
             Button("Play") {
                 Task {
                     await viewModel.playAlbum(album)
+                    showNowPlaying.wrappedValue = true
                 }
             }
             .buttonStyle(LunaraPillButtonStyle())
