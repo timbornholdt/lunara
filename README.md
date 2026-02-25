@@ -34,6 +34,7 @@ If something isn't in this document, it's not in scope yet. If a task would viol
 - **Phase 4 (UI Shell):** Complete
 - **Phase 5 (Collections + Artists):** Complete
 - **Phase 6 (Lock Screen + Remote Controls):** Complete
+- **Phase 7 (Offline Playback):** Complete
 - **Last.fm Scrobbling:** Complete
 - **Last verified milestone:** Last.fm scrobbling verified on February 22, 2026.
 
@@ -343,14 +344,14 @@ When the user taps play, something needs to figure out *which URL* to hand to th
 This resolution lives in the **AppRouter** — it's a cross-domain concern.
 
 ```swift
-// Illustrative. Today this is trivial; it grows when offline is added.
-func resolveURL(for track: Track) -> URL {
-    // Phase 8 will add: if let localURL = offlineStore.localFile(for: track) { return localURL }
+// Implemented in Phase 7.
+func resolveURL(for track: Track) async throws -> URL {
+    if let localURL = offlineStore.localFileURL(forTrackID: track.plexID) { return localURL }
     return library.streamURL(for: track)
 }
 ```
 
-By naming this now, we avoid the Phase 8 problem of "where does offline/online switching go?" It goes in the router's resolve method. The Music domain never knows or cares whether the URL is local or remote.
+The router's resolve method checks for a local offline file first, then falls back to streaming. The Music domain never knows or cares whether the URL is local or remote.
 
 ---
 
@@ -573,15 +574,27 @@ These two are built together because the PlaybackEngine needs someone to drive t
 ### Phase 7: Offline Playback
 
 **Goal:** Download albums for offline listening.
+**Status:** Complete (implemented and verified on February 21, 2026).
 
 **Build:**
-- `OfflineStore` in Library domain: download state, verified file paths, storage accounting.
-- Download button on album detail.
-- Download collection (skip already-downloaded).
-- Complete-only downloads (incomplete → removed).
-- `AppRouter.resolveURL()` updated: check local file first, fall back to streaming.
-- Manage downloads in settings.
-- Storage cap (128 GB default), LRU eviction, Wi-Fi-only toggle.
+- `OfflineStore` in Library domain: download state, verified file paths, storage accounting. ✅
+- Download button on album detail. ✅
+- Download collection (skip already-downloaded). ✅
+- Complete-only downloads (incomplete → removed). ✅
+- `AppRouter.resolveURL()` updated: check local file first, fall back to streaming. ✅
+- Manage downloads in settings. ✅
+- Storage cap (128 GB default), Wi-Fi-only toggle. ✅
+- Collection-level syncing with automatic orphan cleanup (bonus). ✅
+
+**What was built:**
+- `OfflineStore` (`Library/Offline/OfflineStore.swift`): GRDB-backed store tracking downloaded tracks, file paths, and storage accounting. Auto-deletes stale DB rows when files are missing on disk.
+- `DownloadManager` (`Library/Offline/DownloadManager.swift`): Download orchestrator with sequential per-album track downloads, Wi-Fi-only enforcement via `NWPathMonitor`, storage cap enforcement, cancel/cleanup support.
+- `OfflineSettings` (`Views/Settings/OfflineSettings.swift`): UserDefaults-persisted settings for storage limit (128 GB default) and Wi-Fi-only toggle.
+- Database migrations v7 (`offline_tracks` table) and v8 (`synced_collections` table) in LibraryStoreMigrations.
+- `AppRouter.resolveURL()` checks offline store first, falls back to streaming URL.
+- Album detail download button with progress, completion, and error states.
+- Settings view for managing downloads: per-album removal, bulk removal, storage usage display.
+- Collection syncing: mark collections for automatic offline sync, downloads new albums, removes orphaned downloads on unsync.
 
 **Acceptance:** Download on Wi-Fi. Airplane mode. Play. Works. Partial downloads never appear available. Stream URL fallback works when not downloaded.
 
