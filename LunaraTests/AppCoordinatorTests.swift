@@ -453,7 +453,6 @@ private final class CoordinatorPlaybackEngineMock: PlaybackEngineProtocol {
     var duration: TimeInterval = 0
     var currentTrackID: String?
     func play(url: URL, trackID: String) { }
-    func prepareNext(url: URL, trackID: String) { }
     func pause() { }
     func resume() { }
     func seek(to time: TimeInterval) { }
