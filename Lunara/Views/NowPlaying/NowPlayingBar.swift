@@ -6,10 +6,9 @@ import UIKit
 struct NowPlayingBar: View {
     let viewModel: NowPlayingBarViewModel
     let screenViewModel: NowPlayingScreenViewModel
+    @Binding var showSheet: Bool
     var onNavigateToAlbum: ((Album) -> Void)?
     var onNavigateToArtist: ((Artist) -> Void)?
-
-    @State private var showSheet = false
 
     var body: some View {
         if viewModel.isVisible {

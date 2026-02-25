@@ -3,6 +3,7 @@ import UIKit
 
 struct CollectionDetailView: View {
     @State private var viewModel: CollectionDetailViewModel
+    @Environment(\.showNowPlaying) private var showNowPlaying
     @State private var selectedAlbum: Album?
 
     private let columns = [
@@ -69,12 +70,18 @@ struct CollectionDetailView: View {
 
             HStack(spacing: 12) {
                 Button("Play All") {
-                    Task { await viewModel.playAll() }
+                    Task {
+                        await viewModel.playAll()
+                        showNowPlaying.wrappedValue = true
+                    }
                 }
                 .buttonStyle(LunaraPillButtonStyle())
 
                 Button("Shuffle") {
-                    Task { await viewModel.shuffle() }
+                    Task {
+                        await viewModel.shuffle()
+                        showNowPlaying.wrappedValue = true
+                    }
                 }
                 .buttonStyle(LunaraPillButtonStyle(role: .secondary))
             }
