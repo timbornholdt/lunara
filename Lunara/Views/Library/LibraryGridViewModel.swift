@@ -2,7 +2,9 @@ import Foundation
 import Observation
 
 @MainActor
-protocol LibraryGridActionRouting: AlbumDetailActionRouting, AnyObject { }
+protocol LibraryGridActionRouting: AlbumDetailActionRouting, AnyObject {
+    func shuffleAllAlbums() async throws
+}
 
 extension AppCoordinator: LibraryGridActionRouting { }
 
@@ -76,6 +78,16 @@ final class LibraryGridViewModel {
     func playAlbum(_ album: Album) async {
         do {
             try await actions.playAlbum(album)
+        } catch let error as LunaraError {
+            errorBannerState.show(message: error.userMessage)
+        } catch {
+            errorBannerState.show(message: error.localizedDescription)
+        }
+    }
+
+    func shuffleAll() async {
+        do {
+            try await actions.shuffleAllAlbums()
         } catch let error as LunaraError {
             errorBannerState.show(message: error.userMessage)
         } catch {

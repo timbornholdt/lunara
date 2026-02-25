@@ -8,6 +8,10 @@ import os
 @Observable
 final class AppCoordinator {
 
+    // MARK: - Shared (for App Intents)
+
+    static var shared: AppCoordinator?
+
     // MARK: - Dependencies
 
     let authManager: AuthManager
@@ -197,6 +201,10 @@ final class AppCoordinator {
 
     func shuffleArtist(_ artist: Artist) async throws {
         try await appRouter.shuffleArtist(artist)
+    }
+
+    func shuffleAllAlbums() async throws {
+        try await appRouter.shuffleAllAlbums()
     }
 
     func pausePlayback() {
