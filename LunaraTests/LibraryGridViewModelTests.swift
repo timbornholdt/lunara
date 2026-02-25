@@ -443,4 +443,5 @@ private final class LibraryGridActionsMock: LibraryGridActionRouting {
     func playTrackNow(_ track: Track) async throws { }
     func queueTrackNext(_ track: Track) async throws { }
     func queueTrackLater(_ track: Track) async throws { }
+    func shuffleAllAlbums() async throws { }
 }

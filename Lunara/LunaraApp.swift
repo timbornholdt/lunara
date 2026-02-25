@@ -12,7 +12,13 @@ import UIKit
 struct LunaraApp: App {
 
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    @State private var coordinator = AppCoordinator()
+    @State private var coordinator: AppCoordinator
+
+    init() {
+        let coord = AppCoordinator()
+        _coordinator = State(initialValue: coord)
+        AppCoordinator.shared = coord
+    }
 
     var body: some Scene {
         WindowGroup {
