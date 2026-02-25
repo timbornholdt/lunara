@@ -35,7 +35,6 @@ extension QueueManager {
 
         if let mappedCurrentIndex = oldToNewIndices[originalCurrentIndex] {
             applyReconciledCurrentIndex(mappedCurrentIndex)
-            prepareUpcomingTrack()
             persistQueueState(elapsed: engine.elapsed)
             return
         }

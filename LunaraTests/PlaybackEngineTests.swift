@@ -165,21 +165,6 @@ struct PlaybackEngineTests {
     }
 
     @Test
-    func prepareNext_forwardsCallWithoutChangingPlaybackState() {
-        let subject = makeSubject()
-        let url = URL(string: "https://example.com/track-next.mp3")!
-
-        subject.engine.play(url: URL(string: "https://example.com/track.mp3")!, trackID: "track-1")
-        subject.driver.emitTimeControlStatus(.playing)
-        subject.engine.prepareNext(url: url, trackID: "track-2")
-
-        #expect(subject.driver.prepareNextCalls.count == 1)
-        #expect(subject.driver.prepareNextCalls.first?.0 == url)
-        #expect(subject.driver.prepareNextCalls.first?.1 == "track-2")
-        #expect(subject.engine.playbackState == .playing)
-    }
-
-    @Test
     func seek_forwardsCallAndUpdatesElapsed() {
         let subject = makeSubject()
 

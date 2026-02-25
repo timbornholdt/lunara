@@ -11,7 +11,6 @@ final class PlaybackEngineDriverMock: PlaybackEngineDriver {
     var onDurationChanged: ((TimeInterval) -> Void)?
 
     private(set) var playCalls: [(URL, String)] = []
-    private(set) var prepareNextCalls: [(URL, String)] = []
     private(set) var pauseCallCount = 0
     private(set) var resumeCallCount = 0
     private(set) var seekCalls: [TimeInterval] = []
@@ -19,10 +18,6 @@ final class PlaybackEngineDriverMock: PlaybackEngineDriver {
 
     func play(url: URL, trackID: String) {
         playCalls.append((url, trackID))
-    }
-
-    func prepareNext(url: URL, trackID: String) {
-        prepareNextCalls.append((url, trackID))
     }
 
     func pause() {

@@ -17,7 +17,6 @@ final class QueueManager: QueueManagerProtocol {
 
     let engine: PlaybackEngineProtocol
     private let persistence: QueueStatePersisting
-    private var observedTrackID: String?
     var lastPersistedElapsed: TimeInterval = 0
     var pendingSeekAfterNextPlay: TimeInterval?
     private var persistenceTask: Task<Void, Never>?
@@ -62,7 +61,6 @@ final class QueueManager: QueueManagerProtocol {
 
         let insertionIndex = min((currentIndex ?? 0) + 1, self.items.count)
         self.items.insert(contentsOf: items, at: insertionIndex)
-        prepareUpcomingTrack()
         persistQueueState(elapsed: engine.elapsed)
     }
 
@@ -74,7 +72,6 @@ final class QueueManager: QueueManagerProtocol {
             currentIndex = 0
         }
 
-        prepareUpcomingTrack()
         persistQueueState(elapsed: engine.elapsed)
     }
 
@@ -144,20 +141,7 @@ final class QueueManager: QueueManagerProtocol {
             self.pendingSeekAfterNextPlay = nil
         }
 
-        prepareUpcomingTrack()
         persistQueueState(elapsed: engine.elapsed)
-    }
-
-    func prepareUpcomingTrack() {
-        guard let nextItem = nextItem() else { return }
-        engine.prepareNext(url: nextItem.url, trackID: nextItem.trackID)
-    }
-
-    private func nextItem() -> QueueItem? {
-        guard let currentIndex else { return nil }
-        let nextIndex = currentIndex + 1
-        guard items.indices.contains(nextIndex) else { return nil }
-        return items[nextIndex]
     }
 
     private func advanceAndPlayNextIfPossible() {
@@ -175,7 +159,6 @@ final class QueueManager: QueueManagerProtocol {
 
     private func handleQueueExhausted() {
         self.currentIndex = nil
-        observedTrackID = nil
         pendingSeekAfterNextPlay = nil
         lastPersistedElapsed = 0
         engine.stop()
@@ -263,48 +246,13 @@ final class QueueManager: QueueManagerProtocol {
     }
 
     private func handleEngineStateChange() {
-        let latestTrackID = engine.currentTrackID
-        if observedTrackID != latestTrackID {
-            observedTrackID = latestTrackID
-            if let latestTrackID {
-                handleTrackStarted(trackID: latestTrackID)
-            }
-        }
-
-        if latestTrackID == nil, engine.playbackState == .idle {
+        if engine.currentTrackID == nil, engine.playbackState == .idle {
             advanceAndPlayNextIfPossible()
         }
 
         if shouldPersistElapsedProgress() {
             persistQueueState(elapsed: engine.elapsed)
         }
-    }
-
-    private func handleTrackStarted(trackID: String) {
-        guard let startedIndex = resolveStartedIndex(for: trackID) else { return }
-        currentIndex = startedIndex
-        prepareUpcomingTrack()
-        persistQueueState(elapsed: engine.elapsed)
-    }
-
-    private func resolveStartedIndex(for trackID: String) -> Int? {
-        if let currentIndex, items.indices.contains(currentIndex), items[currentIndex].trackID == trackID {
-            return currentIndex
-        }
-
-        if let currentIndex {
-            let nextRange = items.indices.filter { $0 > currentIndex }
-            if let nextMatch = nextRange.first(where: { items[$0].trackID == trackID }) {
-                return nextMatch
-            }
-
-            let previousRange = items.indices.filter { $0 < currentIndex }.reversed()
-            if let previousMatch = previousRange.first(where: { items[$0].trackID == trackID }) {
-                return previousMatch
-            }
-        }
-
-        return items.firstIndex(where: { $0.trackID == trackID })
     }
 
     private func shouldPersistElapsedProgress() -> Bool {

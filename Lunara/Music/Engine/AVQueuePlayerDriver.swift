@@ -10,7 +10,6 @@ protocol PlaybackEngineDriver: AnyObject {
     var onDurationChanged: ((TimeInterval) -> Void)? { get set }
 
     func play(url: URL, trackID: String)
-    func prepareNext(url: URL, trackID: String)
     func pause()
     func resume()
     func seek(to time: TimeInterval)
@@ -73,11 +72,6 @@ final class AVQueuePlayerDriver: PlaybackEngineDriver {
         player.play()
     }
 
-    func prepareNext(url: URL, trackID: String) {
-        let item = makePlayerItem(url: url, trackID: trackID)
-        player.insert(item, after: nil)
-    }
-
     func pause() {
         player.pause()
     }
@@ -124,8 +118,14 @@ final class AVQueuePlayerDriver: PlaybackEngineDriver {
             object: nil,
             queue: .main
         ) { [weak self] notification in
-            guard notification.object as? AVPlayerItem != nil else { return }
-            self?.onCurrentItemEnded?()
+            guard
+                let self,
+                let item = notification.object as? AVPlayerItem,
+                item == self.player.currentItem
+            else {
+                return
+            }
+            self.onCurrentItemEnded?()
         }
 
         failedToPlayToEndObserver = notificationCenter.addObserver(

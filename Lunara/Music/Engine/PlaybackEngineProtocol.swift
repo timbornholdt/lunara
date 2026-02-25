@@ -9,7 +9,6 @@ protocol PlaybackEngineProtocol: AnyObject, Observable {
     var currentTrackID: String? { get }
 
     func play(url: URL, trackID: String)
-    func prepareNext(url: URL, trackID: String)
     func pause()
     func resume()
     func seek(to time: TimeInterval)

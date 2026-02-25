@@ -11,7 +11,6 @@ final class PlaybackEngineMock: PlaybackEngineProtocol {
     var currentTrackID: String?
 
     private(set) var playCalls: [(URL, String)] = []
-    private(set) var prepareNextCalls: [(URL, String)] = []
     private(set) var pauseCallCount = 0
     private(set) var resumeCallCount = 0
     private(set) var seekCalls: [TimeInterval] = []
@@ -21,10 +20,6 @@ final class PlaybackEngineMock: PlaybackEngineProtocol {
         playCalls.append((url, trackID))
         currentTrackID = trackID
         playbackState = .playing
-    }
-
-    func prepareNext(url: URL, trackID: String) {
-        prepareNextCalls.append((url, trackID))
     }
 
     func pause() {
