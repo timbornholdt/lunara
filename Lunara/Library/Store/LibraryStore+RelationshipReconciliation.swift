@@ -146,6 +146,10 @@ extension LibraryStore {
     }
 
     private static func reconcileAlbumTags(for albums: [Album], in run: LibrarySyncRun, db: Database) throws {
+        try reconcileAlbumTags(for: albums, syncID: run.id, syncDate: run.startedAt, db: db)
+    }
+
+    static func reconcileAlbumTags(for albums: [Album], syncID: String?, syncDate: Date?, db: Database) throws {
         let canonicalTags = buildCanonicalTagNames(for: albums)
         guard !canonicalTags.isEmpty else {
             return
@@ -159,10 +163,10 @@ extension LibraryStore {
                 VALUES (?, ?, ?, ?, ?)
                 ON CONFLICT(kind, normalizedName) DO UPDATE SET
                     name = excluded.name,
-                    lastSeenSyncID = excluded.lastSeenSyncID,
-                    lastSeenAt = excluded.lastSeenAt
+                    lastSeenSyncID = COALESCE(excluded.lastSeenSyncID, tags.lastSeenSyncID),
+                    lastSeenAt = COALESCE(excluded.lastSeenAt, tags.lastSeenAt)
                 """,
-                arguments: [identity.kind.rawValue, canonicalName, identity.normalizedName, run.id, run.startedAt]
+                arguments: [identity.kind.rawValue, canonicalName, identity.normalizedName, syncID, syncDate]
             )
 
             let tagID = try Int64.fetchOne(
@@ -187,10 +191,10 @@ extension LibraryStore {
                     INSERT INTO album_tags (albumID, tagID, lastSeenSyncID, lastSeenAt)
                     VALUES (?, ?, ?, ?)
                     ON CONFLICT(albumID, tagID) DO UPDATE SET
-                        lastSeenSyncID = excluded.lastSeenSyncID,
-                        lastSeenAt = excluded.lastSeenAt
+                        lastSeenSyncID = COALESCE(excluded.lastSeenSyncID, album_tags.lastSeenSyncID),
+                        lastSeenAt = COALESCE(excluded.lastSeenAt, album_tags.lastSeenAt)
                     """,
-                    arguments: [album.plexID, tagID, run.id, run.startedAt]
+                    arguments: [album.plexID, tagID, syncID, syncDate]
                 )
             }
         }

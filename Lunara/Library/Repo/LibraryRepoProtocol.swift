@@ -62,6 +62,12 @@ protocol LibraryRepoProtocol: AnyObject {
     /// Items are populated during `refreshLibrary`; this method does not trigger a remote fetch.
     func playlistItems(playlistID: String) async throws -> [LibraryPlaylistItemSnapshot]
 
+    /// Returns all distinct tag names for the given kind, ordered alphabetically.
+    func availableTags(kind: LibraryTagKind) async throws -> [String]
+
+    /// Fetches albums matching a specific tag from the remote Plex API.
+    func albumsByTag(kind: LibraryTagKind, value: String) async throws -> [Album]
+
     /// Performs a remote refresh and persists it atomically.
     /// Implementations must preserve existing cache when this throws.
     func refreshLibrary(reason: LibraryRefreshReason) async throws -> LibraryRefreshOutcome
@@ -172,6 +178,14 @@ extension PlexAPIClient: LibraryRepoProtocol {
 
     func artistAlbums(artistName: String) async throws -> [Album] {
         throw LibraryError.operationFailed(reason: "Artist albums is not implemented on PlexAPIClient-backed LibraryRepo yet.")
+    }
+
+    func availableTags(kind: LibraryTagKind) async throws -> [String] {
+        throw LibraryError.operationFailed(reason: "Tag reads are not implemented on PlexAPIClient-backed LibraryRepo.")
+    }
+
+    func albumsByTag(kind: LibraryTagKind, value: String) async throws -> [Album] {
+        try await fetchAlbumsByTag(kind: kind, value: value)
     }
 
     func playlists() async throws -> [LibraryPlaylistSnapshot] {

@@ -261,6 +261,22 @@ final class AlbumDetailViewModel {
         )
     }
 
+    func makeTagFilterViewModel(
+        initialGenres: Set<String>,
+        initialStyles: Set<String>,
+        initialMoods: Set<String>
+    ) -> TagFilterViewModel {
+        TagFilterViewModel(
+            library: library,
+            artworkPipeline: artworkPipeline,
+            actions: actions as! TagFilterActionRouting,
+            downloadManager: downloadManager,
+            initialGenres: initialGenres,
+            initialStyles: initialStyles,
+            initialMoods: initialMoods
+        )
+    }
+
     private static func normalizedTags(_ values: [String]) -> [String] {
         var deduped: [String] = []
         var seen = Set<String>()

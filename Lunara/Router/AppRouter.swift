@@ -97,6 +97,20 @@ final class AppRouter {
         logger.info("shuffleArtist queued \(items.count, privacy: .public) shuffled items for artist id '\(artist.plexID, privacy: .public)'")
     }
 
+    func playAlbums(_ albums: [Album]) async throws {
+        logger.info("playAlbums started for \(albums.count, privacy: .public) albums")
+        let items = try await allQueueItemsForAlbums(albums, actionName: "play-albums")
+        queue.playNow(items)
+        logger.info("playAlbums queued \(items.count, privacy: .public) items")
+    }
+
+    func shuffleAlbums(_ albums: [Album]) async throws {
+        logger.info("shuffleAlbums started for \(albums.count, privacy: .public) albums")
+        let items = try await allQueueItemsForAlbums(albums, actionName: "shuffle-albums")
+        queue.playNow(items.shuffled())
+        logger.info("shuffleAlbums queued \(items.count, privacy: .public) shuffled items")
+    }
+
     func shuffleAllAlbums() async throws {
         logger.info("shuffleAllAlbums started")
         let albums = try await library.fetchAlbums()

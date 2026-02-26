@@ -128,6 +128,8 @@ final class LibraryRemoteMock: LibraryRemoteDataSource {
         }
         return artworkURLByRawValue[rawValue]
     }
+
+    func fetchAlbumsByTag(kind: LibraryTagKind, value: String) async throws -> [Album] { [] }
 }
 
 @MainActor
@@ -485,5 +487,13 @@ final class LibraryStoreMock: LibraryStoreProtocol {
     func deleteArtworkPath(for key: ArtworkKey) async throws {
         artworkPathByKey[key] = nil
         deletedArtworkPathKeys.append(key)
+    }
+
+    var tagsByKind: [LibraryTagKind: [String]] = [:]
+    var fetchTagsCalls: [LibraryTagKind] = []
+
+    func fetchTags(kind: LibraryTagKind) async throws -> [String] {
+        fetchTagsCalls.append(kind)
+        return tagsByKind[kind] ?? []
     }
 }

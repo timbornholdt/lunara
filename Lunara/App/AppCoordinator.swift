@@ -203,6 +203,14 @@ final class AppCoordinator {
         try await appRouter.shuffleArtist(artist)
     }
 
+    func playAlbums(_ albums: [Album]) async throws {
+        try await appRouter.playAlbums(albums)
+    }
+
+    func shuffleAlbums(_ albums: [Album]) async throws {
+        try await appRouter.shuffleAlbums(albums)
+    }
+
     func shuffleAllAlbums() async throws {
         try await appRouter.shuffleAllAlbums()
     }

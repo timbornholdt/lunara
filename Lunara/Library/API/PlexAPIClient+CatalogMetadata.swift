@@ -101,6 +101,65 @@ extension PlexAPIClient {
         return items
     }
 
+    /// Fetch albums filtered by a tag (genre, style, or mood) from the Plex API.
+    func fetchAlbumsByTag(kind: LibraryTagKind, value: String) async throws -> [Album] {
+        let filterParam: String
+        switch kind {
+        case .genre: filterParam = "genre"
+        case .style: filterParam = "style"
+        case .mood: filterParam = "mood"
+        }
+
+        let request = try await buildRequest(
+            path: "/library/sections/4/all",
+            queryItems: [
+                URLQueryItem(name: "type", value: "9"),
+                URLQueryItem(name: filterParam, value: value)
+            ],
+            requiresAuth: true
+        )
+
+        let (data, _) = try await executeLoggedRequest(request, operation: "fetchAlbumsByTag[\(kind.rawValue)=\(value)]")
+        let container = try xmlDecoder.decode(PlexMediaContainer.self, from: data)
+        guard let directories = container.directories else {
+            return []
+        }
+
+        var albums: [Album] = []
+        albums.reserveCapacity(directories.count)
+
+        for directory in directories where directory.type == "album" {
+            guard let albumID = directory.ratingKey, !albumID.isEmpty else {
+                continue
+            }
+
+            let addedAtDate = directory.addedAt.map { Date(timeIntervalSince1970: TimeInterval($0)) }
+            let durationSeconds = directory.duration.map { TimeInterval($0) / 1000.0 } ?? 0.0
+            let resolvedGenres = dedupedTags(directory.genres + [directory.genre].compactMap { $0 })
+            let releaseDate = directory.originallyAvailableAt.flatMap { Self.parseReleaseDateString($0) }
+
+            albums.append(Album(
+                plexID: albumID,
+                title: directory.title,
+                artistName: directory.parentTitle ?? "Unknown Artist",
+                year: directory.year,
+                releaseDate: releaseDate,
+                thumbURL: directory.thumb,
+                genre: resolvedGenres.first,
+                rating: directory.rating.map { Int($0) },
+                addedAt: addedAtDate,
+                trackCount: directory.leafCount ?? 0,
+                duration: durationSeconds,
+                review: directory.summary,
+                genres: resolvedGenres,
+                styles: dedupedTags(directory.styles),
+                moods: dedupedTags(directory.moods)
+            ))
+        }
+
+        return albums
+    }
+
     /// Fetch album IDs that belong to a specific collection.
     func fetchCollectionAlbumIDs(collectionID: String) async throws -> [String] {
         let request = try await buildRequest(
