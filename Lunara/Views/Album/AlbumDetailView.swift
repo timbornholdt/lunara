@@ -34,6 +34,7 @@ struct AlbumDetailView: View {
                 .padding(.horizontal, AlbumDetailLayout.horizontalPadding)
                 .padding(.top, AlbumDetailLayout.topContentPadding)
                 .padding(.bottom, 80)
+                .containerRelativeFrame(.horizontal)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
