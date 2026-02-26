@@ -241,6 +241,9 @@ protocol LibraryStoreProtocol: AnyObject {
     /// - Transaction guarantee: sync completion and refresh timestamp write must commit atomically.
     func completeIncrementalSync(_ run: LibrarySyncRun, refreshedAt: Date) async throws
 
+    /// Returns all distinct tag names for the given kind, ordered alphabetically.
+    func fetchTags(kind: LibraryTagKind) async throws -> [String]
+
     func artworkPath(for key: ArtworkKey) async throws -> String?
     func setArtworkPath(_ path: String, for key: ArtworkKey) async throws
     func deleteArtworkPath(for key: ArtworkKey) async throws

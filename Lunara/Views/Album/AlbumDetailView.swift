@@ -1,10 +1,18 @@
 import SwiftUI
 import UIKit
 
+struct TagFilterNavigation: Identifiable, Hashable {
+    let id = UUID()
+    let genres: Set<String>
+    let styles: Set<String>
+    let moods: Set<String>
+}
+
 struct AlbumDetailView: View {
     @State private var viewModel: AlbumDetailViewModel
     @Environment(\.showNowPlaying) private var showNowPlaying
     @State private var selectedArtist: Artist?
+    @State private var tagFilterNavigation: TagFilterNavigation?
 
     init(viewModel: AlbumDetailViewModel) {
         _viewModel = State(initialValue: viewModel)
@@ -43,6 +51,13 @@ struct AlbumDetailView: View {
         .lunaraErrorBanner(using: viewModel.errorBannerState)
         .navigationDestination(item: $selectedArtist) { artist in
             ArtistDetailView(viewModel: viewModel.makeArtistDetailViewModel(for: artist))
+        }
+        .navigationDestination(item: $tagFilterNavigation) { nav in
+            TagFilterView(viewModel: viewModel.makeTagFilterViewModel(
+                initialGenres: nav.genres,
+                initialStyles: nav.styles,
+                initialMoods: nav.moods
+            ))
         }
         .task {
             await viewModel.loadIfNeeded()
@@ -294,15 +309,15 @@ struct AlbumDetailView: View {
         }
 
         if !viewModel.genres.isEmpty {
-            tagSection(title: "Genres", tags: viewModel.genres)
+            tagSection(title: "Genres", tags: viewModel.genres, kind: .genre)
         }
 
         if !viewModel.styles.isEmpty {
-            tagSection(title: "Styles", tags: viewModel.styles)
+            tagSection(title: "Styles", tags: viewModel.styles, kind: .style)
         }
 
         if !viewModel.moods.isEmpty {
-            tagSection(title: "Moods", tags: viewModel.moods)
+            tagSection(title: "Moods", tags: viewModel.moods, kind: .mood)
         }
     }
 
@@ -322,21 +337,33 @@ struct AlbumDetailView: View {
         }
     }
 
-    private func tagSection(title: String, tags: [String]) -> some View {
+    private func tagSection(title: String, tags: [String], kind: LibraryTagKind) -> some View {
         sectionCard(title: title) {
             AlbumTagFlowLayout(
                 spacing: AlbumDetailLayout.pillHorizontalSpacing,
                 rowSpacing: AlbumDetailLayout.pillVerticalSpacing
             ) {
                 ForEach(tags, id: \.self) { tag in
-                    Text(tag)
-                        .font(AlbumDetailTypography.font(for: .pill))
-                        .lineLimit(1)
-                        .fixedSize(horizontal: true, vertical: false)
-                        .foregroundStyle(viewModel.palette.textPrimary)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(viewModel.palette.textPrimary.opacity(0.15), in: Capsule())
+                    Button {
+                        switch kind {
+                        case .genre:
+                            tagFilterNavigation = TagFilterNavigation(genres: [tag], styles: [], moods: [])
+                        case .style:
+                            tagFilterNavigation = TagFilterNavigation(genres: [], styles: [tag], moods: [])
+                        case .mood:
+                            tagFilterNavigation = TagFilterNavigation(genres: [], styles: [], moods: [tag])
+                        }
+                    } label: {
+                        Text(tag)
+                            .font(AlbumDetailTypography.font(for: .pill))
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
+                            .foregroundStyle(viewModel.palette.textPrimary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(viewModel.palette.textPrimary.opacity(0.15), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }

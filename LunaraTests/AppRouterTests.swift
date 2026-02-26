@@ -584,6 +584,9 @@ private final class LibraryRepoMock: LibraryRepoProtocol {
 
     func playlistItems(playlistID: String) async throws -> [LibraryPlaylistItemSnapshot] { [] }
 
+    func availableTags(kind: LibraryTagKind) async throws -> [String] { [] }
+    func albumsByTag(kind: LibraryTagKind, value: String) async throws -> [Album] { [] }
+
     func refreshLibrary(reason: LibraryRefreshReason) async throws -> LibraryRefreshOutcome {
         LibraryRefreshOutcome(
             reason: reason,

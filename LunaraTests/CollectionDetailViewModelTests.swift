@@ -155,6 +155,8 @@ private final class CollectionDetailRepoMock: LibraryRepoProtocol {
     func artistAlbums(artistName: String) async throws -> [Album] { [] }
     func playlists() async throws -> [LibraryPlaylistSnapshot] { [] }
     func playlistItems(playlistID: String) async throws -> [LibraryPlaylistItemSnapshot] { [] }
+    func availableTags(kind: LibraryTagKind) async throws -> [String] { [] }
+    func albumsByTag(kind: LibraryTagKind, value: String) async throws -> [Album] { [] }
     func refreshLibrary(reason: LibraryRefreshReason) async throws -> LibraryRefreshOutcome {
         LibraryRefreshOutcome(reason: reason, refreshedAt: Date(timeIntervalSince1970: 0), albumCount: 0, trackCount: 0, artistCount: 0, collectionCount: 0)
     }

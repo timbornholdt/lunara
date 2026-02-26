@@ -45,6 +45,7 @@ final class LibraryStore: LibraryStoreProtocol {
         let target = album
         try await dbQueue.write { db in
             try AlbumRecord(model: target).save(db)
+            try LibraryStore.reconcileAlbumTags(for: [target], syncID: nil, syncDate: nil, db: db)
         }
     }
 
@@ -307,6 +308,21 @@ final class LibraryStore: LibraryStoreProtocol {
                 .filter(Column("ownerType") == ownerType)
                 .filter(Column("variant") == variant)
                 .deleteAll(db)
+        }
+    }
+
+    func fetchTags(kind: LibraryTagKind) async throws -> [String] {
+        let kindValue = kind.rawValue
+        return try await dbQueue.read { db in
+            let rows = try Row.fetchAll(
+                db,
+                sql: "SELECT DISTINCT name FROM tags WHERE kind = ? ORDER BY name ASC",
+                arguments: [kindValue]
+            )
+            return rows.map { row in
+                let name: String = row["name"]
+                return name
+            }
         }
     }
 

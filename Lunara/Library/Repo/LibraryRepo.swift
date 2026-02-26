@@ -24,6 +24,7 @@ protocol LibraryRemoteDataSource: AnyObject {
     func fetchPlaylistItems(playlistID: String) async throws -> [LibraryRemotePlaylistItem]
     func fetchTracks(forAlbum albumID: String) async throws -> [Track]
     func fetchTrack(id trackID: String) async throws -> Track?
+    func fetchAlbumsByTag(kind: LibraryTagKind, value: String) async throws -> [Album]
     func streamURL(forTrack track: Track) async throws -> URL
     func authenticatedArtworkURL(for rawValue: String?) async throws -> URL?
 }
@@ -164,6 +165,14 @@ final class LibraryRepo: LibraryRepoProtocol {
 
     func artistAlbums(artistName: String) async throws -> [Album] {
         try await store.fetchAlbumsByArtistName(artistName)
+    }
+
+    func availableTags(kind: LibraryTagKind) async throws -> [String] {
+        try await store.fetchTags(kind: kind)
+    }
+
+    func albumsByTag(kind: LibraryTagKind, value: String) async throws -> [Album] {
+        try await remote.fetchAlbumsByTag(kind: kind, value: value)
     }
 
     func playlists() async throws -> [LibraryPlaylistSnapshot] {
