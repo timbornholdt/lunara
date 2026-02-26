@@ -56,9 +56,8 @@ struct LibraryRootTabView: View {
                             offlineStore: coordinator.offlineStore
                         )
                     )
-                    .toolbarBackground(Color(red: 0.12, green: 0.13, blue: 0.04), for: .tabBar)
+                    .toolbarBackground(Color.lunara(.backgroundBase), for: .tabBar)
                     .toolbarBackgroundVisibility(.visible, for: .tabBar)
-                    .toolbarColorScheme(.dark, for: .tabBar)
                 }
 
                 Tab("Albums", systemImage: "square.grid.2x2", value: TabID.albums) {
@@ -74,9 +73,8 @@ struct LibraryRootTabView: View {
                         backgroundRefreshErrorMessage: coordinator.lastBackgroundRefreshErrorMessage,
                         externalSelectedAlbum: $selectedAlbumFromNowPlaying
                     )
-                    .toolbarBackground(Color(red: 0.12, green: 0.13, blue: 0.04), for: .tabBar)
+                    .toolbarBackground(Color.lunara(.backgroundBase), for: .tabBar)
                     .toolbarBackgroundVisibility(.visible, for: .tabBar)
-                    .toolbarColorScheme(.dark, for: .tabBar)
                 }
 
                 Tab("Artists", systemImage: "music.mic", value: TabID.artists) {
@@ -89,9 +87,8 @@ struct LibraryRootTabView: View {
                         ),
                         externalSelectedArtist: $selectedArtistFromNowPlaying
                     )
-                    .toolbarBackground(Color(red: 0.12, green: 0.13, blue: 0.04), for: .tabBar)
+                    .toolbarBackground(Color.lunara(.backgroundBase), for: .tabBar)
                     .toolbarBackgroundVisibility(.visible, for: .tabBar)
-                    .toolbarColorScheme(.dark, for: .tabBar)
                 }
 
                 Tab("Settings", systemImage: "gearshape", value: TabID.settings) {
@@ -105,9 +102,8 @@ struct LibraryRootTabView: View {
                             scrobbleManager: coordinator.scrobbleManager
                         )
                     )
-                    .toolbarBackground(Color(red: 0.12, green: 0.13, blue: 0.04), for: .tabBar)
+                    .toolbarBackground(Color.lunara(.backgroundBase), for: .tabBar)
                     .toolbarBackgroundVisibility(.visible, for: .tabBar)
-                    .toolbarColorScheme(.dark, for: .tabBar)
                 }
             }
             .environment(\.showNowPlaying, $showNowPlayingSheet)
@@ -126,7 +122,7 @@ struct LibraryRootTabView: View {
                         selectedArtistFromNowPlaying = artist
                     }
                 )
-                .padding(.bottom, 56)
+                .padding(.bottom, 80)
             }
         }
     }

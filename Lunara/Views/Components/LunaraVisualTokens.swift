@@ -72,22 +72,22 @@ enum LunaraVisualTokens {
     // MARK: - Dark mode (unchanged)
 
     private static func darkColorToken(for role: LunaraSemanticColorRole) -> LunaraColorToken {
-        // 90s Retro Pop: navy, hot pink, teal, golden yellow
+        // Cool Blue palette – dark mode
         switch role {
         case .backgroundBase:
-            return LunaraColorToken(red: 0.102, green: 0.102, blue: 0.243, opacity: 1.0)
+            return LunaraColorToken(red: 0.000, green: 0.106, blue: 0.180, opacity: 1.0)
         case .backgroundElevated:
-            return LunaraColorToken(red: 0.165, green: 0.165, blue: 0.322, opacity: 1.0)
+            return LunaraColorToken(red: 0.114, green: 0.247, blue: 0.345, opacity: 1.0)
         case .textPrimary:
-            return LunaraColorToken(red: 0.0, green: 0.788, blue: 0.690, opacity: 1.0)
+            return LunaraColorToken(red: 0.933, green: 0.953, blue: 0.976, opacity: 1.0)
         case .textSecondary:
-            return LunaraColorToken(red: 0.973, green: 0.953, blue: 0.941, opacity: 0.7)
+            return LunaraColorToken(red: 0.702, green: 0.804, blue: 0.894, opacity: 0.7)
         case .accentPrimary:
-            return LunaraColorToken(red: 0.910, green: 0.192, blue: 0.541, opacity: 1.0)
+            return LunaraColorToken(red: 0.702, green: 0.804, blue: 0.894, opacity: 1.0)
         case .accentOnAccent:
-            return LunaraColorToken(red: 1.0, green: 1.0, blue: 1.0, opacity: 1.0)
+            return LunaraColorToken(red: 0.000, green: 0.106, blue: 0.180, opacity: 1.0)
         case .borderSubtle:
-            return LunaraColorToken(red: 0.941, green: 0.784, blue: 0.235, opacity: 0.50)
+            return LunaraColorToken(red: 0.325, green: 0.463, blue: 0.573, opacity: 0.4)
         }
     }
 
@@ -97,22 +97,22 @@ enum LunaraVisualTokens {
     static func lightColorToken(for role: LunaraSemanticColorRole, preset: LunaraColorPreset) -> LunaraColorToken {
         switch preset {
         case .oliveGrove:
-            // 90s Retro Pop: navy, hot pink, teal, golden yellow
+            // Cool Blue palette – light mode
             switch role {
             case .backgroundBase:
-                return LunaraColorToken(red: 0.102, green: 0.102, blue: 0.243, opacity: 1.0)
+                return LunaraColorToken(red: 0.933, green: 0.953, blue: 0.976, opacity: 1.0)
             case .backgroundElevated:
-                return LunaraColorToken(red: 0.165, green: 0.165, blue: 0.322, opacity: 1.0)
-            case .textPrimary:
-                return LunaraColorToken(red: 0.0, green: 0.788, blue: 0.690, opacity: 1.0)
-            case .textSecondary:
-                return LunaraColorToken(red: 0.973, green: 0.953, blue: 0.941, opacity: 0.7)
-            case .accentPrimary:
-                return LunaraColorToken(red: 0.910, green: 0.192, blue: 0.541, opacity: 1.0)
-            case .accentOnAccent:
                 return LunaraColorToken(red: 1.0, green: 1.0, blue: 1.0, opacity: 1.0)
+            case .textPrimary:
+                return LunaraColorToken(red: 0.000, green: 0.106, blue: 0.180, opacity: 1.0)
+            case .textSecondary:
+                return LunaraColorToken(red: 0.114, green: 0.247, blue: 0.345, opacity: 0.7)
+            case .accentPrimary:
+                return LunaraColorToken(red: 0.114, green: 0.247, blue: 0.345, opacity: 1.0)
+            case .accentOnAccent:
+                return LunaraColorToken(red: 0.933, green: 0.953, blue: 0.976, opacity: 1.0)
             case .borderSubtle:
-                return LunaraColorToken(red: 0.941, green: 0.784, blue: 0.235, opacity: 0.50)
+                return LunaraColorToken(red: 0.325, green: 0.463, blue: 0.573, opacity: 0.3)
             }
         }
     }

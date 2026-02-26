@@ -22,18 +22,31 @@ struct LunaraApp: App {
 
     }
 
+    @State private var isLaunching = true
+
     var body: some Scene {
         WindowGroup {
-            Group {
-                if coordinator.isSignedIn {
-                    LibraryRootTabView(coordinator: coordinator)
-                } else {
-                    SignInView(coordinator: coordinator)
+            ZStack {
+                Group {
+                    if coordinator.isSignedIn {
+                        LibraryRootTabView(coordinator: coordinator)
+                    } else {
+                        SignInView(coordinator: coordinator)
+                    }
+                }
+
+                if isLaunching {
+                    LaunchScreenView()
+                        .transition(.opacity)
                 }
             }
             .id(colorSchemeManager.refreshToken)
             .environment(colorSchemeManager)
-            .preferredColorScheme(.dark)
+            .task {
+                withAnimation(.easeOut(duration: 0.4)) {
+                    isLaunching = false
+                }
+            }
             .onOpenURL { url in
                 guard url.scheme == "lunara", url.host == "lastfm-callback" else { return }
                 Task {
@@ -66,9 +79,15 @@ final class SceneDelegate: NSObject, UIWindowSceneDelegate {
         // Set early so the iOS 26 Liquid Glass tab bar pill inherits
         // the linen background color rather than white.
         windowScene.windows.forEach { window in
-            // Use a very dark olive so the Liquid Glass tab bar pill
-            // reads dark content behind it and renders with a dark tint.
-            window.backgroundColor = UIColor(red: 0.06, green: 0.06, blue: 0.15, alpha: 1.0)
+            // Adapt the window background so the Liquid Glass tab bar
+            // pill picks up the correct tint in both light and dark mode.
+            window.backgroundColor = UIColor { traits in
+                if traits.userInterfaceStyle == .dark {
+                    return UIColor(red: 0.0, green: 0.106, blue: 0.180, alpha: 1.0)
+                } else {
+                    return UIColor(red: 0.933, green: 0.953, blue: 0.976, alpha: 1.0)
+                }
+            }
         }
     }
 }
