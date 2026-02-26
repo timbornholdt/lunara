@@ -36,6 +36,7 @@ private struct LunaraLinenBackgroundModifier: ViewModifier {
                     .overlay {
                         LunaraLinenOverlay()
                     }
+                    .ignoresSafeArea()
             }
     }
 }
