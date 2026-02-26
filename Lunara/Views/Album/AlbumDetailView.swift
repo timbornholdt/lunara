@@ -16,7 +16,7 @@ struct AlbumDetailView: View {
                 .ignoresSafeArea()
                 .animation(.easeInOut(duration: 0.4), value: viewModel.palette)
 
-            ScrollView {
+            ScrollView(.vertical, showsIndicators: true) {
                 VStack(alignment: .leading, spacing: AlbumDetailLayout.sectionSpacing) {
                     headerCard
                     trackList
@@ -113,7 +113,7 @@ struct AlbumDetailView: View {
 
             if let artworkURL = viewModel.artworkURL {
                 AsyncImage(url: artworkURL) { image in
-                    image.resizable().scaledToFill()
+                    image.resizable().scaledToFit()
                 } placeholder: {
                     ProgressView()
                 }
