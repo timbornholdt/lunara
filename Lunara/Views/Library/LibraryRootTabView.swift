@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 struct LibraryRootTabView: View {
-    private enum Tab: Hashable {
+    private enum TabID: Hashable {
         case collections
         case albums
         case artists
@@ -12,7 +12,7 @@ struct LibraryRootTabView: View {
     let coordinator: AppCoordinator
     let tabBarTheme: LunaraTabBarTheme
 
-    @State private var selectedTab: Tab = .collections
+    @State private var selectedTab: TabID = .collections
     @State private var selectedAlbumFromNowPlaying: Album?
     @State private var selectedArtistFromNowPlaying: Artist?
     @State private var nowPlayingBarViewModel: NowPlayingBarViewModel
@@ -46,65 +46,69 @@ struct LibraryRootTabView: View {
                 .ignoresSafeArea()
 
             TabView(selection: $selectedTab) {
-                CollectionsListView(
-                    viewModel: CollectionsListViewModel(
-                        library: coordinator.libraryRepo,
-                        artworkPipeline: coordinator.artworkPipeline,
-                        actions: coordinator,
-                        downloadManager: coordinator.downloadManager,
-                        offlineStore: coordinator.offlineStore
+                Tab("Collections", systemImage: "rectangle.stack", value: TabID.collections) {
+                    CollectionsListView(
+                        viewModel: CollectionsListViewModel(
+                            library: coordinator.libraryRepo,
+                            artworkPipeline: coordinator.artworkPipeline,
+                            actions: coordinator,
+                            downloadManager: coordinator.downloadManager,
+                            offlineStore: coordinator.offlineStore
+                        )
                     )
-                )
-                .tabItem {
-                    Label("Collections", systemImage: "rectangle.stack")
+                    .toolbarBackground(Color(red: 0.12, green: 0.13, blue: 0.04), for: .tabBar)
+                    .toolbarBackgroundVisibility(.visible, for: .tabBar)
+                    .toolbarColorScheme(.dark, for: .tabBar)
                 }
-                .tag(Tab.collections)
 
-                LibraryGridView(
-                    viewModel: LibraryGridViewModel(
-                        library: coordinator.libraryRepo,
-                        artworkPipeline: coordinator.artworkPipeline,
-                        actions: coordinator,
-                        downloadManager: coordinator.downloadManager
-                    ),
-                    backgroundRefreshSuccessToken: coordinator.backgroundRefreshSuccessToken,
-                    backgroundRefreshFailureToken: coordinator.backgroundRefreshFailureToken,
-                    backgroundRefreshErrorMessage: coordinator.lastBackgroundRefreshErrorMessage,
-                    externalSelectedAlbum: $selectedAlbumFromNowPlaying
-                )
-                .tabItem {
-                    Label("Albums", systemImage: "square.grid.2x2")
-                }
-                .tag(Tab.albums)
-
-                ArtistsListView(
-                    viewModel: ArtistsListViewModel(
-                        library: coordinator.libraryRepo,
-                        artworkPipeline: coordinator.artworkPipeline,
-                        actions: coordinator,
-                        downloadManager: coordinator.downloadManager
-                    ),
-                    externalSelectedArtist: $selectedArtistFromNowPlaying
-                )
-                    .tabItem {
-                        Label("Artists", systemImage: "music.mic")
-                    }
-                    .tag(Tab.artists)
-
-                SettingsView(
-                    viewModel: SettingsViewModel(
-                        offlineStore: coordinator.offlineStore,
-                        downloadManager: coordinator.downloadManager,
-                        library: coordinator.libraryRepo,
-                        signOutAction: { coordinator.signOut() },
-                        lastFMAuthManager: coordinator.lastFMAuthManager,
-                        scrobbleManager: coordinator.scrobbleManager
+                Tab("Albums", systemImage: "square.grid.2x2", value: TabID.albums) {
+                    LibraryGridView(
+                        viewModel: LibraryGridViewModel(
+                            library: coordinator.libraryRepo,
+                            artworkPipeline: coordinator.artworkPipeline,
+                            actions: coordinator,
+                            downloadManager: coordinator.downloadManager
+                        ),
+                        backgroundRefreshSuccessToken: coordinator.backgroundRefreshSuccessToken,
+                        backgroundRefreshFailureToken: coordinator.backgroundRefreshFailureToken,
+                        backgroundRefreshErrorMessage: coordinator.lastBackgroundRefreshErrorMessage,
+                        externalSelectedAlbum: $selectedAlbumFromNowPlaying
                     )
-                )
-                .tabItem {
-                    Label("Settings", systemImage: "gearshape")
+                    .toolbarBackground(Color(red: 0.12, green: 0.13, blue: 0.04), for: .tabBar)
+                    .toolbarBackgroundVisibility(.visible, for: .tabBar)
+                    .toolbarColorScheme(.dark, for: .tabBar)
                 }
-                .tag(Tab.settings)
+
+                Tab("Artists", systemImage: "music.mic", value: TabID.artists) {
+                    ArtistsListView(
+                        viewModel: ArtistsListViewModel(
+                            library: coordinator.libraryRepo,
+                            artworkPipeline: coordinator.artworkPipeline,
+                            actions: coordinator,
+                            downloadManager: coordinator.downloadManager
+                        ),
+                        externalSelectedArtist: $selectedArtistFromNowPlaying
+                    )
+                    .toolbarBackground(Color(red: 0.12, green: 0.13, blue: 0.04), for: .tabBar)
+                    .toolbarBackgroundVisibility(.visible, for: .tabBar)
+                    .toolbarColorScheme(.dark, for: .tabBar)
+                }
+
+                Tab("Settings", systemImage: "gearshape", value: TabID.settings) {
+                    SettingsView(
+                        viewModel: SettingsViewModel(
+                            offlineStore: coordinator.offlineStore,
+                            downloadManager: coordinator.downloadManager,
+                            library: coordinator.libraryRepo,
+                            signOutAction: { coordinator.signOut() },
+                            lastFMAuthManager: coordinator.lastFMAuthManager,
+                            scrobbleManager: coordinator.scrobbleManager
+                        )
+                    )
+                    .toolbarBackground(Color(red: 0.12, green: 0.13, blue: 0.04), for: .tabBar)
+                    .toolbarBackgroundVisibility(.visible, for: .tabBar)
+                    .toolbarColorScheme(.dark, for: .tabBar)
+                }
             }
             .environment(\.showNowPlaying, $showNowPlayingSheet)
             .tint(Color.lunara(tabBarTheme.selectedTintRole))

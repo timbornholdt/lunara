@@ -13,11 +13,13 @@ struct LunaraApp: App {
 
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @State private var coordinator: AppCoordinator
+    @State private var colorSchemeManager = ColorSchemeManager()
 
     init() {
         let coord = AppCoordinator()
         _coordinator = State(initialValue: coord)
         AppCoordinator.shared = coord
+
     }
 
     var body: some Scene {
@@ -29,6 +31,9 @@ struct LunaraApp: App {
                     SignInView(coordinator: coordinator)
                 }
             }
+            .id(colorSchemeManager.refreshToken)
+            .environment(colorSchemeManager)
+            .preferredColorScheme(.dark)
             .onOpenURL { url in
                 guard url.scheme == "lunara", url.host == "lastfm-callback" else { return }
                 Task {
@@ -61,7 +66,9 @@ final class SceneDelegate: NSObject, UIWindowSceneDelegate {
         // Set early so the iOS 26 Liquid Glass tab bar pill inherits
         // the linen background color rather than white.
         windowScene.windows.forEach { window in
-            window.backgroundColor = UIColor.lunara(.backgroundBase)
+            // Use a very dark olive so the Liquid Glass tab bar pill
+            // reads dark content behind it and renders with a dark tint.
+            window.backgroundColor = UIColor(red: 0.06, green: 0.06, blue: 0.15, alpha: 1.0)
         }
     }
 }

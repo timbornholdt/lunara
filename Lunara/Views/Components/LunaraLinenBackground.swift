@@ -6,7 +6,7 @@ private struct LunaraLinenOverlay: View {
         VStack(spacing: token.horizontalLineSpacing) {
             ForEach(0..<160, id: \.self) { index in
                 Rectangle()
-                    .fill(.white.opacity(index.isMultiple(of: 2) ? token.horizontalOpacity : token.horizontalOpacity * 0.3))
+                    .fill(Color.lunara(.accentOnAccent).opacity(index.isMultiple(of: 2) ? token.horizontalOpacity : token.horizontalOpacity * 0.3))
                     .frame(height: 0.5)
             }
         }
@@ -14,7 +14,7 @@ private struct LunaraLinenOverlay: View {
             HStack(spacing: token.verticalLineSpacing) {
                 ForEach(0..<100, id: \.self) { index in
                     Rectangle()
-                        .fill(.white.opacity(index.isMultiple(of: 3) ? token.verticalOpacity : token.verticalOpacity * 0.25))
+                        .fill(Color.lunara(.accentOnAccent).opacity(index.isMultiple(of: 3) ? token.verticalOpacity : token.verticalOpacity * 0.25))
                         .frame(width: 0.5)
                 }
             }

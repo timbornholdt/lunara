@@ -57,72 +57,66 @@ struct LunaraLinenToken: Equatable {
 
 enum LunaraVisualTokens {
     static func colorToken(for role: LunaraSemanticColorRole, in scheme: ColorScheme) -> LunaraColorToken {
+        switch scheme {
+        case .dark:
+            return darkColorToken(for: role)
+        case .light:
+            let preset = ColorSchemeSettings.load().preset
+            return lightColorToken(for: role, preset: preset)
+        @unknown default:
+            let preset = ColorSchemeSettings.load().preset
+            return lightColorToken(for: role, preset: preset)
+        }
+    }
+
+    // MARK: - Dark mode (unchanged)
+
+    private static func darkColorToken(for role: LunaraSemanticColorRole) -> LunaraColorToken {
+        // 90s Retro Pop: navy, hot pink, teal, golden yellow
         switch role {
         case .backgroundBase:
-            switch scheme {
-            case .light:
-                return LunaraColorToken(red: 0.960, green: 0.949, blue: 0.863, opacity: 1.0)
-            case .dark:
-                return LunaraColorToken(red: 0.094, green: 0.114, blue: 0.086, opacity: 1.0)
-            @unknown default:
-                return LunaraColorToken(red: 0.960, green: 0.949, blue: 0.863, opacity: 1.0)
-            }
+            return LunaraColorToken(red: 0.102, green: 0.102, blue: 0.243, opacity: 1.0)
         case .backgroundElevated:
-            switch scheme {
-            case .light:
-                return LunaraColorToken(red: 0.985, green: 0.968, blue: 0.807, opacity: 1.0)
-            case .dark:
-                return LunaraColorToken(red: 0.156, green: 0.196, blue: 0.122, opacity: 1.0)
-            @unknown default:
-                return LunaraColorToken(red: 0.985, green: 0.968, blue: 0.807, opacity: 1.0)
-            }
+            return LunaraColorToken(red: 0.165, green: 0.165, blue: 0.322, opacity: 1.0)
         case .textPrimary:
-            switch scheme {
-            case .light:
-                return LunaraColorToken(red: 0.153, green: 0.204, blue: 0.133, opacity: 1.0)
-            case .dark:
-                return LunaraColorToken(red: 0.960, green: 0.951, blue: 0.834, opacity: 1.0)
-            @unknown default:
-                return LunaraColorToken(red: 0.153, green: 0.204, blue: 0.133, opacity: 1.0)
-            }
+            return LunaraColorToken(red: 0.0, green: 0.788, blue: 0.690, opacity: 1.0)
         case .textSecondary:
-            switch scheme {
-            case .light:
-                return LunaraColorToken(red: 0.322, green: 0.384, blue: 0.251, opacity: 1.0)
-            case .dark:
-                return LunaraColorToken(red: 0.780, green: 0.773, blue: 0.639, opacity: 1.0)
-            @unknown default:
-                return LunaraColorToken(red: 0.322, green: 0.384, blue: 0.251, opacity: 1.0)
-            }
+            return LunaraColorToken(red: 0.973, green: 0.953, blue: 0.941, opacity: 0.7)
         case .accentPrimary:
-            switch scheme {
-            case .light:
-                return LunaraColorToken(red: 0.412, green: 0.557, blue: 0.239, opacity: 1.0)
-            case .dark:
-                return LunaraColorToken(red: 0.807, green: 0.702, blue: 0.322, opacity: 1.0)
-            @unknown default:
-                return LunaraColorToken(red: 0.412, green: 0.557, blue: 0.239, opacity: 1.0)
-            }
+            return LunaraColorToken(red: 0.910, green: 0.192, blue: 0.541, opacity: 1.0)
         case .accentOnAccent:
-            switch scheme {
-            case .light:
-                return LunaraColorToken(red: 0.989, green: 0.983, blue: 0.914, opacity: 1.0)
-            case .dark:
-                return LunaraColorToken(red: 0.129, green: 0.157, blue: 0.098, opacity: 1.0)
-            @unknown default:
-                return LunaraColorToken(red: 0.989, green: 0.983, blue: 0.914, opacity: 1.0)
-            }
+            return LunaraColorToken(red: 1.0, green: 1.0, blue: 1.0, opacity: 1.0)
         case .borderSubtle:
-            switch scheme {
-            case .light:
-                return LunaraColorToken(red: 0.573, green: 0.647, blue: 0.431, opacity: 0.52)
-            case .dark:
-                return LunaraColorToken(red: 0.686, green: 0.729, blue: 0.518, opacity: 0.58)
-            @unknown default:
-                return LunaraColorToken(red: 0.573, green: 0.647, blue: 0.431, opacity: 0.52)
+            return LunaraColorToken(red: 0.941, green: 0.784, blue: 0.235, opacity: 0.50)
+        }
+    }
+
+    // MARK: - Light mode presets
+
+    // swiftlint:disable cyclomatic_complexity
+    static func lightColorToken(for role: LunaraSemanticColorRole, preset: LunaraColorPreset) -> LunaraColorToken {
+        switch preset {
+        case .oliveGrove:
+            // 90s Retro Pop: navy, hot pink, teal, golden yellow
+            switch role {
+            case .backgroundBase:
+                return LunaraColorToken(red: 0.102, green: 0.102, blue: 0.243, opacity: 1.0)
+            case .backgroundElevated:
+                return LunaraColorToken(red: 0.165, green: 0.165, blue: 0.322, opacity: 1.0)
+            case .textPrimary:
+                return LunaraColorToken(red: 0.0, green: 0.788, blue: 0.690, opacity: 1.0)
+            case .textSecondary:
+                return LunaraColorToken(red: 0.973, green: 0.953, blue: 0.941, opacity: 0.7)
+            case .accentPrimary:
+                return LunaraColorToken(red: 0.910, green: 0.192, blue: 0.541, opacity: 1.0)
+            case .accentOnAccent:
+                return LunaraColorToken(red: 1.0, green: 1.0, blue: 1.0, opacity: 1.0)
+            case .borderSubtle:
+                return LunaraColorToken(red: 0.941, green: 0.784, blue: 0.235, opacity: 0.50)
             }
         }
     }
+    // swiftlint:enable cyclomatic_complexity
 
     static func colorToken(for role: LunaraSemanticColorRole) -> LunaraColorToken {
         colorToken(for: role, in: .light)

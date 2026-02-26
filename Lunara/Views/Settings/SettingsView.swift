@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @State private var viewModel: SettingsViewModel
+    @Environment(ColorSchemeManager.self) private var colorSchemeManager
 
     init(viewModel: SettingsViewModel) {
         _viewModel = State(initialValue: viewModel)
@@ -33,6 +34,52 @@ struct SettingsView: View {
 
     // MARK: - Sections
 
+    private var appearanceSection: some View {
+        Section("Appearance") {
+            ForEach(LunaraColorPreset.allCases, id: \.self) { preset in
+                Button {
+                    colorSchemeManager.preset = preset
+                } label: {
+                    HStack(spacing: 12) {
+                        colorSwatch(for: preset)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(preset.displayName)
+                                .foregroundStyle(Color.lunara(.textPrimary))
+                            Text(preset.description)
+                                .font(.caption)
+                                .foregroundStyle(Color.lunara(.textSecondary))
+                        }
+                        Spacer()
+                        if preset == colorSchemeManager.preset {
+                            Image(systemName: "checkmark")
+                                .foregroundStyle(Color.lunara(.accentPrimary))
+                                .fontWeight(.semibold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func colorSwatch(for preset: LunaraColorPreset) -> some View {
+        let bg = LunaraVisualTokens.lightColorToken(for: .backgroundBase, preset: preset)
+        let accent = LunaraVisualTokens.lightColorToken(for: .accentPrimary, preset: preset)
+        let text = LunaraVisualTokens.lightColorToken(for: .textPrimary, preset: preset)
+
+        return HStack(spacing: 2) {
+            RoundedRectangle(cornerRadius: 3)
+                .fill(Color(red: bg.red, green: bg.green, blue: bg.blue))
+                .frame(width: 10, height: 28)
+            RoundedRectangle(cornerRadius: 3)
+                .fill(Color(red: accent.red, green: accent.green, blue: accent.blue))
+                .frame(width: 10, height: 28)
+            RoundedRectangle(cornerRadius: 3)
+                .fill(Color(red: text.red, green: text.green, blue: text.blue))
+                .frame(width: 10, height: 28)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 5))
+    }
+
     private var storageSection: some View {
         Section("Offline Storage") {
             VStack(alignment: .leading, spacing: 8) {
@@ -59,7 +106,7 @@ struct SettingsView: View {
                 Text("Used")
                 Spacer()
                 Text("\(viewModel.formattedUsage) of \(viewModel.formattedLimit)")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.lunara(.textSecondary))
             }
         }
     }
@@ -68,7 +115,7 @@ struct SettingsView: View {
         Section("Synced Collections") {
             if viewModel.syncedCollections.isEmpty {
                 Text("No synced collections")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.lunara(.textSecondary))
             } else {
                 ForEach(viewModel.syncedCollections, id: \.collectionID) { entry in
                     HStack {
@@ -77,7 +124,7 @@ struct SettingsView: View {
                                 .lineLimit(1)
                             Text("\(entry.albumCount) albums")
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.lunara(.textSecondary))
                         }
                         Spacer()
                     }
@@ -114,7 +161,7 @@ struct SettingsView: View {
         Section("Downloaded Albums") {
             if viewModel.downloadedAlbums.isEmpty {
                 Text("No downloaded albums")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.lunara(.textSecondary))
             } else {
                 ForEach(viewModel.downloadedAlbums, id: \.albumID) { entry in
                     downloadedAlbumRow(entry)
@@ -141,7 +188,7 @@ struct SettingsView: View {
                     .lineLimit(1)
                 Text(entry.album?.artistName ?? "Unknown Artist")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.lunara(.textSecondary))
                     .lineLimit(1)
             }
             Spacer()
@@ -158,7 +205,7 @@ struct SettingsView: View {
                     .frame(width: 60)
                 Text("\(completed)/\(total)")
                     .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.lunara(.textSecondary))
             }
         case .failed(let message):
             Text(message)
@@ -167,7 +214,7 @@ struct SettingsView: View {
         default:
             Text(ByteCountFormatter.string(fromByteCount: sizeBytes, countStyle: .file))
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.lunara(.textSecondary))
         }
     }
 
@@ -178,7 +225,7 @@ struct SettingsView: View {
                     Text("Connected")
                     Spacer()
                     Text(viewModel.lastFMUsername ?? "")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.lunara(.textSecondary))
                 }
 
                 Toggle(
