@@ -130,7 +130,7 @@ struct CollectionDetailView: View {
                 Spacer()
                 Image(systemName: "exclamationmark.triangle")
                     .font(.system(size: 44))
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Color.lunara(.accentPrimary))
                 Text(message)
                     .foregroundStyle(Color.lunara(.textSecondary))
                     .multilineTextAlignment(.center)

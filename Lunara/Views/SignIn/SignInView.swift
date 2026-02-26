@@ -26,7 +26,7 @@ struct SignInView: View {
                     .font(.system(size: 48, weight: .light, design: .serif))
                 Text("Sign in with Plex")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.lunara(.textSecondary))
             }
 
             Spacer()
@@ -60,7 +60,7 @@ struct SignInView: View {
                 if isLoading {
                     ProgressView()
                         .progressViewStyle(.circular)
-                        .tint(.white)
+                        .tint(Color.lunara(.accentOnAccent))
                 } else {
                     Text("Sign In with Plex")
                 }
@@ -73,7 +73,7 @@ struct SignInView: View {
             if hasLocalConfig {
                 Text("LocalConfig.plist detected")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.lunara(.textSecondary))
             }
         }
     }
@@ -91,17 +91,17 @@ struct SignInView: View {
                 Text(code)
                     .font(.system(size: 56, weight: .bold, design: .monospaced))
                     .tracking(8)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(Color.lunara(.textPrimary))
                     .padding()
                     .background(
                         RoundedRectangle(cornerRadius: 12)
-                            .fill(Color(.systemGray6))
+                            .fill(Color.lunara(.backgroundElevated))
                     )
             }
 
             Text("Waiting for authorization...")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.lunara(.textSecondary))
 
             ProgressView()
                 .progressViewStyle(.circular)
@@ -113,7 +113,7 @@ struct SignInView: View {
             ProgressView()
                 .progressViewStyle(.circular)
             Text("Authorizing...")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.lunara(.textSecondary))
         }
     }
 
@@ -121,11 +121,11 @@ struct SignInView: View {
         VStack(spacing: 20) {
             Image(systemName: "exclamationmark.triangle")
                 .font(.system(size: 48))
-                .foregroundStyle(.orange)
+                .foregroundStyle(Color.lunara(.accentPrimary))
 
             Text(message)
                 .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.lunara(.textSecondary))
 
             Button("Try Again") {
                 authState = .initial
