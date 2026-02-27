@@ -303,9 +303,14 @@ struct AlbumDetailView: View {
     private var metadataSections: some View {
         if let review = viewModel.review {
             sectionCard(title: "Review") {
-                Text(review)
-                    .font(AlbumDetailTypography.font(for: .reviewBody))
-                    .foregroundStyle(viewModel.palette.textPrimary)
+                let token = AlbumDetailTypography.token(for: .reviewBody)
+                let uiFont = UIFont(name: token.preferredFontName, size: token.size)
+                    ?? UIFont.systemFont(ofSize: token.size)
+                SelectableText(
+                    text: review,
+                    font: uiFont,
+                    textColor: UIColor(viewModel.palette.textPrimary)
+                )
             }
         }
 
