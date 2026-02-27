@@ -31,6 +31,7 @@ final class ScrobbleManager {
     private var lastPlaybackState: PlaybackState = .idle
     private var lastStateChangeTime: Date?
 
+    @ObservationIgnored
     private nonisolated(unsafe) var observationTask: Task<Void, Never>?
 
     init(

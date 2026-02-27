@@ -165,8 +165,7 @@ final class DownloadManager: DownloadManagerProtocol {
             }
 
             // Check if already downloaded
-            if let existingURL = try? await offlineStore.localFileURL(forTrackID: track.plexID),
-               existingURL != nil {
+            if let _ = try? await offlineStore.localFileURL(forTrackID: track.plexID) {
                 albumStates[albumID] = .downloading(completedTracks: index + 1, totalTracks: totalTracks)
                 continue
             }
@@ -242,16 +241,16 @@ final class DownloadManager: DownloadManagerProtocol {
 
     private nonisolated func isOnWifi() -> Bool {
         let semaphore = DispatchSemaphore(value: 0)
-        var result = false
+        let result = OSAllocatedUnfairLock(initialState: false)
         let monitor = NWPathMonitor()
         monitor.pathUpdateHandler = { path in
-            result = path.usesInterfaceType(.wifi)
+            result.withLock { $0 = path.usesInterfaceType(.wifi) }
             semaphore.signal()
         }
         let queue = DispatchQueue(label: "holdings.chinlock.lunara.wifi-check")
         monitor.start(queue: queue)
         semaphore.wait()
         monitor.cancel()
-        return result
+        return result.withLock { $0 }
     }
 }

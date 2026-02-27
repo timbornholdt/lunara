@@ -11,8 +11,9 @@ actor ScrobbleQueue {
         let dir = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
             .appendingPathComponent("Lunara", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        self.fileURL = dir.appendingPathComponent("pending_scrobbles.json")
-        loadFromDisk()
+        let url = dir.appendingPathComponent("pending_scrobbles.json")
+        self.fileURL = url
+        self.entries = Self.loadEntriesFromDisk(fileURL: url, logger: logger)
     }
 
     var pendingCount: Int { entries.count }
@@ -41,15 +42,16 @@ actor ScrobbleQueue {
 
     // MARK: - Persistence
 
-    private func loadFromDisk() {
-        guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
+    private static func loadEntriesFromDisk(fileURL: URL, logger: Logger) -> [ScrobbleEntry] {
+        guard FileManager.default.fileExists(atPath: fileURL.path) else { return [] }
         do {
             let data = try Data(contentsOf: fileURL)
-            entries = try JSONDecoder().decode([ScrobbleEntry].self, from: data)
-            logger.info("Loaded \(self.entries.count) pending scrobbles from disk")
+            let loaded = try JSONDecoder().decode([ScrobbleEntry].self, from: data)
+            logger.info("Loaded \(loaded.count) pending scrobbles from disk")
+            return loaded
         } catch {
             logger.error("Failed to load scrobble queue: \(error.localizedDescription, privacy: .public)")
-            entries = []
+            return []
         }
     }
 

@@ -7,7 +7,9 @@ extension LibraryStore {
             for album in albums {
                 try AlbumRecord(model: album).save(db)
             }
-            try LibraryStore.reconcileAlbumTags(for: albums, in: run, db: db)
+            try MainActor.assumeIsolated {
+                try LibraryStore.reconcileAlbumTags(for: albums, in: run, db: db)
+            }
         }
     }
 
@@ -276,3 +278,4 @@ private struct TagIdentity: Hashable {
     let kind: LibraryTagKind
     let normalizedName: String
 }
+
