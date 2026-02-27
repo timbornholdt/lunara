@@ -27,6 +27,7 @@ protocol LibraryRemoteDataSource: AnyObject {
     func fetchAlbumsByTag(kind: LibraryTagKind, value: String) async throws -> [Album]
     func streamURL(forTrack track: Track) async throws -> URL
     func authenticatedArtworkURL(for rawValue: String?) async throws -> URL?
+    func fetchLoudnessLevels(trackID: String, sampleCount: Int) async throws -> [Float]?
 }
 
 extension PlexAPIClient: LibraryRemoteDataSource { }
@@ -205,5 +206,9 @@ final class LibraryRepo: LibraryRepoProtocol {
         } catch {
             throw LibraryError.operationFailed(reason: "Artwork URL resolution failed: \(error.localizedDescription)")
         }
+    }
+
+    func fetchLoudnessLevels(trackID: String) async throws -> [Float]? {
+        try await remote.fetchLoudnessLevels(trackID: trackID, sampleCount: 128)
     }
 }

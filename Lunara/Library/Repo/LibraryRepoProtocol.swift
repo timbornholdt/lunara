@@ -75,9 +75,12 @@ protocol LibraryRepoProtocol: AnyObject {
 
     func streamURL(for track: Track) async throws -> URL
     func authenticatedArtworkURL(for rawValue: String?) async throws -> URL?
+    func fetchLoudnessLevels(trackID: String) async throws -> [Float]?
 }
 
 extension LibraryRepoProtocol {
+    func fetchLoudnessLevels(trackID: String) async throws -> [Float]? { nil }
+
     /// Convenience helper for callers that still need a full in-memory list.
     /// Fetches paginated data and preserves thrown errors from any page read.
     func fetchAlbums(pageSize: Int = 200) async throws -> [Album] {
@@ -208,4 +211,7 @@ extension PlexAPIClient: LibraryRepoProtocol {
         try await streamURL(forTrack: track)
     }
 
+    func fetchLoudnessLevels(trackID: String) async throws -> [Float]? {
+        try await fetchLoudnessLevels(trackID: trackID)
+    }
 }

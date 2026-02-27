@@ -63,6 +63,7 @@ final class NowPlayingQueueMock: QueueManagerProtocol {
     func resume() { resumeCallCount += 1 }
     func skipToNext() { skipToNextCallCount += 1 }
     func skipBack() { skipBackCallCount += 1 }
+    func skipTo(index: Int) {}
     func clear() { clearCallCount += 1 }
     func reconcile(removingTrackIDs: Set<String>) {}
 }

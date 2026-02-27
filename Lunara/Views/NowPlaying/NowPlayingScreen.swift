@@ -72,11 +72,12 @@ struct NowPlayingScreen: View {
 
     private var trackInfoSection: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(viewModel.trackTitle ?? "Not Playing")
-                .font(titleFont())
-                .foregroundStyle(viewModel.palette.textPrimary)
-                .lineLimit(2)
-                .animation(.easeInOut(duration: 0.4), value: viewModel.palette)
+            MarqueeText(
+                text: viewModel.trackTitle ?? "Not Playing",
+                font: titleFont(),
+                foregroundStyle: viewModel.palette.textPrimary
+            )
+            .animation(.easeInOut(duration: 0.4), value: viewModel.palette)
 
             if let artist = viewModel.artistName {
                 Button {
@@ -168,6 +169,10 @@ struct NowPlayingScreen: View {
                 LazyVStack(spacing: 8) {
                     ForEach(viewModel.upNextItems) { item in
                         upNextRow(item)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                viewModel.skipToQueueItem(item)
+                            }
                     }
                 }
             }
@@ -277,23 +282,17 @@ private struct NowPlayingSeekBar: View {
 
     var body: some View {
         VStack(spacing: 4) {
-            Slider(
-                value: Binding(
-                    get: { isSeeking ? seekTime : viewModel.elapsed },
-                    set: { newValue in
-                        isSeeking = true
-                        seekTime = newValue
-                    }
-                ),
-                in: 0...max(viewModel.duration, 1),
-                onEditingChanged: { editing in
-                    if !editing {
-                        viewModel.commitSeek(to: seekTime)
-                        isSeeking = false
-                    }
-                }
-            )
-            .tint(viewModel.palette.accent)
+            if let levels = viewModel.waveformLevels, !levels.isEmpty {
+                waveformSeekBar(levels: levels)
+            } else {
+                Slider(
+                    value: seekBinding,
+                    in: 0...max(viewModel.duration, 1),
+                    onEditingChanged: handleSeekChange
+                )
+                .tint(viewModel.palette.accent)
+                .frame(height: 40)
+            }
 
             HStack {
                 Text(formatTime(isSeeking ? seekTime : viewModel.elapsed))
@@ -305,6 +304,52 @@ private struct NowPlayingSeekBar: View {
                     .foregroundStyle(viewModel.palette.textSecondary)
             }
         }
+    }
+
+    private var seekBinding: Binding<TimeInterval> {
+        Binding(
+            get: { isSeeking ? seekTime : viewModel.elapsed },
+            set: { newValue in
+                isSeeking = true
+                seekTime = newValue
+            }
+        )
+    }
+
+    private func handleSeekChange(_ editing: Bool) {
+        if !editing {
+            viewModel.commitSeek(to: seekTime)
+            isSeeking = false
+        }
+    }
+
+    private func waveformSeekBar(levels: [Float]) -> some View {
+        let currentTime = isSeeking ? seekTime : viewModel.elapsed
+        let duration = max(viewModel.duration, 1)
+        let progress = currentTime / duration
+
+        return GeometryReader { geo in
+            WaveformView(
+                levels: levels,
+                progress: progress,
+                filledColor: viewModel.palette.textPrimary,
+                unfilledColor: viewModel.palette.textSecondary.opacity(0.3)
+            )
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        isSeeking = true
+                        let fraction = max(0, min(1, value.location.x / geo.size.width))
+                        seekTime = fraction * duration
+                    }
+                    .onEnded { _ in
+                        viewModel.commitSeek(to: seekTime)
+                        isSeeking = false
+                    }
+            )
+        }
+        .frame(height: 40)
     }
 
     private func formatTime(_ time: TimeInterval) -> String {
