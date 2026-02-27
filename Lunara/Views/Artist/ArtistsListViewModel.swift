@@ -23,6 +23,7 @@ final class ArtistsListViewModel {
     private let artworkPipeline: ArtworkPipelineProtocol
     let actions: ArtistsListActionRouting
     private let downloadManager: DownloadManagerProtocol?
+    private let gardenClient: GardenAPIClientProtocol?
 
     var artists: [Artist] = []
     var searchQuery = "" {
@@ -56,12 +57,14 @@ final class ArtistsListViewModel {
         library: LibraryRepoProtocol,
         artworkPipeline: ArtworkPipelineProtocol,
         actions: ArtistsListActionRouting,
-        downloadManager: DownloadManagerProtocol? = nil
+        downloadManager: DownloadManagerProtocol? = nil,
+        gardenClient: GardenAPIClientProtocol? = nil
     ) {
         self.library = library
         self.artworkPipeline = artworkPipeline
         self.actions = actions
         self.downloadManager = downloadManager
+        self.gardenClient = gardenClient
     }
 
     func loadInitialIfNeeded() async {
@@ -87,7 +90,8 @@ final class ArtistsListViewModel {
             library: library,
             artworkPipeline: artworkPipeline,
             actions: actions,
-            downloadManager: downloadManager
+            downloadManager: downloadManager,
+            gardenClient: gardenClient
         )
     }
 

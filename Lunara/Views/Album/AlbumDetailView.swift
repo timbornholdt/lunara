@@ -13,6 +13,7 @@ struct AlbumDetailView: View {
     @Environment(\.showNowPlaying) private var showNowPlaying
     @State private var selectedArtist: Artist?
     @State private var tagFilterNavigation: TagFilterNavigation?
+    @State private var showGardenSheet = false
 
     init(viewModel: AlbumDetailViewModel) {
         _viewModel = State(initialValue: viewModel)
@@ -48,8 +49,27 @@ struct AlbumDetailView: View {
                     .lineLimit(1)
                     .animation(.easeInOut(duration: 0.4), value: viewModel.palette)
             }
+            if viewModel.gardenClient != nil {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showGardenSheet = true
+                    } label: {
+                        Image(systemName: "leaf")
+                            .foregroundStyle(viewModel.palette.textSecondary)
+                    }
+                }
+            }
         }
         .lunaraErrorBanner(using: viewModel.errorBannerState)
+        .sheet(isPresented: $showGardenSheet) {
+            GardenTodoSheet(
+                artistName: viewModel.album.artistName,
+                albumName: viewModel.album.title
+            ) { body in
+                try await viewModel.submitGardenTodo(body: body)
+                viewModel.errorBannerState.show(message: "Todo submitted! 🌱", autoDismissAfter: .seconds(3))
+            }
+        }
         .navigationDestination(item: $selectedArtist) { artist in
             ArtistDetailView(viewModel: viewModel.makeArtistDetailViewModel(for: artist))
         }

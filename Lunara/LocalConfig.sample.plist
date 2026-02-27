@@ -12,5 +12,9 @@
 	<string>YOUR_LASTFM_SHARED_SECRET</string>
 	<key>AUTO_START_AUTH</key>
 	<true/>
+	<key>GARDEN_API_URL</key>
+	<string>https://timbornholdt.com</string>
+	<key>GARDEN_API_KEY</key>
+	<string>YOUR_GARDEN_API_KEY</string>
 </dict>
 </plist>

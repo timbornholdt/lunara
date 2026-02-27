@@ -10,23 +10,23 @@ struct LunaraErrorBanner: View {
             HStack(spacing: 10) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.lunara(.bannerText))
 
                 Text(message)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.lunara(.bannerText))
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 Image(systemName: "xmark")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(.white.opacity(0.9))
+                    .foregroundStyle(Color.lunara(.bannerText).opacity(0.9))
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
             .background(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.red.opacity(0.95))
+                    .fill(Color.lunara(.bannerBackground))
             )
             .shadow(color: .black.opacity(0.18), radius: 8, y: 4)
         }

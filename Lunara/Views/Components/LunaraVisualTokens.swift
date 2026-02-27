@@ -9,6 +9,8 @@ enum LunaraSemanticColorRole: CaseIterable {
     case accentPrimary
     case accentOnAccent
     case borderSubtle
+    case bannerBackground
+    case bannerText
 }
 
 enum LunaraHeadingLevel: CaseIterable {
@@ -88,6 +90,10 @@ enum LunaraVisualTokens {
             return LunaraColorToken(red: 0.000, green: 0.106, blue: 0.180, opacity: 1.0)
         case .borderSubtle:
             return LunaraColorToken(red: 0.325, green: 0.463, blue: 0.573, opacity: 0.4)
+        case .bannerBackground:
+            return LunaraColorToken(red: 0.114, green: 0.247, blue: 0.345, opacity: 0.95)
+        case .bannerText:
+            return LunaraColorToken(red: 0.933, green: 0.953, blue: 0.976, opacity: 1.0)
         }
     }
 
@@ -113,6 +119,10 @@ enum LunaraVisualTokens {
                 return LunaraColorToken(red: 0.933, green: 0.953, blue: 0.976, opacity: 1.0)
             case .borderSubtle:
                 return LunaraColorToken(red: 0.325, green: 0.463, blue: 0.573, opacity: 0.3)
+            case .bannerBackground:
+                return LunaraColorToken(red: 0.114, green: 0.247, blue: 0.345, opacity: 0.9)
+            case .bannerText:
+                return LunaraColorToken(red: 0.933, green: 0.953, blue: 0.976, opacity: 1.0)
             }
         }
     }

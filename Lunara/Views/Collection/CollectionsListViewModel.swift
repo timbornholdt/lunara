@@ -23,6 +23,7 @@ final class CollectionsListViewModel {
     private let artworkPipeline: ArtworkPipelineProtocol
     let actions: CollectionsListActionRouting
     private let downloadManager: DownloadManagerProtocol?
+    private let gardenClient: GardenAPIClientProtocol?
     private let offlineStore: OfflineStoreProtocol?
 
     var collections: [Collection] = []
@@ -60,12 +61,14 @@ final class CollectionsListViewModel {
         artworkPipeline: ArtworkPipelineProtocol,
         actions: CollectionsListActionRouting,
         downloadManager: DownloadManagerProtocol? = nil,
+        gardenClient: GardenAPIClientProtocol? = nil,
         offlineStore: OfflineStoreProtocol? = nil
     ) {
         self.library = library
         self.artworkPipeline = artworkPipeline
         self.actions = actions
         self.downloadManager = downloadManager
+        self.gardenClient = gardenClient
         self.offlineStore = offlineStore
     }
 
@@ -93,6 +96,7 @@ final class CollectionsListViewModel {
             artworkPipeline: artworkPipeline,
             actions: actions,
             downloadManager: downloadManager,
+            gardenClient: gardenClient,
             offlineStore: offlineStore
         )
     }

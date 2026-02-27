@@ -53,6 +53,7 @@ struct LibraryRootTabView: View {
                             artworkPipeline: coordinator.artworkPipeline,
                             actions: coordinator,
                             downloadManager: coordinator.downloadManager,
+                            gardenClient: coordinator.gardenClient,
                             offlineStore: coordinator.offlineStore
                         )
                     )
@@ -66,7 +67,8 @@ struct LibraryRootTabView: View {
                             library: coordinator.libraryRepo,
                             artworkPipeline: coordinator.artworkPipeline,
                             actions: coordinator,
-                            downloadManager: coordinator.downloadManager
+                            downloadManager: coordinator.downloadManager,
+                            gardenClient: coordinator.gardenClient
                         ),
                         backgroundRefreshSuccessToken: coordinator.backgroundRefreshSuccessToken,
                         backgroundRefreshFailureToken: coordinator.backgroundRefreshFailureToken,
@@ -83,7 +85,8 @@ struct LibraryRootTabView: View {
                             library: coordinator.libraryRepo,
                             artworkPipeline: coordinator.artworkPipeline,
                             actions: coordinator,
-                            downloadManager: coordinator.downloadManager
+                            downloadManager: coordinator.downloadManager,
+                            gardenClient: coordinator.gardenClient
                         ),
                         externalSelectedArtist: $selectedArtistFromNowPlaying
                     )
@@ -122,7 +125,7 @@ struct LibraryRootTabView: View {
                         selectedArtistFromNowPlaying = artist
                     }
                 )
-                .padding(.bottom, 80)
+                .padding(.bottom, 52)
             }
         }
     }
