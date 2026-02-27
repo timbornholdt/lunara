@@ -118,6 +118,13 @@ final class QueueManager: QueueManagerProtocol {
         }
     }
 
+    func skipTo(index: Int) {
+        guard items.indices.contains(index) else { return }
+        currentIndex = index
+        pendingSeekAfterNextPlay = nil
+        playCurrentItem()
+    }
+
     func clear() {
         items = []
         currentIndex = nil

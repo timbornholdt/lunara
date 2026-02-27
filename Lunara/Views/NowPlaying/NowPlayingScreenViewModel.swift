@@ -20,9 +20,11 @@ final class NowPlayingScreenViewModel {
     private(set) var upNextItems: [UpNextItem] = []
     private(set) var currentAlbum: Album?
     private(set) var currentArtist: Artist?
+    private(set) var waveformLevels: [Float]?
 
     struct UpNextItem: Identifiable {
         let id: String
+        let queueIndex: Int
         let trackTitle: String
         let artistName: String
         let artworkImage: UIImage?
@@ -40,6 +42,7 @@ final class NowPlayingScreenViewModel {
     private var resolvedTrackID: String?
     private var metadataTask: Task<Void, Never>?
     private var upNextTask: Task<Void, Never>?
+    private var waveformCache: [String: [Float]?] = [:]
 
     // MARK: - Initialization
 
@@ -84,6 +87,10 @@ final class NowPlayingScreenViewModel {
         engine.seek(to: time)
     }
 
+    func skipToQueueItem(_ item: UpNextItem) {
+        queueManager.skipTo(index: item.queueIndex)
+    }
+
     // MARK: - Observation
 
     private func observeQueue() {
@@ -120,6 +127,7 @@ final class NowPlayingScreenViewModel {
             palette = .default
             currentAlbum = nil
             currentArtist = nil
+            waveformLevels = nil
             return
         }
 
@@ -180,6 +188,17 @@ final class NowPlayingScreenViewModel {
             artworkImage = nil
             palette = .default
         }
+
+        // Fetch waveform loudness levels (cache includes nil to avoid re-fetching failures)
+        if let cached = waveformCache[trackID] {
+            waveformLevels = cached
+        } else {
+            waveformLevels = nil
+            let levels = try? await library.fetchLoudnessLevels(trackID: trackID)
+            guard !Task.isCancelled else { return }
+            waveformLevels = levels
+            waveformCache[trackID] = levels
+        }
     }
 
     // MARK: - Up Next Resolution
@@ -205,10 +224,10 @@ final class NowPlayingScreenViewModel {
             return
         }
 
-        let slice = items[startIndex..<endIndex]
+        let slice = Array(zip(startIndex..<endIndex, items[startIndex..<endIndex]))
         var resolved: [UpNextItem] = []
 
-        for item in slice {
+        for (queueIndex, item) in slice {
             guard !Task.isCancelled else { return }
             let track = try? await library.track(id: item.trackID)
             let albumID = track?.albumID ?? item.trackID
@@ -229,6 +248,7 @@ final class NowPlayingScreenViewModel {
             }
             resolved.append(UpNextItem(
                 id: item.trackID,
+                queueIndex: queueIndex,
                 trackTitle: track?.title ?? "Unknown Track",
                 artistName: track?.artistName ?? "Unknown Artist",
                 artworkImage: thumbImage

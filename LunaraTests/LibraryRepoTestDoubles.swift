@@ -130,6 +130,7 @@ final class LibraryRemoteMock: LibraryRemoteDataSource {
     }
 
     func fetchAlbumsByTag(kind: LibraryTagKind, value: String) async throws -> [Album] { [] }
+    func fetchLoudnessLevels(trackID: String, sampleCount: Int) async throws -> [Float]? { nil }
 }
 
 @MainActor
