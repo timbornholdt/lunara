@@ -37,6 +37,7 @@ final class TagFilterViewModel {
     private let artworkPipeline: ArtworkPipelineProtocol
     private let actions: TagFilterActionRouting
     private let downloadManager: DownloadManagerProtocol?
+    private let gardenClient: GardenAPIClientProtocol?
     private let logger = Logger(subsystem: "holdings.chinlock.lunara", category: "TagFilterViewModel")
     private var pendingArtworkAlbumIDs: Set<String> = []
 
@@ -45,6 +46,7 @@ final class TagFilterViewModel {
         artworkPipeline: ArtworkPipelineProtocol,
         actions: TagFilterActionRouting,
         downloadManager: DownloadManagerProtocol? = nil,
+        gardenClient: GardenAPIClientProtocol? = nil,
         initialGenres: Set<String> = [],
         initialStyles: Set<String> = [],
         initialMoods: Set<String> = []
@@ -53,6 +55,7 @@ final class TagFilterViewModel {
         self.artworkPipeline = artworkPipeline
         self.actions = actions
         self.downloadManager = downloadManager
+        self.gardenClient = gardenClient
         self.selectedGenres = initialGenres
         self.selectedStyles = initialStyles
         self.selectedMoods = initialMoods
@@ -169,6 +172,7 @@ final class TagFilterViewModel {
             artworkPipeline: artworkPipeline,
             actions: actions,
             downloadManager: downloadManager,
+            gardenClient: gardenClient,
             review: album.review,
             genres: album.genres.isEmpty ? nil : album.genres,
             styles: album.styles,

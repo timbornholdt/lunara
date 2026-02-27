@@ -16,6 +16,7 @@ final class ArtistDetailViewModel {
     private let artworkPipeline: ArtworkPipelineProtocol
     private let actions: ArtistsListActionRouting
     private let downloadManager: DownloadManagerProtocol?
+    private let gardenClient: GardenAPIClientProtocol?
 
     var albums: [Album] = []
     var loadingState: LoadingState = .idle
@@ -30,13 +31,15 @@ final class ArtistDetailViewModel {
         library: LibraryRepoProtocol,
         artworkPipeline: ArtworkPipelineProtocol,
         actions: ArtistsListActionRouting,
-        downloadManager: DownloadManagerProtocol? = nil
+        downloadManager: DownloadManagerProtocol? = nil,
+        gardenClient: GardenAPIClientProtocol? = nil
     ) {
         self.artist = artist
         self.library = library
         self.artworkPipeline = artworkPipeline
         self.actions = actions
         self.downloadManager = downloadManager
+        self.gardenClient = gardenClient
     }
 
     func loadIfNeeded() async {
@@ -86,6 +89,7 @@ final class ArtistDetailViewModel {
             artworkPipeline: artworkPipeline,
             actions: actions,
             downloadManager: downloadManager,
+            gardenClient: gardenClient,
             review: album.review,
             genres: album.genres.isEmpty ? nil : album.genres,
             styles: album.styles,

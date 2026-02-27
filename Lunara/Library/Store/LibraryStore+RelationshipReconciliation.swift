@@ -7,9 +7,7 @@ extension LibraryStore {
             for album in albums {
                 try AlbumRecord(model: album).save(db)
             }
-            try MainActor.assumeIsolated {
-                try LibraryStore.reconcileAlbumTags(for: albums, in: run, db: db)
-            }
+            try LibraryStore.reconcileAlbumTags(for: albums, in: run, db: db)
         }
     }
 

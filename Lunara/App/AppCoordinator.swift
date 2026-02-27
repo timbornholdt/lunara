@@ -26,6 +26,7 @@ final class AppCoordinator {
     private let nowPlayingBridge: NowPlayingBridge
     let lastFMAuthManager: LastFMAuthManager
     let scrobbleManager: ScrobbleManager
+    let gardenClient: GardenAPIClientProtocol?
     private let logger = Logger(subsystem: "holdings.chinlock.lunara", category: "AppCoordinator")
 
     // MARK: - State
@@ -53,7 +54,8 @@ final class AppCoordinator {
         downloadManager: DownloadManager,
         nowPlayingBridge: NowPlayingBridge,
         lastFMAuthManager: LastFMAuthManager,
-        scrobbleManager: ScrobbleManager
+        scrobbleManager: ScrobbleManager,
+        gardenClient: GardenAPIClientProtocol? = nil
     ) {
         self.authManager = authManager
         self.plexClient = plexClient
@@ -67,6 +69,7 @@ final class AppCoordinator {
         self.nowPlayingBridge = nowPlayingBridge
         self.lastFMAuthManager = lastFMAuthManager
         self.scrobbleManager = scrobbleManager
+        self.gardenClient = gardenClient
         nowPlayingBridge.configure()
         scrobbleManager.configure()
     }
@@ -137,6 +140,8 @@ final class AppCoordinator {
             authManager: lastFMAuthManager
         )
 
+        let gardenClient = Self.makeGardenClient()
+
         self.init(
             authManager: authManager,
             plexClient: plexClient,
@@ -149,7 +154,8 @@ final class AppCoordinator {
             downloadManager: downloadManager,
             nowPlayingBridge: nowPlayingBridge,
             lastFMAuthManager: lastFMAuthManager,
-            scrobbleManager: scrobbleManager
+            scrobbleManager: scrobbleManager,
+            gardenClient: gardenClient
         )
     }
 
@@ -328,6 +334,18 @@ final class AppCoordinator {
         } catch {
             logger.error("Queue reconciliation failed for trigger '\(trigger, privacy: .public)': \(error.localizedDescription, privacy: .public)")
         }
+    }
+
+    private static func makeGardenClient() -> GardenAPIClientProtocol? {
+        guard let configPath = Bundle.main.path(forResource: "LocalConfig", ofType: "plist"),
+              let config = NSDictionary(contentsOfFile: configPath) as? [String: Any],
+              let urlString = config["GARDEN_API_URL"] as? String,
+              let baseURL = URL(string: urlString),
+              let apiKey = config["GARDEN_API_KEY"] as? String,
+              !apiKey.isEmpty else {
+            return nil
+        }
+        return GardenAPIClient(baseURL: baseURL, apiKey: apiKey)
     }
 
     private static func loadServerURL() -> URL {

@@ -43,6 +43,7 @@ final class AlbumDetailViewModel {
     private let artworkPipeline: ArtworkPipelineProtocol
     private let actions: AlbumDetailActionRouting
     private let downloadManager: DownloadManagerProtocol?
+    let gardenClient: GardenAPIClientProtocol?
     private let logger = Logger(subsystem: "holdings.chinlock.lunara", category: "AlbumDetailViewModel")
     private var backgroundRefreshTask: Task<Void, Never>?
 
@@ -52,6 +53,7 @@ final class AlbumDetailViewModel {
         artworkPipeline: ArtworkPipelineProtocol,
         actions: AlbumDetailActionRouting,
         downloadManager: DownloadManagerProtocol? = nil,
+        gardenClient: GardenAPIClientProtocol? = nil,
         review: String? = nil,
         genres: [String]? = nil,
         styles: [String] = [],
@@ -62,6 +64,7 @@ final class AlbumDetailViewModel {
         self.artworkPipeline = artworkPipeline
         self.actions = actions
         self.downloadManager = downloadManager
+        self.gardenClient = gardenClient
         self.review = (review ?? album.review)?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
         self.genres = Self.normalizedTags(genres ?? (!album.genres.isEmpty ? album.genres : (album.genre.map { [$0] } ?? [])))
         self.styles = Self.normalizedTags(styles.isEmpty ? album.styles : styles)
@@ -138,6 +141,19 @@ final class AlbumDetailViewModel {
         guard let downloadManager else { return }
         try? await downloadManager.removeDownload(forAlbum: album.plexID)
         albumDownloadState = downloadManager.downloadState(forAlbum: album.plexID)
+    }
+
+    func submitGardenTodo(body: String) async throws {
+        guard let gardenClient else {
+            logger.warning("submitGardenTodo: no gardenClient configured")
+            return
+        }
+        try await gardenClient.submitTodo(
+            artistName: album.artistName,
+            albumName: album.title,
+            plexID: album.plexID,
+            body: body
+        )
     }
 
     func refreshDownloadState() async {
@@ -257,7 +273,8 @@ final class AlbumDetailViewModel {
             library: library,
             artworkPipeline: artworkPipeline,
             actions: actions as! ArtistsListActionRouting,
-            downloadManager: downloadManager
+            downloadManager: downloadManager,
+            gardenClient: gardenClient
         )
     }
 
@@ -271,6 +288,7 @@ final class AlbumDetailViewModel {
             artworkPipeline: artworkPipeline,
             actions: actions as! TagFilterActionRouting,
             downloadManager: downloadManager,
+            gardenClient: gardenClient,
             initialGenres: initialGenres,
             initialStyles: initialStyles,
             initialMoods: initialMoods

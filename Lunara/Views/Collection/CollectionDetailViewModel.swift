@@ -24,6 +24,7 @@ final class CollectionDetailViewModel {
     private let artworkPipeline: ArtworkPipelineProtocol
     private let actions: CollectionsListActionRouting
     private let downloadManager: DownloadManagerProtocol?
+    private let gardenClient: GardenAPIClientProtocol?
     private let offlineStore: OfflineStoreProtocol?
     private let logger = Logger(subsystem: "holdings.chinlock.lunara", category: "CollectionDetailViewModel")
 
@@ -42,6 +43,7 @@ final class CollectionDetailViewModel {
         artworkPipeline: ArtworkPipelineProtocol,
         actions: CollectionsListActionRouting,
         downloadManager: DownloadManagerProtocol? = nil,
+        gardenClient: GardenAPIClientProtocol? = nil,
         offlineStore: OfflineStoreProtocol? = nil
     ) {
         self.collection = collection
@@ -49,6 +51,7 @@ final class CollectionDetailViewModel {
         self.artworkPipeline = artworkPipeline
         self.actions = actions
         self.downloadManager = downloadManager
+        self.gardenClient = gardenClient
         self.offlineStore = offlineStore
     }
 
@@ -156,6 +159,7 @@ final class CollectionDetailViewModel {
             artworkPipeline: artworkPipeline,
             actions: actions,
             downloadManager: downloadManager,
+            gardenClient: gardenClient,
             review: album.review,
             genres: album.genres.isEmpty ? nil : album.genres,
             styles: album.styles,
