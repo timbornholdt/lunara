@@ -37,7 +37,7 @@ struct SelectableText: UIViewRepresentable {
 /// allocates the correct height for the full text.
 final class SelfSizingTextView: UITextView {
     override var intrinsicContentSize: CGSize {
-        let width = bounds.width > 0 ? bounds.width : UIScreen.main.bounds.width
+        let width = bounds.width > 0 ? bounds.width : 300
         let size = sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
         return CGSize(width: UIView.noIntrinsicMetric, height: size.height)
     }

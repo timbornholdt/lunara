@@ -45,7 +45,9 @@ final class LibraryStore: LibraryStoreProtocol {
         let target = album
         try await dbQueue.write { db in
             try AlbumRecord(model: target).save(db)
-            try LibraryStore.reconcileAlbumTags(for: [target], syncID: nil, syncDate: nil, db: db)
+            try MainActor.assumeIsolated {
+                try LibraryStore.reconcileAlbumTags(for: [target], syncID: nil, syncDate: nil, db: db)
+            }
         }
     }
 

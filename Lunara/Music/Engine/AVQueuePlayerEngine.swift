@@ -215,11 +215,13 @@ final class AVQueuePlayerEngine: PlaybackEngineProtocol {
     private func scheduleBufferingTimeout() {
         cancelBufferingTimeout()
         bufferingTimeoutTask = timeoutScheduler.schedule(after: bufferingTimeout) { [weak self] in
-            guard let self else { return }
-            if self.playbackState == .buffering {
-                self.transitionToError(
-                    MusicError.streamFailed(reason: "Playback timed out while buffering.").userMessage
-                )
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                if self.playbackState == .buffering {
+                    self.transitionToError(
+                        MusicError.streamFailed(reason: "Playback timed out while buffering.").userMessage
+                    )
+                }
             }
         }
     }

@@ -23,11 +23,11 @@ final class LastFMAuthManager {
     init(
         client: LastFMClientProtocol,
         keychain: KeychainHelperProtocol,
-        urlOpener: URLOpening = SafariURLOpener()
+        urlOpener: URLOpening? = nil
     ) {
         self.client = client
         self.keychain = keychain
-        self.urlOpener = urlOpener
+        self.urlOpener = urlOpener ?? SafariURLOpener()
         loadStoredSession()
     }
 
@@ -94,8 +94,7 @@ final class LastFMAuthManager {
     // MARK: - Private
 
     private func loadStoredSession() {
-        guard let key = try? keychain.retrieveString(key: Self.sessionKeyKeychainKey),
-              key != nil else {
+        guard let _ = try? keychain.retrieveString(key: Self.sessionKeyKeychainKey) else {
             return
         }
         isAuthenticated = true
@@ -110,8 +109,8 @@ protocol URLOpening: Sendable {
     func openURL(_ url: URL)
 }
 
-final class SafariURLOpener: URLOpening, @unchecked Sendable {
-    @MainActor
+@MainActor
+final class SafariURLOpener: URLOpening, Sendable {
     func openURL(_ url: URL) {
         UIApplication.shared.open(url, options: [:], completionHandler: nil)
     }

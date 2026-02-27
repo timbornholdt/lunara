@@ -212,6 +212,6 @@ extension PlexAPIClient: LibraryRepoProtocol {
     }
 
     func fetchLoudnessLevels(trackID: String) async throws -> [Float]? {
-        try await fetchLoudnessLevels(trackID: trackID)
+        nil
     }
 }
