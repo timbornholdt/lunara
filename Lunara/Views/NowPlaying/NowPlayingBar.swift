@@ -24,15 +24,11 @@ struct NowPlayingBar: View {
                         viewModel: screenViewModel,
                         onNavigateToAlbum: { album in
                             showSheet = false
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                                onNavigateToAlbum?(album)
-                            }
+                            onNavigateToAlbum?(album)
                         },
                         onNavigateToArtist: { artist in
                             showSheet = false
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                                onNavigateToArtist?(artist)
-                            }
+                            onNavigateToArtist?(artist)
                         }
                     )
                 }
