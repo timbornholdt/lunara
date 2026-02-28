@@ -221,6 +221,7 @@ private final class TagFilterActionsMock: TagFilterActionRouting {
     func queueAlbumNext(_ album: Album) async throws { }
     func queueAlbumLater(_ album: Album) async throws { }
     func playTrackNow(_ track: Track) async throws { }
+    func playTracksNow(_ tracks: [Track]) async throws { }
     func queueTrackNext(_ track: Track) async throws { }
     func queueTrackLater(_ track: Track) async throws { }
     func playAlbums(_ albums: [Album]) async throws {

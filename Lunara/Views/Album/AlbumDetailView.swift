@@ -263,7 +263,7 @@ struct AlbumDetailView: View {
 
         return Button {
             Task {
-                await viewModel.playTrackNow(track)
+                await viewModel.playAlbumFromTrack(track)
                 showNowPlaying.wrappedValue = true
             }
         } label: {
