@@ -4,11 +4,9 @@ import UIKit
 struct ArtistsListView: View {
     @State private var viewModel: ArtistsListViewModel
     @State private var selectedArtist: Artist?
-    @Binding var externalSelectedArtist: Artist?
 
-    init(viewModel: ArtistsListViewModel, externalSelectedArtist: Binding<Artist?> = .constant(nil)) {
+    init(viewModel: ArtistsListViewModel) {
         _viewModel = State(initialValue: viewModel)
-        _externalSelectedArtist = externalSelectedArtist
     }
 
     var body: some View {
@@ -37,12 +35,6 @@ struct ArtistsListView: View {
                 }
                 .refreshable {
                     await viewModel.refresh()
-                }
-                .onChange(of: externalSelectedArtist) { _, newArtist in
-                    if let newArtist {
-                        selectedArtist = newArtist
-                        externalSelectedArtist = nil
-                    }
                 }
         }
     }

@@ -57,19 +57,13 @@ struct ArtistDetailView: View {
                 .font(titleHeadingFont())
                 .foregroundStyle(Color.lunara(.textPrimary))
 
-            HStack(spacing: 8) {
-                if let genre = viewModel.artist.genre {
-                    Text(genre)
-                        .font(subtitleFont())
-                        .foregroundStyle(Color.lunara(.textSecondary))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(Color.lunara(.backgroundBase), in: Capsule())
-                }
-
-                Text("\(viewModel.artist.albumCount) \(viewModel.artist.albumCount == 1 ? "album" : "albums")")
+            if let genre = viewModel.artist.genre {
+                Text(genre)
                     .font(subtitleFont())
                     .foregroundStyle(Color.lunara(.textSecondary))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Color.lunara(.backgroundBase), in: Capsule())
             }
 
             if let summary = viewModel.artist.summary,
@@ -174,37 +168,35 @@ struct ArtistDetailView: View {
     }
 
     private func albumCard(for album: Album) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Button {
-                selectedAlbum = album
-            } label: {
-                VStack(alignment: .leading, spacing: 10) {
-                    albumArtworkView(for: album)
+        Button {
+            selectedAlbum = album
+        } label: {
+            VStack(alignment: .leading, spacing: 0) {
+                albumArtworkView(for: album)
 
+                VStack(alignment: .leading, spacing: 2) {
                     Text(album.title)
                         .font(albumTitleFont)
                         .lineLimit(2)
                         .foregroundStyle(Color.lunara(.textPrimary))
 
-                    Text(album.subtitle)
-                        .font(albumSubtitleFont)
-                        .lineLimit(2)
-                        .foregroundStyle(Color.lunara(.textSecondary))
+                    if let year = album.year {
+                        Text(String(year))
+                            .font(albumSubtitleFont)
+                            .lineLimit(1)
+                            .foregroundStyle(Color.lunara(.textSecondary))
+                    }
                 }
+                .padding(.horizontal, 10)
+                .padding(.top, 8)
+                .padding(.bottom, 10)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .buttonStyle(.plain)
-
-            Button("Play") {
-                Task {
-                    await viewModel.playAlbum(album)
-                    showNowPlaying.wrappedValue = true
-                }
-            }
-            .buttonStyle(LunaraPillButtonStyle())
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
-        .padding(12)
-        .background(Color.lunara(.backgroundElevated), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .buttonStyle(.plain)
+        .background(Color.lunara(.backgroundElevated))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .contextMenu {
             Button("Play Next", systemImage: "text.insert") {
                 Task { await viewModel.queueAlbumNext(album) }
@@ -220,8 +212,7 @@ struct ArtistDetailView: View {
         let thumbnailURL = viewModel.albumThumbnailURL(for: album.plexID)
 
         ZStack {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.lunara(.backgroundBase))
+            Color.lunara(.backgroundBase)
 
             if let thumbnailURL {
                 AsyncImage(url: thumbnailURL) { image in
@@ -241,7 +232,6 @@ struct ArtistDetailView: View {
         .frame(maxWidth: .infinity)
         .aspectRatio(1, contentMode: .fit)
         .clipped()
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .task {
             viewModel.loadAlbumThumbnailIfNeeded(for: album)
         }
@@ -266,17 +256,17 @@ struct ArtistDetailView: View {
     }
 
     private var albumTitleFont: Font {
-        let size: CGFloat = 20
+        let size: CGFloat = 15
         if UIFont(name: "PlayfairDisplay-SemiBold", size: size) != nil {
-            return .custom("PlayfairDisplay-SemiBold", size: size, relativeTo: .title3)
+            return .custom("PlayfairDisplay-SemiBold", size: size, relativeTo: .subheadline)
         }
         return .system(size: size, weight: .semibold, design: .serif)
     }
 
     private var albumSubtitleFont: Font {
-        let size: CGFloat = 16
+        let size: CGFloat = 13
         if UIFont(name: "PlayfairDisplay-Regular", size: size) != nil {
-            return .custom("PlayfairDisplay-Regular", size: size, relativeTo: .subheadline)
+            return .custom("PlayfairDisplay-Regular", size: size, relativeTo: .caption)
         }
         return .system(size: size, weight: .regular, design: .serif)
     }

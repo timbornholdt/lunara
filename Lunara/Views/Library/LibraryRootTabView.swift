@@ -13,8 +13,8 @@ struct LibraryRootTabView: View {
     let tabBarTheme: LunaraTabBarTheme
 
     @State private var selectedTab: TabID = .collections
-    @State private var selectedAlbumFromNowPlaying: Album?
-    @State private var selectedArtistFromNowPlaying: Artist?
+    @State private var albumFromNowPlaying: Album?
+    @State private var artistFromNowPlaying: Artist?
     @State private var nowPlayingBarViewModel: NowPlayingBarViewModel
     @State private var nowPlayingScreenViewModel: NowPlayingScreenViewModel
     @State private var showNowPlayingSheet = false
@@ -72,8 +72,7 @@ struct LibraryRootTabView: View {
                         ),
                         backgroundRefreshSuccessToken: coordinator.backgroundRefreshSuccessToken,
                         backgroundRefreshFailureToken: coordinator.backgroundRefreshFailureToken,
-                        backgroundRefreshErrorMessage: coordinator.lastBackgroundRefreshErrorMessage,
-                        externalSelectedAlbum: $selectedAlbumFromNowPlaying
+                        backgroundRefreshErrorMessage: coordinator.lastBackgroundRefreshErrorMessage
                     )
                     .toolbarBackground(Color.lunara(.backgroundBase), for: .tabBar)
                     .toolbarBackgroundVisibility(.visible, for: .tabBar)
@@ -88,7 +87,6 @@ struct LibraryRootTabView: View {
                             downloadManager: coordinator.downloadManager,
                             gardenClient: coordinator.gardenClient
                         ),
-                        externalSelectedArtist: $selectedArtistFromNowPlaying
                     )
                     .toolbarBackground(Color.lunara(.backgroundBase), for: .tabBar)
                     .toolbarBackgroundVisibility(.visible, for: .tabBar)
@@ -117,15 +115,45 @@ struct LibraryRootTabView: View {
                     screenViewModel: nowPlayingScreenViewModel,
                     showSheet: $showNowPlayingSheet,
                     onNavigateToAlbum: { album in
-                        selectedTab = .albums
-                        selectedAlbumFromNowPlaying = album
+                        albumFromNowPlaying = album
                     },
                     onNavigateToArtist: { artist in
-                        selectedTab = .artists
-                        selectedArtistFromNowPlaying = artist
+                        artistFromNowPlaying = artist
                     }
                 )
                 .padding(.bottom, 52)
+            }
+        }
+        .sheet(item: $albumFromNowPlaying) { album in
+            NavigationStack {
+                AlbumDetailView(
+                    viewModel: AlbumDetailViewModel(
+                        album: album,
+                        library: coordinator.libraryRepo,
+                        artworkPipeline: coordinator.artworkPipeline,
+                        actions: coordinator,
+                        downloadManager: coordinator.downloadManager,
+                        gardenClient: coordinator.gardenClient,
+                        review: album.review,
+                        genres: album.genres.isEmpty ? nil : album.genres,
+                        styles: album.styles,
+                        moods: album.moods
+                    )
+                )
+            }
+        }
+        .sheet(item: $artistFromNowPlaying) { artist in
+            NavigationStack {
+                ArtistDetailView(
+                    viewModel: ArtistDetailViewModel(
+                        artist: artist,
+                        library: coordinator.libraryRepo,
+                        artworkPipeline: coordinator.artworkPipeline,
+                        actions: coordinator,
+                        downloadManager: coordinator.downloadManager,
+                        gardenClient: coordinator.gardenClient
+                    )
+                )
             }
         }
     }

@@ -9,6 +9,7 @@ protocol AlbumDetailActionRouting: AnyObject {
     func queueAlbumNext(_ album: Album) async throws
     func queueAlbumLater(_ album: Album) async throws
     func playTrackNow(_ track: Track) async throws
+    func playTracksNow(_ tracks: [Track]) async throws
     func queueTrackNext(_ track: Track) async throws
     func queueTrackLater(_ track: Track) async throws
 }
@@ -98,6 +99,17 @@ final class AlbumDetailViewModel {
     func queueAlbumLater() async {
         await runAction {
             try await actions.queueAlbumLater(album)
+        }
+    }
+
+    func playAlbumFromTrack(_ track: Track) async {
+        await runAction {
+            if let index = tracks.firstIndex(where: { $0.plexID == track.plexID }) {
+                let tracksFromHere = Array(tracks[index...])
+                try await actions.playTracksNow(tracksFromHere)
+            } else {
+                try await actions.playTrackNow(track)
+            }
         }
     }
 

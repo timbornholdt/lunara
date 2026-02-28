@@ -185,6 +185,10 @@ final class AppCoordinator {
         try await appRouter.playTrackNow(track)
     }
 
+    func playTracksNow(_ tracks: [Track]) async throws {
+        try await appRouter.playTracksNow(tracks)
+    }
+
     func queueTrackNext(_ track: Track) async throws {
         try await appRouter.queueTrackNext(track)
     }

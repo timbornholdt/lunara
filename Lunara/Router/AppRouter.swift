@@ -59,6 +59,11 @@ final class AppRouter {
         queue.playNow([item])
     }
 
+    func playTracksNow(_ tracks: [Track]) async throws {
+        let items = try await queueItems(for: tracks, actionName: "playTracksNow")
+        queue.playNow(items)
+    }
+
     func queueTrackNext(_ track: Track) async throws {
         let item = try await queueItem(for: track, actionName: "queueTrackNext")
         queue.playNext([item])

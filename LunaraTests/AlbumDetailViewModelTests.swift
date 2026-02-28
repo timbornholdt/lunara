@@ -292,6 +292,11 @@ private final class AlbumDetailActionsMock: AlbumDetailActionRouting {
         playTrackNowRequests.append(track.plexID)
     }
 
+    var playTracksNowRequests: [[String]] = []
+    func playTracksNow(_ tracks: [Track]) async throws {
+        playTracksNowRequests.append(tracks.map(\.plexID))
+    }
+
     func queueTrackNext(_ track: Track) async throws {
         queueTrackNextRequests.append(track.plexID)
     }
