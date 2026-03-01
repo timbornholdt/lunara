@@ -108,16 +108,27 @@ extension LibraryStore {
             for playlist in playlists {
                 try db.execute(
                     sql: """
-                    INSERT INTO playlists (plexID, title, trackCount, updatedAt, lastSeenSyncID, lastSeenAt)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    INSERT INTO playlists (plexID, title, titleSearch, trackCount, updatedAt, thumbURL, lastSeenSyncID, lastSeenAt)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(plexID) DO UPDATE SET
                         title = excluded.title,
+                        titleSearch = excluded.titleSearch,
                         trackCount = excluded.trackCount,
                         updatedAt = excluded.updatedAt,
+                        thumbURL = excluded.thumbURL,
                         lastSeenSyncID = excluded.lastSeenSyncID,
                         lastSeenAt = excluded.lastSeenAt
                     """,
-                    arguments: [playlist.plexID, playlist.title, playlist.trackCount, playlist.updatedAt, run.id, run.startedAt]
+                    arguments: [
+                        playlist.plexID,
+                        playlist.title,
+                        LibraryStoreSearchNormalizer.normalize(playlist.title),
+                        playlist.trackCount,
+                        playlist.updatedAt,
+                        playlist.thumbURL,
+                        run.id,
+                        run.startedAt
+                    ]
                 )
             }
         }
@@ -132,14 +143,15 @@ extension LibraryStore {
             for item in items {
                 try db.execute(
                     sql: """
-                    INSERT INTO playlist_items (playlistID, trackID, position, lastSeenSyncID, lastSeenAt)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT INTO playlist_items (playlistID, trackID, position, playlistItemID, lastSeenSyncID, lastSeenAt)
+                    VALUES (?, ?, ?, ?, ?, ?)
                     ON CONFLICT(playlistID, position) DO UPDATE SET
                         trackID = excluded.trackID,
+                        playlistItemID = excluded.playlistItemID,
                         lastSeenSyncID = excluded.lastSeenSyncID,
                         lastSeenAt = excluded.lastSeenAt
                     """,
-                    arguments: [playlistID, item.trackID, item.position, run.id, run.startedAt]
+                    arguments: [playlistID, item.trackID, item.position, item.playlistItemID, run.id, run.startedAt]
                 )
             }
         }

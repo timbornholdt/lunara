@@ -73,7 +73,8 @@ extension PlexAPIClient {
                     plexID: entry.ratingKey,
                     title: entry.title,
                     trackCount: count,
-                    updatedAt: updatedAt
+                    updatedAt: updatedAt,
+                    thumb: entry.thumb ?? entry.composite
                 )
             )
         }
@@ -96,7 +97,8 @@ extension PlexAPIClient {
         items.reserveCapacity(metadata.count)
 
         for (index, entry) in metadata.enumerated() where entry.type == "track" {
-            items.append(LibraryRemotePlaylistItem(trackID: entry.ratingKey, position: index))
+            let itemID = entry.playlistItemID.map(String.init)
+            items.append(LibraryRemotePlaylistItem(trackID: entry.ratingKey, position: index, playlistItemID: itemID))
         }
         return items
     }

@@ -4,6 +4,7 @@ import UIKit
 struct LibraryRootTabView: View {
     private enum TabID: Hashable {
         case collections
+        case playlists
         case albums
         case artists
         case settings
@@ -55,6 +56,19 @@ struct LibraryRootTabView: View {
                             downloadManager: coordinator.downloadManager,
                             gardenClient: coordinator.gardenClient,
                             offlineStore: coordinator.offlineStore
+                        )
+                    )
+                    .toolbarBackground(Color.lunara(.backgroundBase), for: .tabBar)
+                    .toolbarBackgroundVisibility(.visible, for: .tabBar)
+                }
+
+                Tab("Playlists", systemImage: "music.note.list", value: TabID.playlists) {
+                    PlaylistsListView(
+                        viewModel: PlaylistsListViewModel(
+                            library: coordinator.libraryRepo,
+                            artworkPipeline: coordinator.artworkPipeline,
+                            actions: coordinator,
+                            gardenClient: coordinator.gardenClient
                         )
                     )
                     .toolbarBackground(Color.lunara(.backgroundBase), for: .tabBar)

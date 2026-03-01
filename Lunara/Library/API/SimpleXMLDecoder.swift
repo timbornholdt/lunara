@@ -26,6 +26,7 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
 
     private var metadataItems: [ParsedMetadataItem] = []
     private var directoryItems: [ParsedDirectoryItem] = []
+    private var rootAttributes: [String: String] = [:]
     private var currentMetadataIndex: Int?
     private var currentDirectoryIndex: Int?
 
@@ -34,6 +35,7 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
         parser.delegate = self
         metadataItems.removeAll()
         directoryItems.removeAll()
+        rootAttributes.removeAll()
         currentMetadataIndex = nil
         currentDirectoryIndex = nil
 
@@ -78,7 +80,9 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
                 summary: attrs["summary"],
                 titleSort: attrs["titleSort"],
                 updatedAt: updatedAt,
-                key: parsedItem.partKey ?? attrs["key"]
+                key: parsedItem.partKey ?? attrs["key"],
+                playlistItemID: attrs["playlistItemID"].flatMap { Int($0) },
+                composite: attrs["composite"]
             )
         }
 
@@ -123,9 +127,12 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
             )
         }
 
+        let machineIdentifier = rootAttributes["machineIdentifier"]
+
         return PlexMediaContainer(
             metadata: metadata.isEmpty ? nil : metadata,
-            directories: directories.isEmpty ? nil : directories
+            directories: directories.isEmpty ? nil : directories,
+            machineIdentifier: machineIdentifier
         )
     }
 
@@ -138,7 +145,9 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
         qualifiedName qName: String?,
         attributes attributeDict: [String: String] = [:]
     ) {
-        if elementName == "Metadata" {
+        if elementName == "MediaContainer" {
+            rootAttributes = attributeDict
+        } else if elementName == "Metadata" {
             // Store all attributes for this Metadata element
             metadataItems.append(ParsedMetadataItem(attributes: attributeDict, partKey: nil))
             currentMetadataIndex = metadataItems.count - 1

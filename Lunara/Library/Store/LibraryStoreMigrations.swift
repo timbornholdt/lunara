@@ -270,6 +270,34 @@ enum LibraryStoreMigrations {
             }
         }
 
+        migrator.registerMigration("v9_playlist_item_id") { db in
+            try db.alter(table: "playlist_items") { table in
+                table.add(column: "playlistItemID", .text)
+            }
+
+            try db.alter(table: "playlists") { table in
+                table.add(column: "titleSearch", .text).notNull().defaults(to: "")
+            }
+
+            let playlistRows = try Row.fetchAll(db, sql: "SELECT plexID, title FROM playlists")
+            for row in playlistRows {
+                let plexID: String = row["plexID"]
+                let title: String = row["title"]
+                try db.execute(
+                    sql: "UPDATE playlists SET titleSearch = ? WHERE plexID = ?",
+                    arguments: [LibraryStoreSearchNormalizer.normalize(title), plexID]
+                )
+            }
+
+            try db.create(index: "playlists_title_search_idx", on: "playlists", columns: ["titleSearch"])
+        }
+
+        migrator.registerMigration("v10_playlist_thumb") { db in
+            try db.alter(table: "playlists") { table in
+                table.add(column: "thumbURL", .text)
+            }
+        }
+
         return migrator
     }
 }

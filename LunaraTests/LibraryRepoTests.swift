@@ -163,11 +163,11 @@ struct LibraryRepoTests {
         subject.remote.artists = [makeArtist(id: "artist-a"), makeArtist(id: "artist-b")]
         subject.remote.collections = [makeCollection(id: "collection-a")]
         subject.remote.playlists = [
-            LibraryRemotePlaylist(plexID: "playlist-1", title: "Playlist", trackCount: 2, updatedAt: nil)
+            LibraryRemotePlaylist(plexID: "playlist-1", title: "Playlist", trackCount: 2, updatedAt: nil, thumb: nil)
         ]
         subject.remote.playlistItemsByPlaylistID["playlist-1"] = [
-            LibraryRemotePlaylistItem(trackID: "track-a1", position: 0),
-            LibraryRemotePlaylistItem(trackID: "track-b1", position: 1)
+            LibraryRemotePlaylistItem(trackID: "track-a1", position: 0, playlistItemID: nil),
+            LibraryRemotePlaylistItem(trackID: "track-b1", position: 1, playlistItemID: nil)
         ]
         subject.store.cachedArtists = [makeArtist(id: "artist-1")]
         subject.store.cachedCollections = [makeCollection(id: "collection-1")]
@@ -478,8 +478,8 @@ struct LibraryRepoTests {
     func playlists_servesFromStoreWithoutRemoteFetch() async throws {
         let subject = makeSubject()
         subject.store.cachedPlaylists = [
-            LibraryPlaylistSnapshot(plexID: "p1", title: "Chill", trackCount: 5, updatedAt: nil),
-            LibraryPlaylistSnapshot(plexID: "p2", title: "Hype", trackCount: 12, updatedAt: nil)
+            LibraryPlaylistSnapshot(plexID: "p1", title: "Chill", trackCount: 5, updatedAt: nil, thumbURL: nil),
+            LibraryPlaylistSnapshot(plexID: "p2", title: "Hype", trackCount: 12, updatedAt: nil, thumbURL: nil)
         ]
 
         let playlists = try await subject.repo.playlists()
@@ -493,8 +493,8 @@ struct LibraryRepoTests {
     func playlistItems_servesFromStoreWithoutRemoteFetch() async throws {
         let subject = makeSubject()
         subject.store.cachedPlaylistItemsByPlaylistID["p1"] = [
-            LibraryPlaylistItemSnapshot(trackID: "t1", position: 0),
-            LibraryPlaylistItemSnapshot(trackID: "t2", position: 1)
+            LibraryPlaylistItemSnapshot(trackID: "t1", position: 0, playlistItemID: nil),
+            LibraryPlaylistItemSnapshot(trackID: "t2", position: 1, playlistItemID: nil)
         ]
 
         let items = try await subject.repo.playlistItems(playlistID: "p1")

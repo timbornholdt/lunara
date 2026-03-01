@@ -330,14 +330,15 @@ final class LibraryStore: LibraryStoreProtocol {
         try await dbQueue.read { db in
             let rows = try Row.fetchAll(
                 db,
-                sql: "SELECT plexID, title, trackCount, updatedAt FROM playlists ORDER BY title ASC"
+                sql: "SELECT plexID, title, trackCount, updatedAt, thumbURL FROM playlists ORDER BY title ASC"
             )
             return rows.map { row in
                 LibraryPlaylistSnapshot(
                     plexID: row["plexID"],
                     title: row["title"],
                     trackCount: row["trackCount"],
-                    updatedAt: row["updatedAt"]
+                    updatedAt: row["updatedAt"],
+                    thumbURL: row["thumbURL"]
                 )
             }
         }
@@ -348,11 +349,41 @@ final class LibraryStore: LibraryStoreProtocol {
         return try await dbQueue.read { db in
             let rows = try Row.fetchAll(
                 db,
-                sql: "SELECT trackID, position FROM playlist_items WHERE playlistID = ? ORDER BY position ASC",
+                sql: "SELECT trackID, position, playlistItemID FROM playlist_items WHERE playlistID = ? ORDER BY position ASC",
                 arguments: [targetID]
             )
             return rows.map { row in
-                LibraryPlaylistItemSnapshot(trackID: row["trackID"], position: row["position"])
+                LibraryPlaylistItemSnapshot(trackID: row["trackID"], position: row["position"], playlistItemID: row["playlistItemID"])
+            }
+        }
+    }
+
+    func searchPlaylists(query: String) async throws -> [LibraryPlaylistSnapshot] {
+        let normalizedQuery = LibraryStoreSearchNormalizer.normalize(query)
+        guard !normalizedQuery.isEmpty else {
+            return try await fetchPlaylists()
+        }
+
+        let pattern = LibraryStoreSearchNormalizer.likeContainsPattern(for: normalizedQuery)
+        return try await dbQueue.read { db in
+            let rows = try Row.fetchAll(
+                db,
+                sql: """
+                SELECT plexID, title, trackCount, updatedAt, thumbURL
+                FROM playlists
+                WHERE titleSearch LIKE ? ESCAPE '\\'
+                ORDER BY title ASC
+                """,
+                arguments: [pattern]
+            )
+            return rows.map { row in
+                LibraryPlaylistSnapshot(
+                    plexID: row["plexID"],
+                    title: row["title"],
+                    trackCount: row["trackCount"],
+                    updatedAt: row["updatedAt"],
+                    thumbURL: row["thumbURL"]
+                )
             }
         }
     }

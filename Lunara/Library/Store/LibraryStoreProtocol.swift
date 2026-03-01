@@ -74,17 +74,20 @@ struct LibraryPlaylistSnapshot: Equatable, Sendable {
     let title: String
     let trackCount: Int
     let updatedAt: Date?
+    let thumbURL: String?
 }
 
 struct LibraryPlaylistItemSnapshot: Equatable, Sendable {
     let trackID: String
     let position: Int
+    let playlistItemID: String?
 }
 
 enum ArtworkOwnerType: String, Equatable, Sendable {
     case album
     case artist
     case collection
+    case playlist
 }
 
 enum ArtworkVariant: String, Equatable, Sendable {
@@ -215,6 +218,10 @@ protocol LibraryStoreProtocol: AnyObject {
     /// Reads ordered items for one playlist.
     /// - Sorting guarantee: results are returned in ascending `position` order preserving Plex item order including duplicates.
     func fetchPlaylistItems(playlistID: String) async throws -> [LibraryPlaylistItemSnapshot]
+
+    /// Queries the full cached playlist catalog by playlist title.
+    /// - Sorting guarantee: results are fully sorted by source ordering (`title`).
+    func searchPlaylists(query: String) async throws -> [LibraryPlaylistSnapshot]
 
     /// Marks album rows as observed in the active sync run.
     /// - Transaction guarantee: all album IDs in this call are marked together or none are marked.
