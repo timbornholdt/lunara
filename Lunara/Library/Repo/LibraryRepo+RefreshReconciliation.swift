@@ -56,12 +56,13 @@ extension LibraryRepo {
                     plexID: $0.plexID,
                     title: $0.title,
                     trackCount: $0.trackCount,
-                    updatedAt: $0.updatedAt
+                    updatedAt: $0.updatedAt,
+                    thumbURL: $0.thumb
                 )
             }, in: run)
             for (playlistID, items) in remotePlaylistItems {
                 try await store.upsertPlaylistItems(
-                    items.map { LibraryPlaylistItemSnapshot(trackID: $0.trackID, position: $0.position) },
+                    items.map { LibraryPlaylistItemSnapshot(trackID: $0.trackID, position: $0.position, playlistItemID: $0.playlistItemID) },
                     playlistID: playlistID,
                     in: run
                 )

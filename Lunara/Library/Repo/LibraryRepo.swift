@@ -5,11 +5,13 @@ struct LibraryRemotePlaylist: Equatable, Sendable {
     let title: String
     let trackCount: Int
     let updatedAt: Date?
+    let thumb: String?
 }
 
 struct LibraryRemotePlaylistItem: Equatable, Sendable {
     let trackID: String
     let position: Int
+    let playlistItemID: String?
 }
 
 /// Network contract consumed by LibraryRepo.
@@ -28,6 +30,8 @@ protocol LibraryRemoteDataSource: AnyObject {
     func streamURL(forTrack track: Track) async throws -> URL
     func authenticatedArtworkURL(for rawValue: String?) async throws -> URL?
     func fetchLoudnessLevels(trackID: String, sampleCount: Int) async throws -> [Float]?
+    func addToPlaylist(playlistID: String, ratingKey: String) async throws
+    func removeFromPlaylist(playlistID: String, playlistItemID: String) async throws
 }
 
 extension PlexAPIClient: LibraryRemoteDataSource { }
@@ -182,6 +186,18 @@ final class LibraryRepo: LibraryRepoProtocol {
 
     func playlistItems(playlistID: String) async throws -> [LibraryPlaylistItemSnapshot] {
         try await store.fetchPlaylistItems(playlistID: playlistID)
+    }
+
+    func searchPlaylists(query: String) async throws -> [LibraryPlaylistSnapshot] {
+        try await store.searchPlaylists(query: query)
+    }
+
+    func addToPlaylist(playlistID: String, ratingKey: String) async throws {
+        try await remote.addToPlaylist(playlistID: playlistID, ratingKey: ratingKey)
+    }
+
+    func removeFromPlaylist(playlistID: String, playlistItemID: String) async throws {
+        try await remote.removeFromPlaylist(playlistID: playlistID, playlistItemID: playlistItemID)
     }
 
     func lastRefreshDate() async throws -> Date? {

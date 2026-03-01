@@ -74,6 +74,20 @@ final class AppRouter {
         queue.playLater([item])
     }
 
+    func playPlaylist(_ playlist: Playlist) async throws {
+        logger.info("playPlaylist started for playlist '\(playlist.title, privacy: .public)' id '\(playlist.plexID, privacy: .public)'")
+        let items = try await allQueueItemsForPlaylist(playlist)
+        queue.playNow(items)
+        logger.info("playPlaylist queued \(items.count, privacy: .public) items for playlist id '\(playlist.plexID, privacy: .public)'")
+    }
+
+    func shufflePlaylist(_ playlist: Playlist) async throws {
+        logger.info("shufflePlaylist started for playlist '\(playlist.title, privacy: .public)' id '\(playlist.plexID, privacy: .public)'")
+        let items = try await allQueueItemsForPlaylist(playlist)
+        queue.playNow(items.shuffled())
+        logger.info("shufflePlaylist queued \(items.count, privacy: .public) shuffled items for playlist id '\(playlist.plexID, privacy: .public)'")
+    }
+
     func playCollection(_ collection: Collection) async throws {
         logger.info("playCollection started for collection '\(collection.title, privacy: .public)' id '\(collection.plexID, privacy: .public)'")
         let items = try await allQueueItemsForCollection(collection)
@@ -183,6 +197,32 @@ final class AppRouter {
             removedTrackIDs: sortedMissingTrackIDs,
             removedItemCount: removedItemCount
         )
+    }
+
+    private func allQueueItemsForPlaylist(_ playlist: Playlist) async throws -> [QueueItem] {
+        let playlistItems = try await library.playlistItems(playlistID: playlist.plexID)
+        guard !playlistItems.isEmpty else {
+            logger.error("Found zero items for playlist id '\(playlist.plexID, privacy: .public)'")
+            throw LibraryError.resourceNotFound(type: "tracks", id: playlist.plexID)
+        }
+
+        var queueItems: [QueueItem] = []
+        queueItems.reserveCapacity(playlistItems.count)
+        for item in playlistItems {
+            guard let track = try await library.track(id: item.trackID) else {
+                logger.warning("Playlist item trackID '\(item.trackID, privacy: .public)' not found in library, skipping")
+                continue
+            }
+            let qItem = try await queueItem(for: track, actionName: "playlist-\(playlist.plexID)")
+            queueItems.append(qItem)
+        }
+
+        guard !queueItems.isEmpty else {
+            logger.error("No resolvable tracks for playlist id '\(playlist.plexID, privacy: .public)'")
+            throw LibraryError.resourceNotFound(type: "tracks", id: playlist.plexID)
+        }
+
+        return queueItems
     }
 
     private func allQueueItemsForCollection(_ collection: Collection) async throws -> [QueueItem] {

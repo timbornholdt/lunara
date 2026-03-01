@@ -22,6 +22,17 @@ struct GardenTodoSheet: View {
                 }
 
                 Section("What needs fixing?") {
+                    HStack(spacing: 10) {
+                        ForEach(["Artwork", "Metadata", "Destroy"], id: \.self) { preset in
+                            Button(preset) {
+                                todoBody = preset
+                                Task { await submit() }
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(isSubmitting)
+                        }
+                    }
+
                     TextEditor(text: $todoBody)
                         .frame(minHeight: 100)
                 }

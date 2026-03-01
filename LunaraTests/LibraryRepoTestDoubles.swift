@@ -129,8 +129,23 @@ final class LibraryRemoteMock: LibraryRemoteDataSource {
         return artworkURLByRawValue[rawValue]
     }
 
+    var addToPlaylistRequests: [(String, String)] = []
+    var removeFromPlaylistRequests: [(String, String)] = []
+    var addToPlaylistError: LibraryError?
+    var removeFromPlaylistError: LibraryError?
+
     func fetchAlbumsByTag(kind: LibraryTagKind, value: String) async throws -> [Album] { [] }
     func fetchLoudnessLevels(trackID: String, sampleCount: Int) async throws -> [Float]? { nil }
+
+    func addToPlaylist(playlistID: String, ratingKey: String) async throws {
+        addToPlaylistRequests.append((playlistID, ratingKey))
+        if let addToPlaylistError { throw addToPlaylistError }
+    }
+
+    func removeFromPlaylist(playlistID: String, playlistItemID: String) async throws {
+        removeFromPlaylistRequests.append((playlistID, playlistItemID))
+        if let removeFromPlaylistError { throw removeFromPlaylistError }
+    }
 }
 
 @MainActor
@@ -492,9 +507,16 @@ final class LibraryStoreMock: LibraryStoreProtocol {
 
     var tagsByKind: [LibraryTagKind: [String]] = [:]
     var fetchTagsCalls: [LibraryTagKind] = []
+    var searchedPlaylistsByQuery: [String: [LibraryPlaylistSnapshot]] = [:]
+    var searchedPlaylistQueries: [String] = []
 
     func fetchTags(kind: LibraryTagKind) async throws -> [String] {
         fetchTagsCalls.append(kind)
         return tagsByKind[kind] ?? []
+    }
+
+    func searchPlaylists(query: String) async throws -> [LibraryPlaylistSnapshot] {
+        searchedPlaylistQueries.append(query)
+        return searchedPlaylistsByQuery[query] ?? []
     }
 }

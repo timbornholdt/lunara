@@ -423,8 +423,8 @@ final class PlexAPIClientTests: XCTestCase {
         let items = try await client.fetchPlaylistItems(playlistID: "playlist-1")
 
         XCTAssertEqual(items, [
-            LibraryRemotePlaylistItem(trackID: "track-2", position: 0),
-            LibraryRemotePlaylistItem(trackID: "track-1", position: 1)
+            LibraryRemotePlaylistItem(trackID: "track-2", position: 0, playlistItemID: nil),
+            LibraryRemotePlaylistItem(trackID: "track-1", position: 1, playlistItemID: nil)
         ])
     }
 

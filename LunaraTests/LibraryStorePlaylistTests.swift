@@ -14,8 +14,8 @@ struct LibraryStorePlaylistTests {
 
         try await store.upsertPlaylists(
             [
-                LibraryPlaylistSnapshot(plexID: "p1", title: "Chill Vibes", trackCount: 5, updatedAt: nil),
-                LibraryPlaylistSnapshot(plexID: "p2", title: "Workout Mix", trackCount: 10, updatedAt: nil)
+                LibraryPlaylistSnapshot(plexID: "p1", title: "Chill Vibes", trackCount: 5, updatedAt: nil, thumbURL: nil),
+                LibraryPlaylistSnapshot(plexID: "p2", title: "Workout Mix", trackCount: 10, updatedAt: nil, thumbURL: nil)
             ],
             in: run
         )
@@ -36,14 +36,14 @@ struct LibraryStorePlaylistTests {
         let run1 = try await store.beginIncrementalSync(startedAt: Date(timeIntervalSince1970: 9001))
 
         try await store.upsertPlaylists(
-            [LibraryPlaylistSnapshot(plexID: "p1", title: "Old Title", trackCount: 3, updatedAt: nil)],
+            [LibraryPlaylistSnapshot(plexID: "p1", title: "Old Title", trackCount: 3, updatedAt: nil, thumbURL: nil)],
             in: run1
         )
 
         let run2 = try await store.beginIncrementalSync(startedAt: Date(timeIntervalSince1970: 9002))
 
         try await store.upsertPlaylists(
-            [LibraryPlaylistSnapshot(plexID: "p1", title: "New Title", trackCount: 7, updatedAt: nil)],
+            [LibraryPlaylistSnapshot(plexID: "p1", title: "New Title", trackCount: 7, updatedAt: nil, thumbURL: nil)],
             in: run2
         )
         _ = try await store.pruneRowsNotSeen(in: run2)
@@ -62,14 +62,14 @@ struct LibraryStorePlaylistTests {
         let run = try await store.beginIncrementalSync(startedAt: Date(timeIntervalSince1970: 9010))
 
         try await store.upsertPlaylists(
-            [LibraryPlaylistSnapshot(plexID: "p1", title: "Ordered", trackCount: 3, updatedAt: nil)],
+            [LibraryPlaylistSnapshot(plexID: "p1", title: "Ordered", trackCount: 3, updatedAt: nil, thumbURL: nil)],
             in: run
         )
         try await store.upsertPlaylistItems(
             [
-                LibraryPlaylistItemSnapshot(trackID: "track-c", position: 2),
-                LibraryPlaylistItemSnapshot(trackID: "track-a", position: 0),
-                LibraryPlaylistItemSnapshot(trackID: "track-b", position: 1)
+                LibraryPlaylistItemSnapshot(trackID: "track-c", position: 2, playlistItemID: nil),
+                LibraryPlaylistItemSnapshot(trackID: "track-a", position: 0, playlistItemID: nil),
+                LibraryPlaylistItemSnapshot(trackID: "track-b", position: 1, playlistItemID: nil)
             ],
             playlistID: "p1",
             in: run
@@ -92,16 +92,16 @@ struct LibraryStorePlaylistTests {
         let run = try await store.beginIncrementalSync(startedAt: Date(timeIntervalSince1970: 9020))
 
         try await store.upsertPlaylists(
-            [LibraryPlaylistSnapshot(plexID: "p1", title: "Repeats", trackCount: 4, updatedAt: nil)],
+            [LibraryPlaylistSnapshot(plexID: "p1", title: "Repeats", trackCount: 4, updatedAt: nil, thumbURL: nil)],
             in: run
         )
         // Same trackID appears at positions 0 and 2 — must remain as distinct rows
         try await store.upsertPlaylistItems(
             [
-                LibraryPlaylistItemSnapshot(trackID: "track-repeat", position: 0),
-                LibraryPlaylistItemSnapshot(trackID: "track-other", position: 1),
-                LibraryPlaylistItemSnapshot(trackID: "track-repeat", position: 2),
-                LibraryPlaylistItemSnapshot(trackID: "track-end", position: 3)
+                LibraryPlaylistItemSnapshot(trackID: "track-repeat", position: 0, playlistItemID: nil),
+                LibraryPlaylistItemSnapshot(trackID: "track-other", position: 1, playlistItemID: nil),
+                LibraryPlaylistItemSnapshot(trackID: "track-repeat", position: 2, playlistItemID: nil),
+                LibraryPlaylistItemSnapshot(trackID: "track-end", position: 3, playlistItemID: nil)
             ],
             playlistID: "p1",
             in: run
@@ -127,18 +127,18 @@ struct LibraryStorePlaylistTests {
 
         try await store.upsertPlaylists(
             [
-                LibraryPlaylistSnapshot(plexID: "p-keep", title: "Keep", trackCount: 2, updatedAt: nil),
-                LibraryPlaylistSnapshot(plexID: "p-remove", title: "Remove", trackCount: 1, updatedAt: nil)
+                LibraryPlaylistSnapshot(plexID: "p-keep", title: "Keep", trackCount: 2, updatedAt: nil, thumbURL: nil),
+                LibraryPlaylistSnapshot(plexID: "p-remove", title: "Remove", trackCount: 1, updatedAt: nil, thumbURL: nil)
             ],
             in: run1
         )
         try await store.upsertPlaylistItems(
-            [LibraryPlaylistItemSnapshot(trackID: "t1", position: 0)],
+            [LibraryPlaylistItemSnapshot(trackID: "t1", position: 0, playlistItemID: nil)],
             playlistID: "p-keep",
             in: run1
         )
         try await store.upsertPlaylistItems(
-            [LibraryPlaylistItemSnapshot(trackID: "t2", position: 0)],
+            [LibraryPlaylistItemSnapshot(trackID: "t2", position: 0, playlistItemID: nil)],
             playlistID: "p-remove",
             in: run1
         )
@@ -147,11 +147,11 @@ struct LibraryStorePlaylistTests {
         // Second run only sees "p-keep"
         let run2 = try await store.beginIncrementalSync(startedAt: Date(timeIntervalSince1970: 9031))
         try await store.upsertPlaylists(
-            [LibraryPlaylistSnapshot(plexID: "p-keep", title: "Keep", trackCount: 2, updatedAt: nil)],
+            [LibraryPlaylistSnapshot(plexID: "p-keep", title: "Keep", trackCount: 2, updatedAt: nil, thumbURL: nil)],
             in: run2
         )
         try await store.upsertPlaylistItems(
-            [LibraryPlaylistItemSnapshot(trackID: "t1", position: 0)],
+            [LibraryPlaylistItemSnapshot(trackID: "t1", position: 0, playlistItemID: nil)],
             playlistID: "p-keep",
             in: run2
         )
@@ -173,13 +173,13 @@ struct LibraryStorePlaylistTests {
         let run1 = try await store.beginIncrementalSync(startedAt: Date(timeIntervalSince1970: 9040))
 
         try await store.upsertPlaylists(
-            [LibraryPlaylistSnapshot(plexID: "p-gone", title: "Gone", trackCount: 2, updatedAt: nil)],
+            [LibraryPlaylistSnapshot(plexID: "p-gone", title: "Gone", trackCount: 2, updatedAt: nil, thumbURL: nil)],
             in: run1
         )
         try await store.upsertPlaylistItems(
             [
-                LibraryPlaylistItemSnapshot(trackID: "t1", position: 0),
-                LibraryPlaylistItemSnapshot(trackID: "t2", position: 1)
+                LibraryPlaylistItemSnapshot(trackID: "t1", position: 0, playlistItemID: nil),
+                LibraryPlaylistItemSnapshot(trackID: "t2", position: 1, playlistItemID: nil)
             ],
             playlistID: "p-gone",
             in: run1
@@ -222,9 +222,9 @@ struct LibraryStorePlaylistTests {
 
         try await store.upsertPlaylists(
             [
-                LibraryPlaylistSnapshot(plexID: "p3", title: "Zen", trackCount: 1, updatedAt: nil),
-                LibraryPlaylistSnapshot(plexID: "p1", title: "Ambient", trackCount: 3, updatedAt: nil),
-                LibraryPlaylistSnapshot(plexID: "p2", title: "Metal", trackCount: 8, updatedAt: nil)
+                LibraryPlaylistSnapshot(plexID: "p3", title: "Zen", trackCount: 1, updatedAt: nil, thumbURL: nil),
+                LibraryPlaylistSnapshot(plexID: "p1", title: "Ambient", trackCount: 3, updatedAt: nil, thumbURL: nil),
+                LibraryPlaylistSnapshot(plexID: "p2", title: "Metal", trackCount: 8, updatedAt: nil, thumbURL: nil)
             ],
             in: run
         )

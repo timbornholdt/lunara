@@ -282,6 +282,8 @@ private extension ArtworkOwnerKind {
             return .artist
         case .collection:
             return .collection
+        case .playlist:
+            return .playlist
         }
     }
 }

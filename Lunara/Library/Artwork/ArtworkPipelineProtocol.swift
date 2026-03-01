@@ -4,6 +4,7 @@ public enum ArtworkOwnerKind: String, Equatable, Sendable {
     case album
     case artist
     case collection
+    case playlist
 }
 
 public enum ArtworkImageKind: String, Equatable, Sendable {

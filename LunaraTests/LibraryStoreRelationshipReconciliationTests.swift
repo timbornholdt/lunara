@@ -101,13 +101,13 @@ struct LibraryStoreRelationshipReconciliationTests {
         try await store.upsertAlbums([oldAlbum], in: firstRun)
         try await store.upsertTracks([oldTrack], in: firstRun)
         try await store.upsertPlaylists(
-            [LibraryPlaylistSnapshot(plexID: "playlist-1", title: "Playlist", trackCount: 2, updatedAt: nil)],
+            [LibraryPlaylistSnapshot(plexID: "playlist-1", title: "Playlist", trackCount: 2, updatedAt: nil, thumbURL: nil)],
             in: firstRun
         )
         try await store.upsertPlaylistItems(
             [
-                LibraryPlaylistItemSnapshot(trackID: "track-old", position: 0),
-                LibraryPlaylistItemSnapshot(trackID: "track-missing", position: 1)
+                LibraryPlaylistItemSnapshot(trackID: "track-old", position: 0, playlistItemID: nil),
+                LibraryPlaylistItemSnapshot(trackID: "track-missing", position: 1, playlistItemID: nil)
             ],
             playlistID: "playlist-1",
             in: firstRun
@@ -122,11 +122,11 @@ struct LibraryStoreRelationshipReconciliationTests {
         try await store.upsertAlbums([newAlbum], in: secondRun)
         try await store.upsertTracks([newTrack], in: secondRun)
         try await store.upsertPlaylists(
-            [LibraryPlaylistSnapshot(plexID: "playlist-1", title: "Playlist Updated", trackCount: 1, updatedAt: nil)],
+            [LibraryPlaylistSnapshot(plexID: "playlist-1", title: "Playlist Updated", trackCount: 1, updatedAt: nil, thumbURL: nil)],
             in: secondRun
         )
         try await store.upsertPlaylistItems(
-            [LibraryPlaylistItemSnapshot(trackID: "track-new", position: 0)],
+            [LibraryPlaylistItemSnapshot(trackID: "track-new", position: 0, playlistItemID: nil)],
             playlistID: "playlist-1",
             in: secondRun
         )

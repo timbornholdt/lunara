@@ -62,6 +62,16 @@ protocol LibraryRepoProtocol: AnyObject {
     /// Items are populated during `refreshLibrary`; this method does not trigger a remote fetch.
     func playlistItems(playlistID: String) async throws -> [LibraryPlaylistItemSnapshot]
 
+    /// Queries cached playlists by title.
+    /// - Sorting guarantee: results are fully sorted by source ordering (`title`).
+    func searchPlaylists(query: String) async throws -> [LibraryPlaylistSnapshot]
+
+    /// Adds a track to a Plex playlist by ratingKey.
+    func addToPlaylist(playlistID: String, ratingKey: String) async throws
+
+    /// Removes an item from a Plex playlist by playlist item ID.
+    func removeFromPlaylist(playlistID: String, playlistItemID: String) async throws
+
     /// Returns all distinct tag names for the given kind, ordered alphabetically.
     func availableTags(kind: LibraryTagKind) async throws -> [String]
 
@@ -198,6 +208,12 @@ extension PlexAPIClient: LibraryRepoProtocol {
     func playlistItems(playlistID: String) async throws -> [LibraryPlaylistItemSnapshot] {
         throw LibraryError.operationFailed(reason: "Playlist item reads are not implemented on PlexAPIClient-backed LibraryRepo.")
     }
+
+    func searchPlaylists(query: String) async throws -> [LibraryPlaylistSnapshot] {
+        throw LibraryError.operationFailed(reason: "Playlist search is not implemented on PlexAPIClient-backed LibraryRepo.")
+    }
+
+    // addToPlaylist and removeFromPlaylist use PlexAPIClient+PlaylistMutations directly
 
     func refreshLibrary(reason: LibraryRefreshReason) async throws -> LibraryRefreshOutcome {
         throw LibraryError.operationFailed(reason: "Library refresh orchestration is not implemented yet.")

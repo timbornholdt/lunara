@@ -6,10 +6,12 @@ import Foundation
 struct PlexMediaContainer: Codable {
     let metadata: [PlexMetadata]?
     let directories: [PlexDirectory]?
+    let machineIdentifier: String?
 
     enum CodingKeys: String, CodingKey {
         case metadata = "Metadata"
         case directories = "Directory"
+        case machineIdentifier
     }
 }
 
@@ -69,6 +71,8 @@ struct PlexMetadata: Codable {
     let titleSort: String?
     let updatedAt: Int?
     let key: String?
+    let playlistItemID: Int?
+    let composite: String?
 
     enum CodingKeys: String, CodingKey {
         case ratingKey
@@ -93,6 +97,8 @@ struct PlexMetadata: Codable {
         case titleSort
         case updatedAt
         case key
+        case playlistItemID
+        case composite
     }
 }
 
