@@ -61,6 +61,7 @@ final class AVQueuePlayerEngine: PlaybackEngineProtocol {
     private(set) var elapsed: TimeInterval = 0
     private(set) var duration: TimeInterval = 0
     private(set) var currentTrackID: String?
+    var crossfadeEnabled: Bool = false
 
     private let audioSession: AudioSessionProtocol
     private let driver: PlaybackEngineDriver

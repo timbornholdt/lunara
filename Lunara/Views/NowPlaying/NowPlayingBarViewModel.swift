@@ -13,10 +13,13 @@ final class NowPlayingBarViewModel {
     var playbackState: PlaybackState { engine.playbackState }
 
     var isVisible: Bool {
-        // Only show the bar when something is actively playing or paused.
-        // A restored queue on launch leaves the engine in .idle — we don't
-        // want the bar to appear before the user has explicitly started playback.
-        queueManager.currentItem != nil && playbackState != .idle
+        // Show the bar when something is actively playing, paused, or buffering.
+        // Also stay visible during brief .idle moments between tracks (auto-advance)
+        // to avoid the bar/sheet disappearing and re-animating.
+        // A restored queue on launch leaves the engine in .idle with hasBegunPlayback
+        // still false — we don't want the bar to appear before the user has explicitly
+        // started playback.
+        queueManager.currentItem != nil && (playbackState != .idle || hasBegunPlayback)
     }
 
     // MARK: - Dependencies
@@ -30,6 +33,10 @@ final class NowPlayingBarViewModel {
 
     private var resolvedTrackID: String?
     private var metadataTask: Task<Void, Never>?
+    /// Tracks whether the user has started playback this session.
+    /// Prevents the bar from appearing on launch with a restored-but-idle queue,
+    /// while keeping it visible during brief idle gaps between tracks.
+    private var hasBegunPlayback = false
 
     // MARK: - Initialization
 
@@ -45,6 +52,7 @@ final class NowPlayingBarViewModel {
         self.artworkPipeline = artworkPipeline
 
         observeQueue()
+        observePlaybackState()
         handleCurrentItemChange()
     }
 
@@ -62,6 +70,21 @@ final class NowPlayingBarViewModel {
     }
 
     // MARK: - Observation
+
+    private func observePlaybackState() {
+        withObservationTracking { [weak self] in
+            guard let self else { return }
+            _ = self.engine.playbackState
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if self.engine.playbackState == .playing || self.engine.playbackState == .buffering {
+                    self.hasBegunPlayback = true
+                }
+                self.observePlaybackState()
+            }
+        }
+    }
 
     private func observeQueue() {
         withObservationTracking { [weak self] in
@@ -91,6 +114,7 @@ final class NowPlayingBarViewModel {
             trackTitle = nil
             artistName = nil
             artworkFileURL = nil
+            hasBegunPlayback = false
             return
         }
 

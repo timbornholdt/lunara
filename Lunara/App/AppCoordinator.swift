@@ -100,8 +100,16 @@ final class AppCoordinator {
         }
 
         let libraryRepo = LibraryRepo(remote: plexClient, store: libraryStore, artworkPipeline: artworkPipeline)
-        let playbackEngine = AVQueuePlayerEngine(audioSession: AudioSession())
-        let queueManager = QueueManager(engine: playbackEngine)
+        let crossfadeEngine = CrossfadeEngine(audioSession: AudioSession())
+        let playbackEngine: PlaybackEngineProtocol = crossfadeEngine
+        let trackCache = TrackCache()
+        let loudnessAdapter = PlexLoudnessAdapter(library: libraryRepo)
+        let queueManager = QueueManager(
+            engine: playbackEngine,
+            persistence: FileQueueStatePersistence(),
+            trackCache: trackCache,
+            loudnessProvider: loudnessAdapter
+        )
 
         let offlineStore: OfflineStoreProtocol
         let offlineDirectory: URL
@@ -157,6 +165,9 @@ final class AppCoordinator {
             scrobbleManager: scrobbleManager,
             gardenClient: gardenClient
         )
+
+        // Apply persisted crossfade setting
+        playbackEngine.crossfadeEnabled = UserDefaults.standard.object(forKey: "crossfadeEnabled") as? Bool ?? true
     }
 
     // MARK: - Actions

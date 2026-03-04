@@ -16,6 +16,15 @@ final class SettingsViewModel {
     private let signOutAction: () -> Void
     let lastFMAuthManager: LastFMAuthManager?
     let scrobbleManager: ScrobbleManager?
+    private weak var engine: PlaybackEngineProtocol?
+
+    var isCrossfadeEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: "crossfadeEnabled") }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "crossfadeEnabled")
+            engine?.crossfadeEnabled = newValue
+        }
+    }
 
     init(
         offlineStore: OfflineStoreProtocol,
@@ -23,7 +32,8 @@ final class SettingsViewModel {
         library: LibraryRepoProtocol,
         signOutAction: @escaping () -> Void,
         lastFMAuthManager: LastFMAuthManager? = nil,
-        scrobbleManager: ScrobbleManager? = nil
+        scrobbleManager: ScrobbleManager? = nil,
+        engine: PlaybackEngineProtocol? = nil
     ) {
         self.offlineStore = offlineStore
         self.downloadManager = downloadManager
@@ -31,6 +41,7 @@ final class SettingsViewModel {
         self.signOutAction = signOutAction
         self.lastFMAuthManager = lastFMAuthManager
         self.scrobbleManager = scrobbleManager
+        self.engine = engine
         self.settings = OfflineSettings.load()
     }
 
