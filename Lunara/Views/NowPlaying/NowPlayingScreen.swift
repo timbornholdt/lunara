@@ -50,6 +50,8 @@ struct NowPlayingScreen: View {
                 artworkPlaceholder
             }
         }
+        .id(viewModel.albumID)
+        .transition(.opacity)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .shadow(color: .black.opacity(0.3), radius: 20, y: 10)
         .onTapGesture {

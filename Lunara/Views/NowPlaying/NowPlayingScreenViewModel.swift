@@ -30,6 +30,20 @@ final class NowPlayingScreenViewModel {
         let artworkImage: UIImage?
     }
 
+    // Pre-resolved snapshot of all display data for a track,
+    // used to apply all UI updates atomically in a single frame.
+    private struct TrackSnapshot {
+        let trackTitle: String
+        let artistName: String
+        let albumTitle: String?
+        let albumID: String
+        let artworkImage: UIImage?
+        let palette: ArtworkPaletteTheme
+        let album: Album?
+        let artist: Artist?
+        let waveformLevels: [Float]?
+    }
+
     // MARK: - Dependencies
 
     private let queueManager: QueueManagerProtocol
@@ -41,8 +55,9 @@ final class NowPlayingScreenViewModel {
 
     private var resolvedTrackID: String?
     private var metadataTask: Task<Void, Never>?
+    private var prefetchTask: Task<Void, Never>?
     private var upNextTask: Task<Void, Never>?
-    private var waveformCache: [String: [Float]?] = [:]
+    private var snapshotCache: [String: TrackSnapshot] = [:]
 
     // MARK: - Initialization
 
@@ -119,55 +134,84 @@ final class NowPlayingScreenViewModel {
         metadataTask?.cancel()
 
         guard let trackID = newTrackID else {
-            trackTitle = nil
-            artistName = nil
-            albumTitle = nil
-            albumID = nil
-            artworkImage = nil
-            palette = .default
-            currentAlbum = nil
-            currentArtist = nil
-            waveformLevels = nil
+            withAnimation(.easeInOut(duration: 0.3)) {
+                trackTitle = nil
+                artistName = nil
+                albumTitle = nil
+                albumID = nil
+                artworkImage = nil
+                palette = .default
+                currentAlbum = nil
+                currentArtist = nil
+                waveformLevels = nil
+            }
+            return
+        }
+
+        // If we have a pre-fetched snapshot, apply it immediately.
+        if let cached = snapshotCache[trackID] {
+            applySnapshot(cached)
+            prefetchNextTrack()
             return
         }
 
         metadataTask = Task { [weak self] in
-            await self?.resolveMetadata(for: trackID)
+            await self?.resolveAndApply(trackID: trackID)
         }
     }
 
-    private func resolveMetadata(for trackID: String) async {
+    private func resolveAndApply(trackID: String) async {
+        guard let snapshot = await buildSnapshot(for: trackID) else { return }
+        guard !Task.isCancelled else { return }
+
+        snapshotCache[trackID] = snapshot
+        applySnapshot(snapshot)
+        prefetchNextTrack()
+    }
+
+    private func applySnapshot(_ snapshot: TrackSnapshot) {
+        withAnimation(.easeInOut(duration: 0.3)) {
+            trackTitle = snapshot.trackTitle
+            artistName = snapshot.artistName
+            albumTitle = snapshot.albumTitle
+            albumID = snapshot.albumID
+            artworkImage = snapshot.artworkImage
+            palette = snapshot.palette
+            currentAlbum = snapshot.album
+            currentArtist = snapshot.artist
+            waveformLevels = snapshot.waveformLevels
+        }
+    }
+
+    /// Builds a complete snapshot with all display data resolved.
+    /// Returns nil if the track can't be found.
+    private func buildSnapshot(for trackID: String) async -> TrackSnapshot? {
         let track: Track?
         do {
             track = try await library.track(id: trackID)
         } catch {
-            resolvedTrackID = nil
-            return
+            return nil
         }
 
-        guard let track else { return }
-        guard !Task.isCancelled else { return }
-
-        trackTitle = track.title
-        artistName = track.artistName
-        albumID = track.albumID
+        guard let track else { return nil }
+        guard !Task.isCancelled else { return nil }
 
         // Resolve album
-        if let album = try? await library.album(id: track.albumID) {
-            guard !Task.isCancelled else { return }
-            albumTitle = album.title
-            currentAlbum = album
-        }
+        let album = try? await library.album(id: track.albumID)
+        guard !Task.isCancelled else { return nil }
 
         // Resolve artist
+        let artist: Artist?
         if let artists = try? await library.searchArtists(query: track.artistName) {
-            guard !Task.isCancelled else { return }
-            currentArtist = artists.first { $0.name == track.artistName }
+            artist = artists.first { $0.name == track.artistName }
+        } else {
+            artist = nil
         }
+        guard !Task.isCancelled else { return nil }
 
         // Fetch full-size artwork
         let sourceURL: URL?
-        if let album = currentAlbum {
+        if let album {
             sourceURL = try? await library.authenticatedArtworkURL(for: album.thumbURL)
         } else {
             sourceURL = nil
@@ -178,26 +222,52 @@ final class NowPlayingScreenViewModel {
             ownerKind: .album,
             sourceURL: sourceURL
         )
-        guard !Task.isCancelled else { return }
+        guard !Task.isCancelled else { return nil }
 
-        // Load image once into memory to avoid AsyncImage re-fetching on every re-render
+        let resolvedImage: UIImage?
+        let resolvedPalette: ArtworkPaletteTheme
         if let fileURL, let data = try? Data(contentsOf: fileURL), let img = UIImage(data: data) {
-            artworkImage = img
-            palette = ArtworkPaletteExtractor.extract(from: img)
+            resolvedImage = img
+            resolvedPalette = ArtworkPaletteExtractor.extract(from: img)
         } else {
-            artworkImage = nil
-            palette = .default
+            resolvedImage = nil
+            resolvedPalette = .default
         }
 
-        // Fetch waveform loudness levels (cache includes nil to avoid re-fetching failures)
-        if let cached = waveformCache[trackID] {
-            waveformLevels = cached
-        } else {
-            waveformLevels = nil
-            let levels = try? await library.fetchLoudnessLevels(trackID: trackID)
+        // Fetch waveform loudness levels
+        let levels = try? await library.fetchLoudnessLevels(trackID: trackID)
+        guard !Task.isCancelled else { return nil }
+
+        return TrackSnapshot(
+            trackTitle: track.title,
+            artistName: track.artistName,
+            albumTitle: album?.title,
+            albumID: track.albumID,
+            artworkImage: resolvedImage,
+            palette: resolvedPalette,
+            album: album,
+            artist: artist,
+            waveformLevels: levels
+        )
+    }
+
+    // MARK: - Prefetch
+
+    private func prefetchNextTrack() {
+        prefetchTask?.cancel()
+
+        guard let currentIndex = queueManager.currentIndex else { return }
+        let items = queueManager.items
+        let nextIndex = currentIndex + 1
+        guard items.indices.contains(nextIndex) else { return }
+
+        let nextTrackID = items[nextIndex].trackID
+        guard snapshotCache[nextTrackID] == nil else { return }
+
+        prefetchTask = Task { [weak self] in
+            guard let snapshot = await self?.buildSnapshot(for: nextTrackID) else { return }
             guard !Task.isCancelled else { return }
-            waveformLevels = levels
-            waveformCache[trackID] = levels
+            self?.snapshotCache[nextTrackID] = snapshot
         }
     }
 
