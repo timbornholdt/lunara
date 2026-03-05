@@ -40,8 +40,11 @@ final class ArtworkPipeline: ArtworkPipelineProtocol {
 
     func invalidateCache(for key: ArtworkCacheKey) async throws {
         let storeKey = key.storeKey
-        if let path = try await store.artworkPath(for: storeKey), fileManager.fileExists(atPath: path) {
-            try removeFile(atPath: path)
+        if let name = try await store.artworkPath(for: storeKey) {
+            let fullPath = cacheDirectoryURL.appendingPathComponent(name).path
+            if fileManager.fileExists(atPath: fullPath) {
+                try removeFile(atPath: fullPath)
+            }
         }
         try await store.deleteArtworkPath(for: storeKey)
     }

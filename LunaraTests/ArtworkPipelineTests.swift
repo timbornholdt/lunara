@@ -10,7 +10,7 @@ struct ArtworkPipelineTests {
         let key = ArtworkKey(ownerID: "album-1", ownerType: .album, variant: .thumbnail)
         let cachedURL = fixture.cacheDirectory.appendingPathComponent("cached-thumb.jpg")
         try Data("cached".utf8).write(to: cachedURL)
-        fixture.store.artworkPathByKey[key] = cachedURL.path
+        fixture.store.artworkPathByKey[key] = cachedURL.lastPathComponent
 
         let result = try await fixture.pipeline.fetchThumbnail(
             for: "album-1",
@@ -39,9 +39,10 @@ struct ArtworkPipelineTests {
 
         let stored = try #require(fixture.store.setArtworkPathCalls.first)
         #expect(stored.key == ArtworkKey(ownerID: "album-2", ownerType: .album, variant: .full))
-        #expect(result?.path == stored.path)
+        let storedFullPath = fixture.cacheDirectory.appendingPathComponent(stored.path).path
+        #expect(result?.path == storedFullPath)
 
-        let persistedData = try Data(contentsOf: URL(fileURLWithPath: stored.path))
+        let persistedData = try Data(contentsOf: URL(fileURLWithPath: storedFullPath))
         #expect(persistedData == Data("remote-image".utf8))
     }
 
@@ -49,7 +50,7 @@ struct ArtworkPipelineTests {
     func fetchThumbnail_whenStoredPathIsStale_cleansStoreThenFetchesFreshFile() async throws {
         let fixture = try Fixture()
         let staleKey = ArtworkKey(ownerID: "album-3", ownerType: .album, variant: .thumbnail)
-        fixture.store.artworkPathByKey[staleKey] = fixture.cacheDirectory.appendingPathComponent("missing.jpg").path
+        fixture.store.artworkPathByKey[staleKey] = "missing.jpg"
         fixture.session.dataToReturn = Data("fresh".utf8)
 
         _ = try await fixture.pipeline.fetchThumbnail(
@@ -88,8 +89,8 @@ struct ArtworkPipelineTests {
 
         try Data("thumb".utf8).write(to: thumbURL)
         try Data("full".utf8).write(to: fullURL)
-        fixture.store.artworkPathByKey[thumbKey] = thumbURL.path
-        fixture.store.artworkPathByKey[fullKey] = fullURL.path
+        fixture.store.artworkPathByKey[thumbKey] = "thumb.jpg"
+        fixture.store.artworkPathByKey[fullKey] = "full.jpg"
 
         try await fixture.pipeline.invalidateCache(for: "artist-1", ownerKind: .artist)
 
@@ -181,8 +182,8 @@ struct ArtworkPipelineTests {
         )
 
         #expect(thumb.path != full.path)
-        #expect(FileManager.default.fileExists(atPath: thumb.path))
-        #expect(FileManager.default.fileExists(atPath: full.path))
+        #expect(FileManager.default.fileExists(atPath: fixture.cacheDirectory.appendingPathComponent(thumb.path).path))
+        #expect(FileManager.default.fileExists(atPath: fixture.cacheDirectory.appendingPathComponent(full.path).path))
     }
 
     @Test
@@ -231,9 +232,12 @@ struct ArtworkPipelineTests {
             }?.path
         )
 
-        #expect(FileManager.default.fileExists(atPath: pathA))
-        #expect(!FileManager.default.fileExists(atPath: pathB))
-        #expect(FileManager.default.fileExists(atPath: pathC))
+        let fullA = fixture.cacheDirectory.appendingPathComponent(pathA).path
+        let fullB = fixture.cacheDirectory.appendingPathComponent(pathB).path
+        let fullC = fixture.cacheDirectory.appendingPathComponent(pathC).path
+        #expect(FileManager.default.fileExists(atPath: fullA))
+        #expect(!FileManager.default.fileExists(atPath: fullB))
+        #expect(FileManager.default.fileExists(atPath: fullC))
     }
 
     @Test
