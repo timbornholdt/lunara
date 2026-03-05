@@ -9,12 +9,16 @@ final class PlaybackEngineMock: PlaybackEngineProtocol {
     var elapsed: TimeInterval = 0
     var duration: TimeInterval = 0
     var currentTrackID: String?
+    var crossfadeEnabled: Bool = false
 
     private(set) var playCalls: [(URL, String)] = []
     private(set) var pauseCallCount = 0
     private(set) var resumeCallCount = 0
     private(set) var seekCalls: [TimeInterval] = []
     private(set) var stopCallCount = 0
+    private(set) var prepareNextCalls: [(URL, String, TransitionStyle)] = []
+    private(set) var signalBufferingCallCount = 0
+    private(set) var skipWithFadeCallCount = 0
 
     func play(url: URL, trackID: String) {
         playCalls.append((url, trackID))
@@ -39,6 +43,22 @@ final class PlaybackEngineMock: PlaybackEngineProtocol {
 
     func stop() {
         stopCallCount += 1
+        currentTrackID = nil
+        elapsed = 0
+        duration = 0
+        playbackState = .idle
+    }
+
+    func prepareNext(url: URL, trackID: String, transition: TransitionStyle) {
+        prepareNextCalls.append((url, trackID, transition))
+    }
+
+    func signalBuffering() {
+        signalBufferingCallCount += 1
+    }
+
+    func skipWithFade() {
+        skipWithFadeCallCount += 1
         currentTrackID = nil
         elapsed = 0
         duration = 0

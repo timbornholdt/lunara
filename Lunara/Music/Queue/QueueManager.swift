@@ -17,16 +17,27 @@ final class QueueManager: QueueManagerProtocol {
 
     let engine: PlaybackEngineProtocol
     private let persistence: QueueStatePersisting
+    private let trackCache: TrackCache?
+    private let loudnessProvider: LoudnessDataProviding?
     var lastPersistedElapsed: TimeInterval = 0
     var pendingSeekAfterNextPlay: TimeInterval?
     private var persistenceTask: Task<Void, Never>?
+    private var prepareNextTask: Task<Void, Never>?
+    // Set during manual skip/navigation to prevent the observer from
+    // re-syncing currentIndex to a stale engine trackID while the
+    // new track is still loading via the track cache.
+    private var manualNavigationTargetTrackID: String?
 
     init(
         engine: PlaybackEngineProtocol,
-        persistence: QueueStatePersisting
+        persistence: QueueStatePersisting,
+        trackCache: TrackCache? = nil,
+        loudnessProvider: LoudnessDataProviding? = nil
     ) {
         self.engine = engine
         self.persistence = persistence
+        self.trackCache = trackCache
+        self.loudnessProvider = loudnessProvider
         restorePersistedQueue()
         observeEngineState()
     }
@@ -97,7 +108,12 @@ final class QueueManager: QueueManagerProtocol {
     }
 
     func skipToNext() {
-        advanceAndPlayNextIfPossible()
+        if engine.playbackState == .playing && engine.crossfadeEnabled {
+            engine.skipWithFade()
+            // The fade-out will transition to .idle, which triggers advanceAndPlayNextIfPossible
+        } else {
+            advanceAndPlayNextIfPossible()
+        }
     }
 
     func skipBack() {
@@ -114,6 +130,7 @@ final class QueueManager: QueueManagerProtocol {
             }
             self.currentIndex = prevIndex
             pendingSeekAfterNextPlay = nil
+            manualNavigationTargetTrackID = items[prevIndex].trackID
             playCurrentItem()
         }
     }
@@ -122,6 +139,7 @@ final class QueueManager: QueueManagerProtocol {
         guard items.indices.contains(index) else { return }
         currentIndex = index
         pendingSeekAfterNextPlay = nil
+        manualNavigationTargetTrackID = items[index].trackID
         playCurrentItem()
     }
 
@@ -141,14 +159,86 @@ final class QueueManager: QueueManagerProtocol {
 
     func playCurrentItem() {
         guard let currentItem else { return }
-        engine.play(url: currentItem.url, trackID: currentItem.trackID)
 
-        if let pendingSeekAfterNextPlay {
-            engine.seek(to: pendingSeekAfterNextPlay)
-            self.pendingSeekAfterNextPlay = nil
+        if trackCache != nil {
+            engine.signalBuffering()
+            Task {
+                do {
+                    let localURL = try await trackCache!.prepare(url: currentItem.url, trackID: currentItem.trackID)
+                    guard !Task.isCancelled else { return }
+                    await MainActor.run {
+                        engine.play(url: localURL, trackID: currentItem.trackID)
+                        if let pendingSeekAfterNextPlay {
+                            engine.seek(to: pendingSeekAfterNextPlay)
+                            self.pendingSeekAfterNextPlay = nil
+                        }
+                        persistQueueState(elapsed: engine.elapsed)
+                        prepareNextTrackIfNeeded()
+                    }
+                } catch {
+                    // Cache download failed — fall back to direct play
+                    await MainActor.run {
+                        engine.play(url: currentItem.url, trackID: currentItem.trackID)
+                        if let pendingSeekAfterNextPlay {
+                            engine.seek(to: pendingSeekAfterNextPlay)
+                            self.pendingSeekAfterNextPlay = nil
+                        }
+                        persistQueueState(elapsed: engine.elapsed)
+                        prepareNextTrackIfNeeded()
+                    }
+                }
+            }
+        } else {
+            engine.play(url: currentItem.url, trackID: currentItem.trackID)
+
+            if let pendingSeekAfterNextPlay {
+                engine.seek(to: pendingSeekAfterNextPlay)
+                self.pendingSeekAfterNextPlay = nil
+            }
+
+            persistQueueState(elapsed: engine.elapsed)
+            prepareNextTrackIfNeeded()
         }
+    }
 
-        persistQueueState(elapsed: engine.elapsed)
+    private func prepareNextTrackIfNeeded() {
+        prepareNextTask?.cancel()
+        guard engine.crossfadeEnabled,
+              let currentIndex,
+              let trackCache else { return }
+
+        let nextIndex = currentIndex + 1
+        guard items.indices.contains(nextIndex) else { return }
+
+        let currentItem = items[currentIndex]
+        let nextItem = items[nextIndex]
+
+        prepareNextTask = Task { [weak self, loudnessProvider] in
+            do {
+                let localURL = try await trackCache.prepare(url: nextItem.url, trackID: nextItem.trackID)
+
+                guard !Task.isCancelled else { return }
+
+                let loudness = try? await loudnessProvider?.fetchLoudnessLevels(trackID: nextItem.trackID)
+
+                guard !Task.isCancelled else { return }
+
+                await MainActor.run {
+                    guard let self else { return }
+                    let transition = CrossfadePolicy.transition(
+                        currentAlbumID: currentItem.albumID,
+                        currentTrackNumber: currentItem.trackNumber,
+                        nextAlbumID: nextItem.albumID,
+                        nextTrackNumber: nextItem.trackNumber,
+                        currentTrackDuration: self.engine.duration,
+                        loudnessLevels: loudness
+                    )
+                    self.engine.prepareNext(url: localURL, trackID: nextItem.trackID, transition: transition)
+                }
+            } catch {
+                // Download failed - engine will fall back to normal track advancement
+            }
+        }
     }
 
     private func advanceAndPlayNextIfPossible() {
@@ -253,13 +343,45 @@ final class QueueManager: QueueManagerProtocol {
     }
 
     private func handleEngineStateChange() {
+        // If a manual navigation is in progress (skipBack/skipTo), suppress
+        // auto-sync until the engine starts playing the intended track.
+        if let targetID = manualNavigationTargetTrackID {
+            if engine.currentTrackID == targetID {
+                manualNavigationTargetTrackID = nil
+            } else {
+                // Engine still on stale track — don't sync or advance.
+                if shouldPersistElapsedProgress() {
+                    persistQueueState(elapsed: engine.elapsed)
+                }
+                return
+            }
+        }
+
         if engine.currentTrackID == nil, engine.playbackState == .idle {
             advanceAndPlayNextIfPossible()
+        } else if let engineTrackID = engine.currentTrackID,
+                  engineTrackID != currentItem?.trackID {
+            // The engine advanced to a new track via crossfade —
+            // sync currentIndex to match without re-triggering playback.
+            syncCurrentIndexToEngineTrack(engineTrackID)
         }
 
         if shouldPersistElapsedProgress() {
             persistQueueState(elapsed: engine.elapsed)
         }
+    }
+
+    private func syncCurrentIndexToEngineTrack(_ engineTrackID: String) {
+        guard let currentIndex else { return }
+        let nextIndex = currentIndex + 1
+        guard items.indices.contains(nextIndex),
+              items[nextIndex].trackID == engineTrackID else { return }
+
+        self.currentIndex = nextIndex
+        pendingSeekAfterNextPlay = nil
+        lastPersistedElapsed = 0
+        persistQueueState(elapsed: engine.elapsed)
+        prepareNextTrackIfNeeded()
     }
 
     private func shouldPersistElapsedProgress() -> Bool {

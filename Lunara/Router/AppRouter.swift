@@ -306,7 +306,7 @@ final class AppRouter {
             )
             throw error
         }
-        return QueueItem(trackID: track.plexID, url: url)
+        return QueueItem(trackID: track.plexID, url: url, albumID: track.albumID, trackNumber: track.trackNumber)
     }
 
     private func logEnqueueReport(album: Album, tracks: [Track], items: [QueueItem]) {

@@ -4,6 +4,15 @@ import Observation
 struct QueueItem: Codable, Equatable, Hashable, Sendable {
     let trackID: String
     let url: URL
+    let albumID: String
+    let trackNumber: Int
+
+    init(trackID: String, url: URL, albumID: String = "", trackNumber: Int = 0) {
+        self.trackID = trackID
+        self.url = url
+        self.albumID = albumID
+        self.trackNumber = trackNumber
+    }
 }
 
 struct QueueSnapshot: Codable, Equatable, Sendable {

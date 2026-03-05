@@ -457,6 +457,7 @@ private final class CoordinatorPlaybackEngineMock: PlaybackEngineProtocol {
     var elapsed: TimeInterval = 0
     var duration: TimeInterval = 0
     var currentTrackID: String?
+    var crossfadeEnabled: Bool = false
     func play(url: URL, trackID: String) { }
     func pause() { }
     func resume() { }

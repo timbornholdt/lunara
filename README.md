@@ -61,7 +61,7 @@ Plex is authoritative for library structure, metadata, ratings, artwork, and aud
 - **Plex server:** Serves audio via direct play (no transcoding).
 - **Audio format:** MP3.
 - **Library size:** 2,000+ albums. Requires pagination or lazy loading.
-- **iOS target:** iPhone 15 Pro, iOS 17+.
+- **iOS target:** iPhone 15 Pro, iOS 26.3.
 - **Language:** Swift. SwiftUI preferred; UIKit acceptable where it simplifies implementation.
 - **Local storage:** GRDB (SQLite wrapper).
 - **Background audio:** The app requires the `UIBackgroundModes` audio entitlement in Info.plist. This must be configured from the very first phase that involves playback. Audio must continue when the app is backgrounded or the screen is locked.

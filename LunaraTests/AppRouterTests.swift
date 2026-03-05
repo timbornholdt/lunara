@@ -34,8 +34,8 @@ struct AppRouterTests {
         #expect(subject.library.streamURLRequests == [firstTrack.plexID, secondTrack.plexID])
         #expect(subject.queue.playNowCalls.count == 1)
         #expect(subject.queue.playNowCalls[0] == [
-            QueueItem(trackID: firstTrack.plexID, url: try #require(subject.library.streamURLByTrackID[firstTrack.plexID])),
-            QueueItem(trackID: secondTrack.plexID, url: try #require(subject.library.streamURLByTrackID[secondTrack.plexID]))
+            expectedQueueItem(for: firstTrack, url: try #require(subject.library.streamURLByTrackID[firstTrack.plexID])),
+            expectedQueueItem(for: secondTrack, url: try #require(subject.library.streamURLByTrackID[secondTrack.plexID]))
         ])
     }
 
@@ -212,7 +212,7 @@ struct AppRouterTests {
 
         try await subject.router.queueAlbumNext(album)
 
-        #expect(subject.queue.playNextCalls == [[QueueItem(trackID: track.plexID, url: streamURL)]])
+        #expect(subject.queue.playNextCalls == [[expectedQueueItem(for: track, url: streamURL)]])
     }
 
     @Test
@@ -226,7 +226,7 @@ struct AppRouterTests {
 
         try await subject.router.queueAlbumLater(album)
 
-        #expect(subject.queue.playLaterCalls == [[QueueItem(trackID: track.plexID, url: streamURL)]])
+        #expect(subject.queue.playLaterCalls == [[expectedQueueItem(for: track, url: streamURL)]])
     }
 
     @Test
@@ -238,7 +238,7 @@ struct AppRouterTests {
 
         try await subject.router.playTrackNow(track)
 
-        #expect(subject.queue.playNowCalls == [[QueueItem(trackID: track.plexID, url: streamURL)]])
+        #expect(subject.queue.playNowCalls == [[expectedQueueItem(for: track, url: streamURL)]])
     }
 
     @Test
@@ -250,7 +250,7 @@ struct AppRouterTests {
 
         try await subject.router.queueTrackNext(track)
 
-        #expect(subject.queue.playNextCalls == [[QueueItem(trackID: track.plexID, url: streamURL)]])
+        #expect(subject.queue.playNextCalls == [[expectedQueueItem(for: track, url: streamURL)]])
     }
 
     @Test
@@ -262,7 +262,7 @@ struct AppRouterTests {
 
         try await subject.router.queueTrackLater(track)
 
-        #expect(subject.queue.playLaterCalls == [[QueueItem(trackID: track.plexID, url: streamURL)]])
+        #expect(subject.queue.playLaterCalls == [[expectedQueueItem(for: track, url: streamURL)]])
     }
 
     @Test
@@ -280,7 +280,7 @@ struct AppRouterTests {
         try await subject.router.playCollection(collection)
 
         #expect(subject.queue.playNowCalls.count == 1)
-        #expect(subject.queue.playNowCalls[0] == [QueueItem(trackID: track.plexID, url: streamURL)])
+        #expect(subject.queue.playNowCalls[0] == [expectedQueueItem(for: track, url: streamURL)])
     }
 
     @Test
@@ -320,7 +320,7 @@ struct AppRouterTests {
         try await subject.router.playArtist(artist)
 
         #expect(subject.queue.playNowCalls.count == 1)
-        #expect(subject.queue.playNowCalls[0] == [QueueItem(trackID: track.plexID, url: streamURL)])
+        #expect(subject.queue.playNowCalls[0] == [expectedQueueItem(for: track, url: streamURL)])
     }
 
     @Test
@@ -460,17 +460,21 @@ struct AppRouterTests {
         )
     }
 
-    private func makeTrack(id: String, albumID: String = "album-1") -> Track {
+    private func makeTrack(id: String, albumID: String = "album-1", trackNumber: Int = 1) -> Track {
         Track(
             plexID: id,
             albumID: albumID,
             title: "Track \(id)",
-            trackNumber: 1,
+            trackNumber: trackNumber,
             duration: 180,
             artistName: "Artist",
             key: "/library/metadata/\(id)",
             thumbURL: nil
         )
+    }
+
+    private func expectedQueueItem(for track: Track, url: URL) -> QueueItem {
+        QueueItem(trackID: track.plexID, url: url, albumID: track.albumID, trackNumber: track.trackNumber)
     }
 }
 

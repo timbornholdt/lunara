@@ -11,6 +11,7 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             List {
+
                 lastFMSection
                 storageSection
                 syncedCollectionsSection
@@ -79,6 +80,7 @@ struct SettingsView: View {
         }
         .clipShape(RoundedRectangle(cornerRadius: 5))
     }
+
 
     private var storageSection: some View {
         Section("Offline Storage") {

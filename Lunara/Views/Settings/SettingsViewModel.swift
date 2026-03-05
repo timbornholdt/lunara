@@ -16,7 +16,6 @@ final class SettingsViewModel {
     private let signOutAction: () -> Void
     let lastFMAuthManager: LastFMAuthManager?
     let scrobbleManager: ScrobbleManager?
-
     init(
         offlineStore: OfflineStoreProtocol,
         downloadManager: DownloadManager,

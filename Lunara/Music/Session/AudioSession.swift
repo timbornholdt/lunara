@@ -59,7 +59,7 @@ final class AudioSession: AudioSessionProtocol {
 
     func configureForPlayback() throws {
         do {
-            try audioSession.setCategory(.playback, mode: .default, options: [])
+            try audioSession.setCategory(.playback, mode: .default, options: [.duckOthers])
             try audioSession.setActive(true, options: [])
         } catch {
             throw MusicError.audioSessionFailed
