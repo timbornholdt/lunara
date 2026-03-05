@@ -54,8 +54,11 @@ final class NowPlayingScreenViewModel {
     // MARK: - Private State
 
     private var resolvedTrackID: String?
+    private var resolvedUpNextIndex: Int?
+    private var resolvedUpNextCount: Int?
     private var metadataTask: Task<Void, Never>?
     private var prefetchTask: Task<Void, Never>?
+    private var prefetchingTrackID: String?
     private var upNextTask: Task<Void, Never>?
     private var snapshotCache: [String: TrackSnapshot] = [:]
 
@@ -74,7 +77,7 @@ final class NowPlayingScreenViewModel {
 
         observeQueue()
         handleCurrentItemChange()
-        resolveUpNext()
+        resolveUpNextIfNeeded()
     }
 
     // MARK: - Actions
@@ -117,7 +120,7 @@ final class NowPlayingScreenViewModel {
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 self?.handleCurrentItemChange()
-                self?.resolveUpNext()
+                self?.resolveUpNextIfNeeded()
                 self?.observeQueue()
             }
         }
@@ -254,26 +257,35 @@ final class NowPlayingScreenViewModel {
     // MARK: - Prefetch
 
     private func prefetchNextTrack() {
-        prefetchTask?.cancel()
-
         guard let currentIndex = queueManager.currentIndex else { return }
         let items = queueManager.items
         let nextIndex = currentIndex + 1
         guard items.indices.contains(nextIndex) else { return }
 
         let nextTrackID = items[nextIndex].trackID
-        guard snapshotCache[nextTrackID] == nil else { return }
+        // Already cached or already in-flight — nothing to do.
+        guard snapshotCache[nextTrackID] == nil,
+              prefetchingTrackID != nextTrackID else { return }
 
+        prefetchTask?.cancel()
+        prefetchingTrackID = nextTrackID
         prefetchTask = Task { [weak self] in
             guard let snapshot = await self?.buildSnapshot(for: nextTrackID) else { return }
             guard !Task.isCancelled else { return }
             self?.snapshotCache[nextTrackID] = snapshot
+            self?.prefetchingTrackID = nil
         }
     }
 
     // MARK: - Up Next Resolution
 
-    private func resolveUpNext() {
+    private func resolveUpNextIfNeeded() {
+        let newIndex = queueManager.currentIndex
+        let newCount = queueManager.items.count
+        guard newIndex != resolvedUpNextIndex || newCount != resolvedUpNextCount else { return }
+        resolvedUpNextIndex = newIndex
+        resolvedUpNextCount = newCount
+
         upNextTask?.cancel()
         upNextTask = Task { [weak self] in
             await self?.resolveUpNextItems()

@@ -66,7 +66,7 @@ final class ArtworkPipeline: ArtworkPipelineProtocol {
         let tag = "\(key.ownerKind.rawValue)/\(key.ownerID)/\(key.imageKind.rawValue)"
 
         if let cached = try await cachedFileURL(for: key) {
-            logger.debug("artwork cache HIT  \(tag, privacy: .public) → \(cached.lastPathComponent, privacy: .public)")
+            // Cache hits are expected and frequent — don't log them.
             return cached
         }
 
