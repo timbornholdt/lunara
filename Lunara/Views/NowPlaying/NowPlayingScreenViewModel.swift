@@ -154,6 +154,7 @@ final class NowPlayingScreenViewModel {
         // If we have a pre-fetched snapshot, apply it immediately.
         if let cached = snapshotCache[trackID] {
             applySnapshot(cached)
+            evictStaleSnapshots()
             prefetchNextTrack()
             return
         }
@@ -169,6 +170,7 @@ final class NowPlayingScreenViewModel {
 
         snapshotCache[trackID] = snapshot
         applySnapshot(snapshot)
+        evictStaleSnapshots()
         prefetchNextTrack()
     }
 
@@ -252,6 +254,29 @@ final class NowPlayingScreenViewModel {
             artist: artist,
             waveformLevels: levels
         )
+    }
+
+    // MARK: - Cache Eviction
+
+    /// Keeps only the current and next track snapshots to prevent unbounded
+    /// memory growth from full-size UIImages accumulating over a long session.
+    private func evictStaleSnapshots() {
+        guard let currentIndex = queueManager.currentIndex else {
+            snapshotCache.removeAll()
+            return
+        }
+
+        let items = queueManager.items
+        var keepIDs = Set<String>()
+        keepIDs.insert(items[currentIndex].trackID)
+        let nextIndex = currentIndex + 1
+        if items.indices.contains(nextIndex) {
+            keepIDs.insert(items[nextIndex].trackID)
+        }
+
+        for key in snapshotCache.keys where !keepIDs.contains(key) {
+            snapshotCache.removeValue(forKey: key)
+        }
     }
 
     // MARK: - Prefetch
