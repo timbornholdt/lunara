@@ -11,7 +11,7 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             List {
-                playbackSection
+
                 lastFMSection
                 storageSection
                 syncedCollectionsSection
@@ -81,17 +81,6 @@ struct SettingsView: View {
         .clipShape(RoundedRectangle(cornerRadius: 5))
     }
 
-    private var playbackSection: some View {
-        Section("Playback") {
-            Toggle(
-                "Smart Crossfade",
-                isOn: Binding(
-                    get: { viewModel.isCrossfadeEnabled },
-                    set: { viewModel.isCrossfadeEnabled = $0 }
-                )
-            )
-        }
-    }
 
     private var storageSection: some View {
         Section("Offline Storage") {

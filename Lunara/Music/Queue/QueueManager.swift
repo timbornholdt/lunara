@@ -23,6 +23,10 @@ final class QueueManager: QueueManagerProtocol {
     var pendingSeekAfterNextPlay: TimeInterval?
     private var persistenceTask: Task<Void, Never>?
     private var prepareNextTask: Task<Void, Never>?
+    // Set during manual skip/navigation to prevent the observer from
+    // re-syncing currentIndex to a stale engine trackID while the
+    // new track is still loading via the track cache.
+    private var manualNavigationTargetTrackID: String?
 
     init(
         engine: PlaybackEngineProtocol,
@@ -124,11 +128,9 @@ final class QueueManager: QueueManagerProtocol {
                 persistQueueState(elapsed: 0)
                 return
             }
-            if engine.playbackState == .playing && engine.crossfadeEnabled {
-                engine.skipWithFade()
-            }
             self.currentIndex = prevIndex
             pendingSeekAfterNextPlay = nil
+            manualNavigationTargetTrackID = items[prevIndex].trackID
             playCurrentItem()
         }
     }
@@ -137,6 +139,7 @@ final class QueueManager: QueueManagerProtocol {
         guard items.indices.contains(index) else { return }
         currentIndex = index
         pendingSeekAfterNextPlay = nil
+        manualNavigationTargetTrackID = items[index].trackID
         playCurrentItem()
     }
 
@@ -340,6 +343,20 @@ final class QueueManager: QueueManagerProtocol {
     }
 
     private func handleEngineStateChange() {
+        // If a manual navigation is in progress (skipBack/skipTo), suppress
+        // auto-sync until the engine starts playing the intended track.
+        if let targetID = manualNavigationTargetTrackID {
+            if engine.currentTrackID == targetID {
+                manualNavigationTargetTrackID = nil
+            } else {
+                // Engine still on stale track — don't sync or advance.
+                if shouldPersistElapsedProgress() {
+                    persistQueueState(elapsed: engine.elapsed)
+                }
+                return
+            }
+        }
+
         if engine.currentTrackID == nil, engine.playbackState == .idle {
             advanceAndPlayNextIfPossible()
         } else if let engineTrackID = engine.currentTrackID,

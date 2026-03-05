@@ -114,8 +114,7 @@ struct LibraryRootTabView: View {
                             library: coordinator.libraryRepo,
                             signOutAction: { coordinator.signOut() },
                             lastFMAuthManager: coordinator.lastFMAuthManager,
-                            scrobbleManager: coordinator.scrobbleManager,
-                            engine: coordinator.playbackEngine
+                            scrobbleManager: coordinator.scrobbleManager
                         )
                     )
                     .toolbarBackground(Color.lunara(.backgroundBase), for: .tabBar)
