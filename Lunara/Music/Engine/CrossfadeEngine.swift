@@ -1,4 +1,3 @@
-import AVFoundation
 import Foundation
 import Observation
 import os
@@ -12,7 +11,6 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
     private(set) var currentTrackID: String?
 
     private let audioSession: AudioSessionProtocol
-    private let engine = AVAudioEngine()
     private let slotA = PlayerSlot()
     private let slotB = PlayerSlot()
     private var activeSlot: PlayerSlot
@@ -36,7 +34,6 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
         self.activeSlot = slotA
         self.inactiveSlot = slotB
 
-        setupEngine()
         wireInterruptions()
     }
 
@@ -59,14 +56,12 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
             return
         }
 
-        startEngineIfNeeded()
-
         activeSlot.volume = 1.0
         logger.debug("[CF] play: setting onPlaybackComplete for trackID=\(trackID, privacy: .public)")
         activeSlot.onPlaybackComplete = { [weak self] in
             self?.handleTrackEnded()
         }
-        activeSlot.scheduleAndPlay()
+        activeSlot.play()
 
         currentTrackID = trackID
         elapsed = 0
@@ -95,19 +90,9 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
             return
         }
 
-        if engine.isRunning {
-            activeSlot.resume()
-            if isCrossfading {
-                inactiveSlot.resume()
-            }
-        } else {
-            // Engine was stopped by the system (e.g. phone call interruption).
-            // Must restart engine and re-schedule from saved position.
-            startEngineIfNeeded()
-            activeSlot.resumeFromSavedPosition()
-            if isCrossfading {
-                inactiveSlot.resumeFromSavedPosition()
-            }
+        activeSlot.resume()
+        if isCrossfading {
+            inactiveSlot.resume()
         }
 
         if isCrossfading {
@@ -197,24 +182,6 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
         }
     }
 
-    // MARK: - Engine Setup
-
-    private func setupEngine() {
-        engine.attach(slotA.playerNode)
-        engine.attach(slotB.playerNode)
-        engine.connect(slotA.playerNode, to: engine.mainMixerNode, format: nil)
-        engine.connect(slotB.playerNode, to: engine.mainMixerNode, format: nil)
-    }
-
-    private func startEngineIfNeeded() {
-        guard !engine.isRunning else { return }
-        do {
-            try engine.start()
-        } catch {
-            logger.error("Failed to start AVAudioEngine: \(error.localizedDescription, privacy: .public)")
-        }
-    }
-
     // MARK: - Elapsed Timer
 
     private func startElapsedTimer() {
@@ -261,10 +228,9 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
         crossfadeDuration = fadeDuration
         crossfadeStartTime = elapsed
 
-        startEngineIfNeeded()
         inactiveSlot.onPlaybackComplete = nil
         inactiveSlot.volume = 0
-        inactiveSlot.scheduleAndPlay()
+        inactiveSlot.play()
 
         startCrossfadeTimer()
     }
@@ -336,7 +302,7 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
             activeSlot.onPlaybackComplete = { [weak self] in
                 self?.handleTrackEnded()
             }
-            activeSlot.scheduleAndPlay()
+            activeSlot.play()
 
             currentTrackID = activeSlot.trackID
             elapsed = 0

@@ -16,7 +16,7 @@ struct AudioSessionTests {
         #expect(audioSessionSpy.setCategoryCallCount == 1)
         #expect(audioSessionSpy.lastCategory == .playback)
         #expect(audioSessionSpy.lastMode == .default)
-        #expect(audioSessionSpy.lastCategoryOptions == [])
+        #expect(audioSessionSpy.lastCategoryOptions == [.duckOthers])
 
         #expect(audioSessionSpy.setActiveCallCount == 1)
         #expect(audioSessionSpy.lastActiveValue == true)
