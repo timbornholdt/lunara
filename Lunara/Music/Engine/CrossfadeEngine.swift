@@ -16,8 +16,18 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
     private var activeSlot: PlayerSlot
     private var inactiveSlot: PlayerSlot
 
-    private var crossfadeTimer: Timer?
+    /// UI-only timer for updating elapsed display. Runs on the default
+    /// RunLoop mode — expected to stop when the app is backgrounded.
     private var elapsedTimer: Timer?
+
+    /// One-shot GCD timer that fires at the exact crossfade start time.
+    /// Uses DispatchSourceTimer so it keeps firing in background.
+    private var crossfadeTriggerTimer: DispatchSourceTimer?
+
+    /// GCD timer that ramps volume during an active crossfade.
+    /// Runs only for the fade duration (2-12s), then stops.
+    private var crossfadeRampTimer: DispatchSourceTimer?
+
     private var isCrossfading = false
     private var crossfadeStartTime: TimeInterval = 0
     private var crossfadeDuration: TimeInterval = 0
@@ -69,15 +79,16 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
         playbackState = .playing
 
         startElapsedTimer()
-        scheduleTransitionIfNeeded()
+        scheduleCrossfadeTriggerIfNeeded()
     }
 
     func pause() {
         activeSlot.pause()
         if isCrossfading {
             inactiveSlot.pause()
-            crossfadeTimer?.invalidate()
+            cancelCrossfadeRampTimer()
         }
+        cancelCrossfadeTriggerTimer()
         stopElapsedTimer()
         if playbackState != .idle && !playbackState.hasError {
             playbackState = .paused
@@ -96,7 +107,9 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
         }
 
         if isCrossfading {
-            startCrossfadeTimer()
+            startCrossfadeRampTimer()
+        } else {
+            scheduleCrossfadeTriggerIfNeeded()
         }
         playbackState = .playing
         startElapsedTimer()
@@ -106,6 +119,7 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
         cancelActiveCrossfade()
         activeSlot.seek(to: time)
         elapsed = max(0, time)
+        scheduleCrossfadeTriggerIfNeeded()
     }
 
     func stop() {
@@ -174,7 +188,8 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
             try inactiveSlot.load(url: url, trackID: trackID)
             pendingTransition = transition
             pendingTrackID = trackID
-            scheduleTransitionIfNeeded()
+            logger.debug("[CF] prepareNext: trackID=\(trackID, privacy: .public) transition=\(String(describing: transition), privacy: .public)")
+            scheduleCrossfadeTriggerIfNeeded()
         } catch {
             logger.error("Failed to prepare next track: \(error.localizedDescription, privacy: .public)")
             pendingTransition = nil
@@ -182,7 +197,7 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
         }
     }
 
-    // MARK: - Elapsed Timer
+    // MARK: - Elapsed Timer (UI only)
 
     private func startElapsedTimer() {
         stopElapsedTimer()
@@ -204,50 +219,93 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
         if newElapsed != elapsed {
             elapsed = newElapsed
         }
+    }
 
-        // Check if we should start crossfade
-        if let transition = pendingTransition, case .crossfade(let startTime, _) = transition {
-            if newElapsed >= startTime && !isCrossfading {
-                beginCrossfade()
+    // MARK: - Crossfade Trigger (one-shot, background-safe)
+
+    /// Schedules a one-shot GCD timer to fire at the crossfade start time.
+    /// Uses DispatchSourceTimer so it keeps firing even when the app is
+    /// backgrounded with audio playing. Generous leeway allows the system
+    /// to coalesce wakeups for power efficiency.
+    private func scheduleCrossfadeTriggerIfNeeded() {
+        cancelCrossfadeTriggerTimer()
+
+        guard !isCrossfading else { return }
+        guard let transition = pendingTransition,
+              case .crossfade(let startTime, _) = transition else { return }
+
+        let currentElapsed = activeSlot.elapsed
+        let delay = startTime - currentElapsed
+
+        if delay <= 0 {
+            logger.debug("[CF] crossfade trigger: start time already passed, beginning immediately")
+            beginCrossfade()
+            return
+        }
+
+        logger.debug("[CF] crossfade trigger: scheduled in \(delay, privacy: .public)s (startTime=\(startTime, privacy: .public) elapsed=\(currentElapsed, privacy: .public))")
+
+        let timer = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
+        timer.schedule(deadline: .now() + delay, leeway: .milliseconds(250))
+        timer.setEventHandler { [weak self] in
+            DispatchQueue.main.async {
+                self?.beginCrossfade()
             }
         }
+        timer.resume()
+        crossfadeTriggerTimer = timer
+    }
+
+    private func cancelCrossfadeTriggerTimer() {
+        crossfadeTriggerTimer?.cancel()
+        crossfadeTriggerTimer = nil
+    }
+
+    // MARK: - Crossfade Ramp (active fade, background-safe)
+
+    private func startCrossfadeRampTimer() {
+        cancelCrossfadeRampTimer()
+        let timer = DispatchSource.makeTimerSource(queue: .global(qos: .userInitiated))
+        timer.schedule(deadline: .now(), repeating: .milliseconds(100), leeway: .milliseconds(50))
+        timer.setEventHandler { [weak self] in
+            DispatchQueue.main.async {
+                self?.updateCrossfade()
+            }
+        }
+        timer.resume()
+        crossfadeRampTimer = timer
+    }
+
+    private func cancelCrossfadeRampTimer() {
+        crossfadeRampTimer?.cancel()
+        crossfadeRampTimer = nil
     }
 
     // MARK: - Transition Logic
-
-    private func scheduleTransitionIfNeeded() {
-        // Nothing to schedule - transition check happens in updateElapsed
-    }
 
     private func beginCrossfade() {
         guard let transition = pendingTransition,
               case .crossfade(_, let fadeDuration) = transition else { return }
 
+        cancelCrossfadeTriggerTimer()
+
         logger.debug("[CF] beginCrossfade: active=\(self.activeSlot.trackID ?? "nil", privacy: .public) inactive=\(self.inactiveSlot.trackID ?? "nil", privacy: .public) fadeDuration=\(fadeDuration)")
         isCrossfading = true
         crossfadeDuration = fadeDuration
-        crossfadeStartTime = elapsed
+        crossfadeStartTime = activeSlot.elapsed
 
         inactiveSlot.onPlaybackComplete = nil
         inactiveSlot.volume = 0
         inactiveSlot.play()
 
-        startCrossfadeTimer()
-    }
-
-    private func startCrossfadeTimer() {
-        crossfadeTimer?.invalidate()
-        crossfadeTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.updateCrossfade()
-            }
-        }
+        startCrossfadeRampTimer()
     }
 
     private func updateCrossfade() {
         guard isCrossfading else { return }
 
-        let progress = min(1.0, (elapsed - crossfadeStartTime) / crossfadeDuration)
+        let currentElapsed = activeSlot.elapsed
+        let progress = min(1.0, (currentElapsed - crossfadeStartTime) / crossfadeDuration)
         let angle = progress * .pi / 2.0
         activeSlot.volume = Float(cos(angle))
         inactiveSlot.volume = Float(sin(angle))
@@ -258,8 +316,7 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
     }
 
     private func completeCrossfade() {
-        crossfadeTimer?.invalidate()
-        crossfadeTimer = nil
+        cancelCrossfadeRampTimer()
 
         logger.debug("[CF] completeCrossfade: stopping old active=\(self.activeSlot.trackID ?? "nil", privacy: .public), new active will be=\(self.inactiveSlot.trackID ?? "nil", privacy: .public)")
         activeSlot.stop()
@@ -284,15 +341,21 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
     }
 
     private func handleTrackEnded() {
-        logger.debug("[CF] handleTrackEnded: state=\(String(describing: self.playbackState), privacy: .public) isCrossfading=\(self.isCrossfading) activeTrack=\(self.activeSlot.trackID ?? "nil", privacy: .public) inactiveTrack=\(self.inactiveSlot.trackID ?? "nil", privacy: .public)")
+        logger.debug("[CF] handleTrackEnded: state=\(String(describing: self.playbackState), privacy: .public) isCrossfading=\(self.isCrossfading) activeTrack=\(self.activeSlot.trackID ?? "nil", privacy: .public) inactiveTrack=\(self.inactiveSlot.trackID ?? "nil", privacy: .public) pendingTransition=\(String(describing: self.pendingTransition), privacy: .public)")
         // Guard against spurious callbacks (e.g. node stopped during seek or interruption)
         guard playbackState == .playing, !isCrossfading else {
-            logger.debug("[CF] handleTrackEnded: SKIPPED (not playing)")
+            logger.debug("[CF] handleTrackEnded: SKIPPED (not playing or mid-crossfade)")
             return
         }
 
-        if let transition = pendingTransition, case .gapless = transition {
-            // For gapless, the inactive slot should already be loaded
+        cancelCrossfadeTriggerTimer()
+
+        if pendingTransition != nil, inactiveSlot.trackID != nil {
+            // A next track is loaded — swap and play immediately.
+            // This handles both .gapless transitions and .crossfade transitions
+            // where the fade didn't start (e.g. app was backgrounded and the
+            // trigger timer couldn't fire, or the track was shorter than expected).
+            logger.debug("[CF] handleTrackEnded: swapping to next track (immediate)")
             activeSlot.stop()
             let temp = activeSlot
             activeSlot = inactiveSlot
@@ -311,6 +374,7 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
             pendingTrackID = nil
         } else {
             // No next track prepared - signal idle
+            logger.debug("[CF] handleTrackEnded: no next track, going idle")
             stopElapsedTimer()
             activeSlot.stop()
             currentTrackID = nil
@@ -323,8 +387,8 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
     /// Cancels an in-progress crossfade ramp but keeps the pending transition
     /// so it can still trigger if the user hasn't seeked past it.
     private func cancelActiveCrossfade() {
-        crossfadeTimer?.invalidate()
-        crossfadeTimer = nil
+        cancelCrossfadeRampTimer()
+        cancelCrossfadeTriggerTimer()
         if isCrossfading {
             inactiveSlot.stop()
             activeSlot.volume = 1.0
