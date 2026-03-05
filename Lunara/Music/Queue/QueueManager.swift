@@ -27,6 +27,10 @@ final class QueueManager: QueueManagerProtocol {
     // re-syncing currentIndex to a stale engine trackID while the
     // new track is still loading via the track cache.
     private var manualNavigationTargetTrackID: String?
+    // Prevents the engine-idle observer from auto-advancing the queue
+    // on a cold launch with a restored queue. Only set to true when
+    // playback is explicitly triggered by the user.
+    private var hasPlaybackBegun = false
 
     init(
         engine: PlaybackEngineProtocol,
@@ -55,6 +59,7 @@ final class QueueManager: QueueManagerProtocol {
         self.items = items
         currentIndex = 0
         pendingSeekAfterNextPlay = nil
+        hasPlaybackBegun = true
 
         playCurrentItem()
     }
@@ -66,6 +71,7 @@ final class QueueManager: QueueManagerProtocol {
             self.items = items
             currentIndex = 0
             pendingSeekAfterNextPlay = nil
+            hasPlaybackBegun = true
             playCurrentItem()
             return
         }
@@ -87,6 +93,7 @@ final class QueueManager: QueueManagerProtocol {
     }
 
     func play() {
+        hasPlaybackBegun = true
         if engine.currentTrackID == nil {
             playCurrentItem()
         } else {
@@ -100,6 +107,7 @@ final class QueueManager: QueueManagerProtocol {
     }
 
     func resume() {
+        hasPlaybackBegun = true
         if engine.currentTrackID == nil {
             playCurrentItem()
         } else {
@@ -148,6 +156,7 @@ final class QueueManager: QueueManagerProtocol {
         currentIndex = nil
         pendingSeekAfterNextPlay = nil
         lastPersistedElapsed = 0
+        hasPlaybackBegun = false
         engine.stop()
         enqueuePersistenceTask(
             operation: { [persistence] in
@@ -357,7 +366,7 @@ final class QueueManager: QueueManagerProtocol {
             }
         }
 
-        if engine.currentTrackID == nil, engine.playbackState == .idle {
+        if engine.currentTrackID == nil, engine.playbackState == .idle, hasPlaybackBegun {
             advanceAndPlayNextIfPossible()
         } else if let engineTrackID = engine.currentTrackID,
                   engineTrackID != currentItem?.trackID {

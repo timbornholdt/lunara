@@ -52,6 +52,7 @@ final class LibraryRepo: LibraryRepoProtocol {
     let store: LibraryStoreProtocol
     let artworkPipeline: ArtworkPipelineProtocol
     let nowProvider: () -> Date
+    private var loudnessCache: [String: [Float]?] = [:]
 
     init(
         remote: LibraryRemoteDataSource,
@@ -225,6 +226,11 @@ final class LibraryRepo: LibraryRepoProtocol {
     }
 
     func fetchLoudnessLevels(trackID: String) async throws -> [Float]? {
-        try await remote.fetchLoudnessLevels(trackID: trackID, sampleCount: 128)
+        if let cached = loudnessCache[trackID] {
+            return cached
+        }
+        let levels = try await remote.fetchLoudnessLevels(trackID: trackID, sampleCount: 128)
+        loudnessCache[trackID] = levels
+        return levels
     }
 }
