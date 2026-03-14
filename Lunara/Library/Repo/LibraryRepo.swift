@@ -140,7 +140,14 @@ final class LibraryRepo: LibraryRepoProtocol {
     }
 
     func collectionAlbums(collectionID: String) async throws -> [Album] {
-        let albumIDs = try await remote.fetchCollectionAlbumIDs(collectionID: collectionID)
+        // Try local cache first to avoid a network round-trip
+        let cachedAlbumIDs = try await store.fetchAlbumIDs(forCollectionID: collectionID)
+        let albumIDs: [String]
+        if !cachedAlbumIDs.isEmpty {
+            albumIDs = cachedAlbumIDs
+        } else {
+            albumIDs = try await remote.fetchCollectionAlbumIDs(collectionID: collectionID)
+        }
         guard !albumIDs.isEmpty else { return [] }
         var seen = Set<String>()
         var albums: [Album] = []

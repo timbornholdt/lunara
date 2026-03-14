@@ -301,8 +301,8 @@ struct AppRouterTests {
         try await subject.router.shuffleCollection(collection)
 
         #expect(subject.queue.playNowCalls.count == 1)
-        let queuedTrackIDs = Set(subject.queue.playNowCalls[0].map(\.trackID))
-        #expect(queuedTrackIDs == Set(["track-s1", "track-s2"]))
+        let allTrackIDs = Set(subject.queue.playNowCalls[0].map(\.trackID))
+        #expect(allTrackIDs == Set(["track-s1", "track-s2"]))
     }
 
     @Test
@@ -341,8 +341,8 @@ struct AppRouterTests {
         try await subject.router.shuffleArtist(artist)
 
         #expect(subject.queue.playNowCalls.count == 1)
-        let queuedTrackIDs = Set(subject.queue.playNowCalls[0].map(\.trackID))
-        #expect(queuedTrackIDs == Set(["track-sa1", "track-sa2"]))
+        let allTrackIDs = Set(subject.queue.playNowCalls[0].map(\.trackID))
+        #expect(allTrackIDs == Set(["track-sa1", "track-sa2"]))
     }
 
     @Test

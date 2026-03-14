@@ -321,6 +321,7 @@ private final class ArtworkStoreMock: LibraryStoreProtocol {
     func fetchAlbumsByArtistName(_ artistName: String) async throws -> [Album] { [] }
     func fetchCollections() async throws -> [Collection] { [] }
     func collection(id: String) async throws -> Collection? { nil }
+    func fetchAlbumIDs(forCollectionID collectionID: String) async throws -> [String] { [] }
     func searchAlbums(query: String) async throws -> [Album] { [] }
     func queryAlbums(filter: AlbumQueryFilter) async throws -> [Album] { [] }
     func searchArtists(query: String) async throws -> [Artist] { [] }

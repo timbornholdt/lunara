@@ -148,6 +148,7 @@ protocol LibraryStoreProtocol: AnyObject {
 
     func fetchCollections() async throws -> [Collection]
     func collection(id: String) async throws -> Collection?
+    func fetchAlbumIDs(forCollectionID collectionID: String) async throws -> [String]
 
     /// Queries the full cached album catalog by album title and artist name.
     /// - Sorting guarantee: results are fully sorted by source ordering (`artistName`, then `title`).

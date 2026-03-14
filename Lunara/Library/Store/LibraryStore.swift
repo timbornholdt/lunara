@@ -162,6 +162,16 @@ final class LibraryStore: LibraryStoreProtocol {
         }
     }
 
+    func fetchAlbumIDs(forCollectionID collectionID: String) async throws -> [String] {
+        try await dbQueue.read { db in
+            try String.fetchAll(
+                db,
+                sql: "SELECT albumID FROM album_collections WHERE collectionID = ? ORDER BY rowid",
+                arguments: [collectionID]
+            )
+        }
+    }
+
     func searchAlbums(query: String) async throws -> [Album] {
         try await queryAlbums(filter: AlbumQueryFilter(textQuery: query))
     }

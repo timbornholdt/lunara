@@ -169,7 +169,18 @@ final class QueueManager: QueueManagerProtocol {
     func playCurrentItem() {
         guard let currentItem else { return }
 
-        if trackCache != nil {
+        if currentItem.url.isFileURL || trackCache == nil {
+            // Local file — skip TrackCache entirely, play directly
+            engine.play(url: currentItem.url, trackID: currentItem.trackID)
+
+            if let pendingSeekAfterNextPlay {
+                engine.seek(to: pendingSeekAfterNextPlay)
+                self.pendingSeekAfterNextPlay = nil
+            }
+
+            persistQueueState(elapsed: engine.elapsed)
+            prepareNextTrackIfNeeded()
+        } else {
             engine.signalBuffering()
             Task {
                 do {
@@ -197,24 +208,13 @@ final class QueueManager: QueueManagerProtocol {
                     }
                 }
             }
-        } else {
-            engine.play(url: currentItem.url, trackID: currentItem.trackID)
-
-            if let pendingSeekAfterNextPlay {
-                engine.seek(to: pendingSeekAfterNextPlay)
-                self.pendingSeekAfterNextPlay = nil
-            }
-
-            persistQueueState(elapsed: engine.elapsed)
-            prepareNextTrackIfNeeded()
         }
     }
 
     private func prepareNextTrackIfNeeded() {
         prepareNextTask?.cancel()
         guard engine.crossfadeEnabled,
-              let currentIndex,
-              let trackCache else { return }
+              let currentIndex else { return }
 
         let nextIndex = currentIndex + 1
         guard items.indices.contains(nextIndex) else { return }
@@ -222,14 +222,10 @@ final class QueueManager: QueueManagerProtocol {
         let currentItem = items[currentIndex]
         let nextItem = items[nextIndex]
 
-        prepareNextTask = Task { [weak self, loudnessProvider] in
-            do {
-                let localURL = try await trackCache.prepare(url: nextItem.url, trackID: nextItem.trackID)
-
-                guard !Task.isCancelled else { return }
-
+        if nextItem.url.isFileURL {
+            // Local file — skip TrackCache, prepare directly
+            prepareNextTask = Task { [weak self, loudnessProvider] in
                 let loudness = try? await loudnessProvider?.fetchLoudnessLevels(trackID: nextItem.trackID)
-
                 guard !Task.isCancelled else { return }
 
                 await MainActor.run {
@@ -242,10 +238,34 @@ final class QueueManager: QueueManagerProtocol {
                         currentTrackDuration: self.engine.duration,
                         loudnessLevels: loudness
                     )
-                    self.engine.prepareNext(url: localURL, trackID: nextItem.trackID, transition: transition)
+                    self.engine.prepareNext(url: nextItem.url, trackID: nextItem.trackID, transition: transition)
                 }
-            } catch {
-                // Download failed - engine will fall back to normal track advancement
+            }
+        } else {
+            guard let trackCache else { return }
+            prepareNextTask = Task { [weak self, loudnessProvider] in
+                do {
+                    let localURL = try await trackCache.prepare(url: nextItem.url, trackID: nextItem.trackID)
+                    guard !Task.isCancelled else { return }
+
+                    let loudness = try? await loudnessProvider?.fetchLoudnessLevels(trackID: nextItem.trackID)
+                    guard !Task.isCancelled else { return }
+
+                    await MainActor.run {
+                        guard let self else { return }
+                        let transition = CrossfadePolicy.transition(
+                            currentAlbumID: currentItem.albumID,
+                            currentTrackNumber: currentItem.trackNumber,
+                            nextAlbumID: nextItem.albumID,
+                            nextTrackNumber: nextItem.trackNumber,
+                            currentTrackDuration: self.engine.duration,
+                            loudnessLevels: loudness
+                        )
+                        self.engine.prepareNext(url: localURL, trackID: nextItem.trackID, transition: transition)
+                    }
+                } catch {
+                    // Cache download failed — skip preparing next track
+                }
             }
         }
     }
@@ -383,8 +403,8 @@ final class QueueManager: QueueManagerProtocol {
     private func syncCurrentIndexToEngineTrack(_ engineTrackID: String) {
         guard let currentIndex else { return }
         let nextIndex = currentIndex + 1
-        guard items.indices.contains(nextIndex),
-              items[nextIndex].trackID == engineTrackID else { return }
+        guard items.indices.contains(nextIndex) else { return }
+        guard items[nextIndex].trackID == engineTrackID else { return }
 
         self.currentIndex = nextIndex
         pendingSeekAfterNextPlay = nil

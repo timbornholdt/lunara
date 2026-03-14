@@ -231,15 +231,12 @@ final class AppRouter {
             logger.error("Found zero albums for collection id '\(collection.plexID, privacy: .public)'")
             throw LibraryError.resourceNotFound(type: "albums", id: collection.plexID)
         }
-
-        let allItems = try await allQueueItemsForAlbums(albums, actionName: "collection-\(collection.plexID)")
-
-        guard !allItems.isEmpty else {
+        let items = try await allQueueItemsForAlbums(albums, actionName: "collection-\(collection.plexID)")
+        guard !items.isEmpty else {
             logger.error("Found zero tracks across \(albums.count, privacy: .public) albums for collection id '\(collection.plexID, privacy: .public)'")
             throw LibraryError.resourceNotFound(type: "tracks", id: collection.plexID)
         }
-
-        return allItems
+        return items
     }
 
     private func allQueueItemsForArtist(_ artist: Artist) async throws -> [QueueItem] {
@@ -248,25 +245,49 @@ final class AppRouter {
             logger.error("Found zero albums for artist id '\(artist.plexID, privacy: .public)'")
             throw LibraryError.resourceNotFound(type: "albums", id: artist.plexID)
         }
-
-        let allItems = try await allQueueItemsForAlbums(albums, actionName: "artist-\(artist.plexID)")
-
-        guard !allItems.isEmpty else {
+        let items = try await allQueueItemsForAlbums(albums, actionName: "artist-\(artist.plexID)")
+        guard !items.isEmpty else {
             logger.error("Found zero tracks across \(albums.count, privacy: .public) albums for artist id '\(artist.plexID, privacy: .public)'")
             throw LibraryError.resourceNotFound(type: "tracks", id: artist.plexID)
         }
-
-        return allItems
+        return items
     }
 
     private func allQueueItemsForAlbums(_ albums: [Album], actionName: String) async throws -> [QueueItem] {
-        var allItems: [QueueItem] = []
+        var allTracks: [Track] = []
         for album in albums {
             let tracks = try await library.tracks(forAlbum: album.plexID)
-            let items = try await queueItems(for: tracks, actionName: actionName)
-            allItems.append(contentsOf: items)
+            allTracks.append(contentsOf: tracks)
         }
-        return allItems
+        guard !allTracks.isEmpty else { return [] }
+        return try await resolveQueueItemsConcurrently(for: allTracks, actionName: actionName)
+    }
+
+    private func resolveQueueItemsConcurrently(for tracks: [Track], actionName: String) async throws -> [QueueItem] {
+        let offlineStore = self.offlineStore
+        let library = self.library
+
+        return try await withThrowingTaskGroup(of: (Int, QueueItem).self) { group in
+            for (index, track) in tracks.enumerated() {
+                group.addTask {
+                    let url: URL
+                    if let offlineStore, let localURL = try await offlineStore.localFileURL(forTrackID: track.plexID) {
+                        url = localURL
+                    } else {
+                        url = try await library.streamURL(for: track)
+                    }
+                    return (index, QueueItem(trackID: track.plexID, url: url, albumID: track.albumID, trackNumber: track.trackNumber))
+                }
+            }
+
+            var results = [(Int, QueueItem)]()
+            results.reserveCapacity(tracks.count)
+            for try await result in group {
+                results.append(result)
+            }
+            results.sort { $0.0 < $1.0 }
+            return results.map(\.1)
+        }
     }
 
     private func tracks(forAlbum album: Album) async throws -> [Track] {

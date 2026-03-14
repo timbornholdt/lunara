@@ -189,6 +189,7 @@ private final class ProtocolStoreMock: LibraryStoreProtocol {
     func fetchArtist(id: String) async throws -> Artist? { nil }
     func fetchAlbumsByArtistName(_ artistName: String) async throws -> [Album] { [] }
     func fetchCollections() async throws -> [Collection] { [] }
+    func fetchAlbumIDs(forCollectionID collectionID: String) async throws -> [String] { [] }
     func collection(id: String) async throws -> Collection? {
         collectionLookupRequests.append(id)
         return collectionByID[id]
