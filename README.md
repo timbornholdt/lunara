@@ -36,7 +36,8 @@ If something isn't in this document, it's not in scope yet. If a task would viol
 - **Phase 6 (Lock Screen + Remote Controls):** Complete
 - **Phase 7 (Offline Playback):** Complete
 - **Last.fm Scrobbling:** Complete
-- **Last verified milestone:** Last.fm scrobbling verified on February 22, 2026.
+- **Crossfade Engine:** In progress (branch: `crossfade-engine`). Core engine, policy, and queue integration complete. Needs device QA and battery/performance optimization before merge.
+- **Known issue:** App drains battery aggressively during playback. Next priority is profiling and optimizing power consumption.
 
 ---
 
@@ -267,7 +268,6 @@ Owns everything about *what music exists and what the user thinks about it.* Thi
 - DeletionStore: marked-for-deletion albums, synced to Rails API.
 - ThemeStore: personal memory themes, era/genre rules.
 - GardenStore: todo/gardening actions on albums, tracks, artists.
-- OfflineStore: download state, verified files, storage accounting.
 
 Each gets its own store and sync client when the time comes. They live in the Library domain because they're about *what the user thinks about their library*, not about audio playback.
 
@@ -280,13 +280,23 @@ Owns everything about *playing audio.* Deliberately small. Should rarely change 
 **Components:**
 
 **PlaybackEngine**
-- Owns `AVQueuePlayer` (not plain AVPlayer — this enables preloading).
-- Protocol-based for future swap (e.g., AVAudioEngine for gapless/crossfade).
+- Protocol-based (`PlaybackEngineProtocol`). Two implementations:
+  - `AVQueuePlayerEngine`: original streaming engine using `AVQueuePlayer`.
+  - `CrossfadeEngine` (active): dual-slot `AVAudioPlayer` engine with crossfade support.
 - Core methods: `play(url:trackID:)`, `pause()`, `resume()`, `seek(to:)`, `stop()`.
-- **Preloading:** exposes `prepareNext(url:trackID:)`. When called, the engine creates an `AVPlayerItem` for the next track and appends it to the `AVQueuePlayer`. This eliminates dead air between tracks. QueueManager calls `prepareNext` proactively whenever the queue changes or a track starts playing.
+- Crossfade methods: `prepareNext(url:trackID:transition:)`, `signalBuffering()`, `skipWithFade()`. Default no-op implementations so both engines compile.
+- `crossfadeEnabled` property controls whether crossfade logic runs.
 - Reports observable state: `playbackState` (including `.buffering`), `elapsed`, `duration`, `currentTrackID`.
 - Handles stream errors and network interruptions: transitions to `.error(message)`, never plays silence.
 - Does **not** know about queues, albums, or collections. It plays URLs and reports state.
+
+**CrossfadeEngine internals:**
+- `PlayerSlot`: thin wrapper around `AVAudioPlayer` with load/play/stop/seek/volume + delegate-based completion.
+- `TrackCache`: actor-based download cache (5 files, LRU eviction). Downloads streaming URLs to local files since `AVAudioPlayer` requires local files. Skipped for offline/downloaded tracks.
+- `CrossfadePolicy`: decides `TransitionStyle` per track transition — `.gapless` for consecutive tracks on the same album, `.crossfade(startTime:duration:)` for cross-album transitions. Uses loudness analysis to detect natural fade-outs and scale crossfade duration (2–12s).
+- `LoudnessDataProviding` / `PlexLoudnessAdapter`: protocol + adapter to fetch per-track loudness levels from Plex.
+- Timers: GCD `DispatchSourceTimer` for background-safe crossfade scheduling; `Timer` for UI elapsed updates.
+- Equal-power crossfade ramp (cos/sin curve). Skip-to-next uses a 500ms fade-out.
 
 ```swift
 protocol PlaybackEngineProtocol: Observable {
@@ -294,26 +304,28 @@ protocol PlaybackEngineProtocol: Observable {
     var elapsed: TimeInterval { get }
     var duration: TimeInterval { get }
     var currentTrackID: String? { get }
+    var crossfadeEnabled: Bool { get set }
 
     func play(url: URL, trackID: String)
-    func prepareNext(url: URL, trackID: String)
+    func prepareNext(url: URL, trackID: String, transition: TransitionStyle)
     func pause()
     func resume()
     func seek(to time: TimeInterval)
     func stop()
+    func signalBuffering()
+    func skipWithFade()
 }
 ```
-
-The `buffering` state is entered when `play()` or `prepareNext()` is called and the `AVPlayerItem` hasn't started playback yet. The engine observes `AVPlayerItem.status` and `AVPlayer.timeControlStatus` to transition between `buffering`, `playing`, and `error`.
 
 **QueueManager**
 - Ordered list of tracks to play.
 - Supports: play now, play next, play later (album and track level).
 - Observes PlaybackEngine for "track ended" → advances to next track and calls `play()` on the engine.
-- **Proactive preloading:** whenever a track starts playing or the queue changes, QueueManager calls `prepareNext()` on the engine with the next track's URL. This means the engine always has the next track buffered before the current one ends.
-- Persists queue separately from LibraryStore (its own lightweight file or GRDB database).
+- **Crossfade integration:** on each track start, computes `TransitionStyle` via `CrossfadePolicy` using album ID, track number, duration, and loudness data. Passes the transition to `prepareNext()`. Syncs `currentIndex` when the engine completes a crossfade-driven track swap.
+- **TrackCache management:** downloads streaming URLs to local files for `CrossfadeEngine`. Skips cache for `file://` URLs (offline tracks).
+- `QueueItem` carries `albumID` and `trackNumber` so the crossfade policy can determine consecutive-track relationships.
+- Persists queue separately from LibraryStore (its own lightweight file).
 - On relaunch: restores queue and position, waits for explicit play.
-- Shuffle logic lives here when built (Phase 9).
 
 **NowPlayingBridge**
 - Updates MPNowPlayingInfoCenter (track, artist, album, artwork, elapsed, duration).
@@ -339,19 +351,9 @@ The `buffering` state is entered when `play()` or `prepareNext()` is called and 
 
 ### Track URL Resolution
 
-When the user taps play, something needs to figure out *which URL* to hand to the Music domain. Today, that's always a Plex streaming URL. In the future (Phase 8, offline), it might be a local file URL.
+When the user taps play, `AppRouter.resolveURL(for:)` determines which URL to hand to the Music domain. It checks the offline store for a local file first, then falls back to a Plex streaming URL. The Music domain never knows or cares whether the URL is local or remote.
 
-This resolution lives in the **AppRouter** — it's a cross-domain concern.
-
-```swift
-// Implemented in Phase 7.
-func resolveURL(for track: Track) async throws -> URL {
-    if let localURL = offlineStore.localFileURL(forTrackID: track.plexID) { return localURL }
-    return library.streamURL(for: track)
-}
-```
-
-The router's resolve method checks for a local offline file first, then falls back to streaming. The Music domain never knows or cares whether the URL is local or remote.
+For the crossfade engine, `QueueManager` also uses `TrackCache` to download streaming URLs to local files (required by `AVAudioPlayer`). This cache is separate from the offline download store — it's a temporary 5-file LRU cache that's skipped entirely for already-local `file://` URLs.
 
 ---
 
@@ -427,178 +429,78 @@ Sequential. Each phase fully working and verified on device before the next begi
 **Goal:** Define the data language and prove Plex connectivity.
 **Status:** Complete.
 
-**Build:**
-- Shared types: `Album`, `Track`, `Artist`, `Collection`, `PlaybackState` (with `buffering`), `LunaraError` protocol, `LibraryError`, `MusicError`.
-- `AuthManager`: pin-based OAuth, Keychain token storage, `validToken()`.
-- `PlexAPIClient`: `fetchAlbums()`, `fetchTracks(forAlbum:)`, `streamURL(forTrack:)`.
-- Sign-in screen (functional, not styled).
-- Debug quick sign-in via `LocalConfig.plist`.
-- `UIBackgroundModes` audio entitlement configured in Info.plist.
-
-**Acceptance:** Sign in. App logs album list to console. Token persists across app restart (Keychain). Background audio entitlement is present in the built app.
-
-**AI scope:** Shared types (one session). AuthManager (one session). PlexAPIClient protocol then implementation (one session).
-
 ---
 
 ### Phase 2: Playback Engine + Queue Manager
 
 **Goal:** Press play on an album, hear it front to back with seamless track transitions.
-**Status:** Complete (implemented + device-verified on February 17, 2026).
-
-These two are built together because the PlaybackEngine needs someone to drive track advancement and preloading, and testing sequential playback without a queue is artificial. However, they are still **separate modules with separate files and separate tests.** Building together means they're in the same phase, not the same file.
-
-**Build:**
-- `AudioSession` configuration (category `.playback`, interruption handling).
-- `PlaybackEngineProtocol` + `AVQueuePlayer` implementation.
-  - `play(url:trackID:)`, `prepareNext(url:trackID:)`, `pause()`, `resume()`, `seek(to:)`, `stop()`.
-  - Observable state including `.buffering` transitions.
-  - Network interruption → `.error` state, never silent playback.
-- `QueueManager`: play now, play next, play later.
-  - Observes PlaybackEngine "track ended" → auto-advance.
-  - Proactive preloading: on track start or queue change, calls `prepareNext()` with the next track's URL.
-  - Persists queue (separate from LibraryStore — own file or lightweight DB).
-  - On relaunch: restores queue and position, waits for explicit play.
-- Minimal `AppRouter` with `resolveURL(for:)` and `playAlbum()` wired up.
-- Test UI: a single screen that lists hardcoded tracks from one album with a play button. Enough to verify playback, track transitions, preloading, pause/resume, skip, queue persistence, and background audio.
-
-**Acceptance:**
-- Play an album front to back. Track transitions are seamless (no dead air gap).
-- Skip a track — next track starts quickly (preloaded).
-- Kill wifi mid-track — app shows error state, doesn't play silence.
-- Lock phone — audio continues playing.
-- Force-quit, reopen — queue is intact, app waits for explicit play.
-- UI shows buffering state when a track is loading.
-
-**Completion evidence (February 17, 2026):**
-- Full project test command passes: `xcodebuild test -project /Users/timbornholdt/Repos/Lunara/Lunara.xcodeproj -scheme Lunara -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.2'`.
-- Manual device QA confirmed seamless transitions, skip behavior, playback error handling, lock-screen/background playback continuity, and queue restore behavior.
-
-**AI scope:** AudioSession (tiny, one session). PlaybackEngine protocol → get approval → implementation (one session). QueueManager protocol → get approval → implementation (one session). Wiring + test UI (one session). Four sessions total.
+**Status:** Complete.
 
 ---
 
 ### Phase 3: Library Domain Core
 
 **Goal:** Cached browsing with pull-to-refresh.
-**Status:** Complete (implemented and acceptance-hardened on February 17, 2026).
-
-**Build:**
-- `LibraryStore` (GRDB): schema for albums, tracks, artists, collections, artwork paths.
-- `LibraryRepo`: cache-on-refresh, serve-from-cache-on-launch, pagination.
-- Album deduplication (merging split track groups from Plex).
-- `Artwork Pipeline`: two-size caching (thumbnail + full), LRU eviction (250 MB cap), disk-first loading with async Plex fallback and placeholders.
-- Error handling: network failures during refresh show banner, cached data stays visible.
-
-**Acceptance:** Launch → library loads instantly from cache. Pull-to-refresh updates from Plex. 2,000+ albums scroll smoothly with no artwork loading jank (placeholders for uncached, instant for cached). Kill network during refresh → error banner, cached data still works.
-
-**Completion evidence (February 17, 2026):**
-- Full project test command passes: `xcodebuild test -project /Users/timbornholdt/Repos/Lunara/Lunara.xcodeproj -scheme Lunara -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.2'`.
-- Dependency chain wiring complete: `AppCoordinator` composes `LibraryRepo + LibraryStore + ArtworkPipeline` with protocol-based injection.
-- Refresh path hardened: relative Plex artwork paths are resolved to authenticated absolute URLs; metadata refresh completes without waiting on artwork warmup; cached fallback behavior remains intact when refresh fails.
-
-**AI scope:** GRDB schema (one session). LibraryRepo (one session). Artwork pipeline (one session). Three sessions minimum.
+**Status:** Complete.
 
 ---
 
 ### Phase 4: UI Shell
 
 **Goal:** Browse and play. Functional and styled.
-**Status:** Complete (implemented and verified on February 20, 2026).
+**Status:** Complete.
 
-**Build:**
-- Library grid (paginated, album art + title, artwork pipeline integrated). ✅
-- Album detail (track list, play/queue actions via AppRouter). ✅
-- Now playing bar (floating, current track, play/pause, buffering indicator). ✅
-- Now playing screen (slides up, dismiss pull-down, artwork, controls, buffering state). ✅
-- Error banner component (consistent across all screens). ✅
-- Long-press queue menus on albums and tracks. ✅
-- Visual design language applied (Playfair, linen, pill buttons). ✅
-
-**What was built:**
-- Full visual design system: semantic color tokens, Playfair Display typography, linen background texture, pill button component, tab bar theming — all in `Views/Components/`.
-- Error banner: non-blocking toast at top of screen, auto-dismiss, accessible, integrated into all current views.
-- Library grid: adaptive grid layout, artwork with async loading and placeholders, search with debounce, pull-to-refresh, loading/empty/error states.
-- Album detail: hero card with artwork + metadata, track list with async loading, genre/style/mood tags, context menus for queue operations on albums and tracks.
-- AppRouter: full playback and queue wiring (play now, play next, play later at album and track level).
-- Now Playing Bar: floating compact strip above the iOS 26 Liquid Glass tab bar. Shows artwork thumbnail, track title + artist (Playfair Display), play/pause/buffering/error states. Tapping opens full Now Playing screen. Hides when queue is empty.
-- Now Playing Screen: full-screen sheet with large artwork, track info (Playfair Display), seek bar, transport controls (previous/play-pause/next), up-next queue, artwork-derived color palette, star rating display for rated albums, pull-down dismiss gesture.
-
-**Acceptance:** Full flow: scroll library → tap album → play → now playing bar shows track with buffering then playing → full screen → skip/pause/resume. Errors show as banners. Looks like Lunara.
-
-**AI scope:** Error banner component (one session). Each screen (separate sessions). Router wiring (one session). Styling pass (one session).
+Key components: library grid, album detail, now playing bar + full screen, error banner, long-press queue menus, visual design system (Playfair Display, linen, pill buttons).
 
 ---
 
 ### Phase 5: Collections + Artists
 
 **Goal:** Browse by collection and by artist.
-**Status:** Complete (implemented and verified on February 21, 2026).
-
-**Build:**
-- Collections tab with artwork. "Current Vibes" and "The Key Albums" pinned top. ✅
-- Collection detail: albums, hero header, Play / Shuffle All. ✅
-- Artists tab: alphabetical, artist detail with hero art, summary, genre pills, albums by year. ✅
-- Tab bar: Collections | All Albums | Artists. ✅
-- Naive shuffle (random order, no anti-annoyance rules yet). ✅
-
-**Acceptance:** Browse collections, browse artists, start playback from any view.
-
-**AI scope:** Collections and artists as separate sessions.
+**Status:** Complete.
 
 ---
 
 ### Phase 6: Lock Screen + Remote Controls
 
 **Goal:** Control playback without opening the app.
-**Status:** Complete (implemented and verified on February 21, 2026).
+**Status:** Complete.
 
-**Build:**
-- `NowPlayingBridge`: MPNowPlayingInfoCenter metadata + artwork. ✅
-- MPRemoteCommandCenter: play, pause, next, previous, scrub. ✅
-- Artwork retry logic for uncached artwork on first play. ✅
-- Queue exhaustion handling: engine stops and lock screen clears when album ends. ✅
-
-**What was built:**
-- `NowPlayingBridge` in `Lunara/Music/NowPlaying/`: observes PlaybackEngine and QueueManager via `withObservationTracking`, publishes track metadata (title, artist, album, duration) and playback position (elapsed + playbackRate for iOS-interpolated progress) to `MPNowPlayingInfoCenter`. Registers `MPRemoteCommandCenter` handlers for play, pause, next, previous, and scrub-to-position.
-- Artwork: fetches full-size album artwork via ArtworkPipeline. If artwork isn't cached yet (first play of an album), retries up to 3 times with exponential backoff (2s/4s/6s). Guards against stale artwork overwrites on rapid track changes.
-- Queue index tracking: detects skip-back-to-same-track by observing `queue.currentIndex` changes, not just trackID changes. Ensures metadata and artwork re-publish on every track transition.
-- Queue exhaustion fix in `QueueManager`: when the last track in the queue finishes, the engine is stopped, `currentIndex` is nilled, and persisted state is reset. This clears the lock screen and the in-app now playing bar.
-
-**Acceptance:** Lock phone. Correct track on lock screen with artwork. Tap next — correct track plays. Phone call pauses, resumes after. Album ends — lock screen clears.
-
-**AI scope:** One session.
+`NowPlayingBridge` observes PlaybackEngine and QueueManager via `withObservationTracking`. Publishes to MPNowPlayingInfoCenter/MPRemoteCommandCenter. Artwork retry with exponential backoff for first-play cache misses.
 
 ---
 
 ### Phase 7: Offline Playback
 
 **Goal:** Download albums for offline listening.
-**Status:** Complete (implemented and verified on February 21, 2026).
+**Status:** Complete.
 
-**Build:**
-- `OfflineStore` in Library domain: download state, verified file paths, storage accounting. ✅
-- Download button on album detail. ✅
-- Download collection (skip already-downloaded). ✅
-- Complete-only downloads (incomplete → removed). ✅
-- `AppRouter.resolveURL()` updated: check local file first, fall back to streaming. ✅
-- Manage downloads in settings. ✅
-- Storage cap (128 GB default), Wi-Fi-only toggle. ✅
-- Collection-level syncing with automatic orphan cleanup (bonus). ✅
+`OfflineStore` (GRDB), `DownloadManager` (sequential per-album, Wi-Fi-only, storage cap), collection-level syncing. `AppRouter.resolveURL()` checks local file first.
+
+---
+
+### Last.fm Scrobbling
+
+**Status:** Complete.
+
+`LastFMClient`, `LastFMAuthManager`, `ScrobbleManager`, `ScrobbleQueue` (actor-based offline queue). Scrobbles at 50% / 4min threshold. Settings UI for auth and toggle.
+
+---
+
+### Crossfade Engine (In Progress — branch: `crossfade-engine`)
+
+**Goal:** Gapless playback within albums, crossfade between albums.
+**Status:** Core implementation complete. Needs device QA and battery optimization.
 
 **What was built:**
-- `OfflineStore` (`Library/Offline/OfflineStore.swift`): GRDB-backed store tracking downloaded tracks, file paths, and storage accounting. Auto-deletes stale DB rows when files are missing on disk.
-- `DownloadManager` (`Library/Offline/DownloadManager.swift`): Download orchestrator with sequential per-album track downloads, Wi-Fi-only enforcement via `NWPathMonitor`, storage cap enforcement, cancel/cleanup support.
-- `OfflineSettings` (`Views/Settings/OfflineSettings.swift`): UserDefaults-persisted settings for storage limit (128 GB default) and Wi-Fi-only toggle.
-- Database migrations v7 (`offline_tracks` table) and v8 (`synced_collections` table) in LibraryStoreMigrations.
-- `AppRouter.resolveURL()` checks offline store first, falls back to streaming URL.
-- Album detail download button with progress, completion, and error states.
-- Settings view for managing downloads: per-album removal, bulk removal, storage usage display.
-- Collection syncing: mark collections for automatic offline sync, downloads new albums, removes orphaned downloads on unsync.
-
-**Acceptance:** Download on Wi-Fi. Airplane mode. Play. Works. Partial downloads never appear available. Stream URL fallback works when not downloaded.
-
-**AI scope:** OfflineStore (one session). Download engine (one session). resolveURL update + UI (one session). Three sessions minimum.
+- `CrossfadeEngine`: dual-slot `AVAudioPlayer` engine with equal-power crossfade ramps. GCD timers for background-safe scheduling.
+- `PlayerSlot`: `AVAudioPlayer` wrapper with delegate-based completion.
+- `TrackCache`: actor-based download cache (5 files, LRU). Required because `AVAudioPlayer` needs local files.
+- `CrossfadePolicy`: gapless for consecutive same-album tracks, crossfade (2–12s) for cross-album. Loudness-aware fade duration.
+- `QueueManager` integration: computes `TransitionStyle`, drives `prepareNext`, syncs index on crossfade completion.
+- `QueueItem` now carries `albumID` and `trackNumber` for policy decisions.
+- AppRouter: concurrent URL resolution for multi-album queues, cache-first collection album lookup.
+- Bug fixes: background playback (GCD vs RunLoop timers), OOM cache eviction, cold-launch auto-advance guard.
 
 ---
 
@@ -611,7 +513,6 @@ These two are built together because the PlaybackEngine needs someone to drive t
 	- **Marked for Deletion:** Curation workflow → Rails API + web dashboard.
 - **CarPlay:** Browse, shuffle, now playing.
 - **Theming:** Artwork colors, era/genre, personal memory themes.
-- **Gapless / Crossfade:** AVAudioEngine migration.
 
 ---
 
@@ -665,11 +566,12 @@ Warm, textured, personal. More vinyl shelf than streaming app.
 
 ## Backlog (Ideas, Not Commitments)
 
+- Battery / power optimization (profiling needed — app drains battery during playback)
 - Dope loading indicators (AI generates options, pick via feature flags)
 - Contextual tab bar accent colors
 - Genre pill components (shared album + artist detail)
 - Playlist support alongside collections
-- Loudness leveling + smart crossfade
+- Loudness leveling (ReplayGain or similar)
 - Star rating edits (write back to Plex)
 
 ---
