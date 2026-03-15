@@ -101,8 +101,6 @@ final class ScrobbleManager {
                     withObservationTracking {
                         _ = self.engine.currentTrackID
                         _ = self.engine.playbackState
-                        _ = self.engine.elapsed
-                        _ = self.engine.duration
                     } onChange: {
                         continuation.resume()
                     }

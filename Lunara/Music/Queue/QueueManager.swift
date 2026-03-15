@@ -23,6 +23,7 @@ final class QueueManager: QueueManagerProtocol {
     var pendingSeekAfterNextPlay: TimeInterval?
     private var persistenceTask: Task<Void, Never>?
     private var prepareNextTask: Task<Void, Never>?
+    private var elapsedPersistenceTimer: Timer?
     // Set during manual skip/navigation to prevent the observer from
     // re-syncing currentIndex to a stale engine trackID while the
     // new track is still loading via the track cache.
@@ -157,6 +158,7 @@ final class QueueManager: QueueManagerProtocol {
         pendingSeekAfterNextPlay = nil
         lastPersistedElapsed = 0
         hasPlaybackBegun = false
+        stopElapsedPersistenceTimer()
         engine.stop()
         enqueuePersistenceTask(
             operation: { [persistence] in
@@ -362,7 +364,6 @@ final class QueueManager: QueueManagerProtocol {
             guard let self else { return }
             _ = self.engine.currentTrackID
             _ = self.engine.playbackState
-            _ = self.engine.elapsed
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 self?.handleEngineStateChange()
@@ -378,10 +379,6 @@ final class QueueManager: QueueManagerProtocol {
             if engine.currentTrackID == targetID {
                 manualNavigationTargetTrackID = nil
             } else {
-                // Engine still on stale track — don't sync or advance.
-                if shouldPersistElapsedProgress() {
-                    persistQueueState(elapsed: engine.elapsed)
-                }
                 return
             }
         }
@@ -390,14 +387,34 @@ final class QueueManager: QueueManagerProtocol {
             advanceAndPlayNextIfPossible()
         } else if let engineTrackID = engine.currentTrackID,
                   engineTrackID != currentItem?.trackID {
-            // The engine advanced to a new track via crossfade —
-            // sync currentIndex to match without re-triggering playback.
             syncCurrentIndexToEngineTrack(engineTrackID)
         }
 
-        if shouldPersistElapsedProgress() {
-            persistQueueState(elapsed: engine.elapsed)
+        // Start or stop the periodic persistence timer based on playback state
+        if engine.playbackState == .playing {
+            startElapsedPersistenceTimer()
+        } else {
+            stopElapsedPersistenceTimer()
+            // Persist immediately on pause/stop so we capture the final position
+            if engine.currentTrackID != nil {
+                persistQueueState(elapsed: engine.elapsed)
+            }
         }
+    }
+
+    private func startElapsedPersistenceTimer() {
+        guard elapsedPersistenceTimer == nil else { return }
+        elapsedPersistenceTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.engine.playbackState == .playing else { return }
+                self.persistQueueState(elapsed: self.engine.elapsed)
+            }
+        }
+    }
+
+    private func stopElapsedPersistenceTimer() {
+        elapsedPersistenceTimer?.invalidate()
+        elapsedPersistenceTimer = nil
     }
 
     private func syncCurrentIndexToEngineTrack(_ engineTrackID: String) {
@@ -411,18 +428,6 @@ final class QueueManager: QueueManagerProtocol {
         lastPersistedElapsed = 0
         persistQueueState(elapsed: engine.elapsed)
         prepareNextTrackIfNeeded()
-    }
-
-    private func shouldPersistElapsedProgress() -> Bool {
-        guard engine.currentTrackID != nil else { return false }
-        guard engine.playbackState == .playing else { return false }
-
-        let elapsed = max(0, engine.elapsed)
-        if elapsed < lastPersistedElapsed {
-            return true
-        }
-
-        return (elapsed - lastPersistedElapsed) >= 5
     }
 
     func applyReconciledItems(_ items: [QueueItem]) {

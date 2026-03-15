@@ -108,8 +108,6 @@ final class NowPlayingBridge {
                     withObservationTracking {
                         _ = self.engine.currentTrackID
                         _ = self.engine.playbackState
-                        _ = self.engine.elapsed
-                        _ = self.engine.duration
                         _ = self.queue.currentIndex
                     } onChange: {
                         continuation.resume()

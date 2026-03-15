@@ -134,7 +134,7 @@ struct QueueManagerTests {
     }
 
     @Test
-    func elapsedProgress_persistsWhilePlayingWithoutQueueMutations() async throws {
+    func elapsedProgress_persistsOnPause() async throws {
         let subject = makeSubject()
         let queueItems = try makeQueueItems(count: 2)
         subject.manager.playNow(queueItems)
@@ -143,6 +143,10 @@ struct QueueManagerTests {
         let initialSaveCount = subject.persistence.savedSnapshots.count
         subject.engine.elapsed = 6
         subject.engine.playbackState = .playing
+        await settleObservation()
+
+        // Pausing should persist the current elapsed position
+        subject.manager.pause()
         await settleObservation()
         await waitUntil { subject.persistence.savedSnapshots.last?.elapsed == 6 }
 
