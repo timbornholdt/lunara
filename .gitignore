@@ -88,3 +88,8 @@ fix-*.sh
 
 # Local development config (contains secrets)
 Lunara/LocalConfig.plist
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
