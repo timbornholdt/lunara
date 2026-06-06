@@ -28,6 +28,74 @@ struct NowPlayingScreenViewModelTests {
         QueueItem(trackID: trackID, url: URL(fileURLWithPath: "/tmp/\(trackID).m4a"))
     }
 
+    private func makeTrack(id: String, albumID: String) -> Track {
+        Track(
+            plexID: id,
+            albumID: albumID,
+            title: "Track \(id)",
+            trackNumber: 1,
+            duration: 180,
+            artistName: "Artist",
+            key: "/library/metadata/\(id)",
+            thumbURL: nil
+        )
+    }
+
+    private func makeAlbum(id: String) -> Album {
+        Album(
+            plexID: id,
+            title: "Album \(id)",
+            artistName: "Artist",
+            year: nil,
+            thumbURL: nil,
+            genre: nil,
+            rating: nil,
+            addedAt: nil,
+            trackCount: 1,
+            duration: 180
+        )
+    }
+
+    /// Builds a VM whose library resolves tracks/albums for the given queue track IDs.
+    private func makeViewModel(
+        queue: NowPlayingQueueMock,
+        trackIDs: [String]
+    ) -> NowPlayingScreenViewModel {
+        let library = ConfigurableLibraryRepoMock()
+        for id in trackIDs {
+            let albumID = "al-\(id)"
+            library.tracksByID[id] = makeTrack(id: id, albumID: albumID)
+            library.albumsByID[albumID] = makeAlbum(id: albumID)
+        }
+        return NowPlayingScreenViewModel(
+            queueManager: queue,
+            engine: PlaybackEngineMock(),
+            library: library,
+            artworkPipeline: ArtworkPipelineMock()
+        )
+    }
+
+    @Test
+    func snapshotCacheStaysBoundedToCurrentAndNext() async throws {
+        let ids = ["t0", "t1", "t2", "t3", "t4"]
+        let queue = NowPlayingQueueMock()
+        queue.items = ids.map { makeQueueItem(trackID: $0) }
+        queue.currentIndex = 0
+        queue.currentItem = queue.items[0]
+
+        let viewModel = makeViewModel(queue: queue, trackIDs: ids)
+
+        for i in 1..<ids.count {
+            try await Task.sleep(nanoseconds: 60_000_000)
+            queue.currentIndex = i
+            queue.currentItem = queue.items[i]
+        }
+        // Let the final resolve + prefetch + eviction settle.
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        #expect(viewModel.snapshotCacheCountForTesting <= 2)
+    }
+
     @Test
     func upNextArtworkIsDownsampledToThumbnailSize() async throws {
         let bigArtwork = try makeImageFile(pixelSize: 1024)

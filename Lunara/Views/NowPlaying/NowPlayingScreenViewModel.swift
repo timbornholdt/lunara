@@ -67,6 +67,11 @@ final class NowPlayingScreenViewModel {
     /// Fixed display scale used when downsampling (matches the target device; keeps decoding deterministic).
     private let displayScale: CGFloat = 3
 
+    #if DEBUG
+    /// Test hook: number of retained track snapshots (bounded to current + next).
+    var snapshotCacheCountForTesting: Int { snapshotCache.count }
+    #endif
+
     // MARK: - Initialization
 
     init(
@@ -266,12 +271,13 @@ final class NowPlayingScreenViewModel {
     /// Keeps only the current and next track snapshots to prevent unbounded
     /// memory growth from full-size UIImages accumulating over a long session.
     private func evictStaleSnapshots() {
-        guard let currentIndex = queueManager.currentIndex else {
+        let items = queueManager.items
+        guard let currentIndex = queueManager.currentIndex,
+              items.indices.contains(currentIndex) else {
             snapshotCache.removeAll()
             return
         }
 
-        let items = queueManager.items
         var keepIDs = Set<String>()
         keepIDs.insert(items[currentIndex].trackID)
         let nextIndex = currentIndex + 1
