@@ -198,9 +198,10 @@ final class AlbumDetailViewModel {
             )
             artworkURL = url
             if let url {
-                // Decode off the main actor before palette extraction.
+                // Decode off the main actor, downsampled small: the palette extractor
+                // only samples a 50x50 context, so 64px is ample and avoids a full decode.
                 let img = await Task.detached {
-                    DownsamplingImageLoader.load(contentsOf: url, maxPixelSize: 600)
+                    DownsamplingImageLoader.load(contentsOf: url, maxPixelSize: 64)
                 }.value
                 if let img {
                     palette = ArtworkPaletteExtractor.extract(from: img)
