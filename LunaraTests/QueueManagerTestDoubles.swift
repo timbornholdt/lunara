@@ -100,3 +100,71 @@ final class QueueStatePersistenceMock: QueueStatePersisting {
 enum QueuePersistenceMockError: Error {
     case failed
 }
+
+/// Resolves playback URLs at play time for QueueManager tests.
+///
+/// Defaults to echoing a deterministic remote (non-file) URL per stream key so
+/// the network branch is exercised. Per-trackID overrides, sequenced results
+/// (e.g. stream first, local file second to model a download completing after
+/// enqueue), and a thrown error are all configurable.
+final class PlaybackURLResolvingMock: PlaybackURLResolving, @unchecked Sendable {
+    /// Sequenced results keyed by trackID; each call pops the next, then the last
+    /// repeats. Use to model a download completing between plays.
+    var resultsByTrackID: [String: [URL]] = [:]
+    var errorByTrackID: [String: Error] = [:]
+    var error: Error?
+
+    private(set) var resolvedTrackIDs: [String] = []
+    private let lock = NSLock()
+
+    /// When set, resolution for this trackID suspends until `releaseGate()` is
+    /// called — used to hold a resolve "in flight" while a later skip supersedes it.
+    private var gateTrackID: String?
+    private var gateContinuation: CheckedContinuation<Void, Never>?
+
+    func gateResolution(forTrackID trackID: String) {
+        lock.lock()
+        gateTrackID = trackID
+        lock.unlock()
+    }
+
+    func releaseGate() {
+        lock.lock()
+        let continuation = gateContinuation
+        gateContinuation = nil
+        gateTrackID = nil
+        lock.unlock()
+        continuation?.resume()
+    }
+
+    func resolvePlaybackURL(for item: QueueItem) async throws -> URL {
+        lock.lock()
+        resolvedTrackIDs.append(item.trackID)
+        let isGated = item.trackID == gateTrackID
+        lock.unlock()
+
+        if isGated {
+            await withCheckedContinuation { continuation in
+                lock.lock()
+                gateContinuation = continuation
+                lock.unlock()
+            }
+        }
+
+        if let error {
+            throw error
+        }
+        if let trackError = errorByTrackID[item.trackID] {
+            throw trackError
+        }
+
+        lock.lock()
+        defer { lock.unlock() }
+        if var queued = resultsByTrackID[item.trackID], !queued.isEmpty {
+            let next = queued.count > 1 ? queued.removeFirst() : queued[0]
+            resultsByTrackID[item.trackID] = queued
+            return next
+        }
+        return URL(string: "https://resolver.example.com/\(item.streamKey).mp3")!
+    }
+}

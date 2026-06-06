@@ -22,8 +22,10 @@ final class ConfigurableLibraryRepoMock: LibraryRepoProtocol {
     var playlistSnapshots: [LibraryPlaylistSnapshot] = []
     var playlistItemsByID: [String: [LibraryPlaylistItemSnapshot]] = [:]
     var lastRefresh: Date?
-    /// URL returned by `streamURL(for:)`; defaults to a throwaway file URL.
+    /// URL returned by `streamURL(for:)`/`streamURL(forKey:)`; defaults to a throwaway file URL.
     var streamURLToReturn = URL(fileURLWithPath: "/tmp/stream.m4a")
+    /// Stream keys passed to `streamURL(forKey:)`, in call order.
+    var streamURLForKeyRequests: [String] = []
 
     func albums(page: LibraryPage) async throws -> [Album] {
         guard page.offset < allAlbums.count else { return [] }
@@ -72,4 +74,8 @@ final class ConfigurableLibraryRepoMock: LibraryRepoProtocol {
 
     func lastRefreshDate() async throws -> Date? { lastRefresh }
     func streamURL(for track: Track) async throws -> URL { streamURLToReturn }
+    func streamURL(forKey key: String) async throws -> URL {
+        streamURLForKeyRequests.append(key)
+        return streamURLToReturn
+    }
 }

@@ -12,6 +12,8 @@ final class LibraryRemoteMock: LibraryRemoteDataSource {
     var tracksByAlbumID: [String: [Track]] = [:]
     var tracksByID: [String: Track] = [:]
     var streamURLByTrackID: [String: URL] = [:]
+    var streamURLByKey: [String: URL] = [:]
+    var streamURLForKeyRequests: [String] = []
     var artworkURLByRawValue: [String: URL] = [:]
     var fetchAlbumsCallCount = 0
     var fetchArtistsCallCount = 0
@@ -114,6 +116,17 @@ final class LibraryRemoteMock: LibraryRemoteDataSource {
         }
         guard let url = streamURLByTrackID[track.plexID] else {
             throw LibraryError.resourceNotFound(type: "track", id: track.plexID)
+        }
+        return url
+    }
+
+    func streamURL(forKey key: String) async throws -> URL {
+        streamURLForKeyRequests.append(key)
+        if let streamURLError {
+            throw streamURLError
+        }
+        guard let url = streamURLByKey[key] else {
+            throw LibraryError.resourceNotFound(type: "key", id: key)
         }
         return url
     }

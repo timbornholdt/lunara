@@ -103,12 +103,6 @@ final class AppCoordinator {
         let playbackEngine: PlaybackEngineProtocol = crossfadeEngine
         let trackCache = TrackCache()
         let loudnessAdapter = PlexLoudnessAdapter(library: libraryRepo)
-        let queueManager = QueueManager(
-            engine: playbackEngine,
-            persistence: FileQueueStatePersistence(),
-            trackCache: trackCache,
-            loudnessProvider: loudnessAdapter
-        )
 
         let offlineStore: OfflineStoreProtocol
         let offlineDirectory: URL
@@ -119,7 +113,16 @@ final class AppCoordinator {
             fatalError("Failed to initialize OfflineStore: \(error)")
         }
 
-        let appRouter = AppRouter(library: libraryRepo, queue: queueManager, offlineStore: offlineStore)
+        let playbackURLResolver = PlaybackURLResolver(offlineStore: offlineStore, library: libraryRepo)
+        let queueManager = QueueManager(
+            engine: playbackEngine,
+            persistence: FileQueueStatePersistence(),
+            trackCache: trackCache,
+            loudnessProvider: loudnessAdapter,
+            resolver: playbackURLResolver
+        )
+
+        let appRouter = AppRouter(library: libraryRepo, queue: queueManager)
 
         let downloadManager = DownloadManager(
             offlineStore: offlineStore,

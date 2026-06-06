@@ -132,9 +132,15 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
     /// - Parameter track: The track to stream
     /// - Returns: Direct play URL for the track
     func streamURL(forTrack track: Track) async throws -> URL {
+        try await streamURL(forKey: track.key)
+    }
+
+    /// Builds a fresh streaming URL from a stable Plex stream key (track.key),
+    /// stamping a current X-Plex-Token. Used for lazy play-time URL resolution.
+    func streamURL(forKey key: String) async throws -> URL {
         let token = try await authManager.validToken()
         var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)!
-        components.path = track.key
+        components.path = key
         components.queryItems = [
             URLQueryItem(name: "X-Plex-Token", value: token)
         ]

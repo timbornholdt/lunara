@@ -25,7 +25,7 @@ struct NowPlayingScreenViewModelTests {
     }
 
     private func makeQueueItem(trackID: String) -> QueueItem {
-        QueueItem(trackID: trackID, url: URL(fileURLWithPath: "/tmp/\(trackID).m4a"))
+        QueueItem(trackID: trackID, streamKey: "/library/metadata/\(trackID)")
     }
 
     private func makeTrack(id: String, albumID: String) -> Track {

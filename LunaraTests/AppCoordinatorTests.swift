@@ -87,8 +87,8 @@ struct AppCoordinatorTests {
         let subject = makeSubject()
         subject.library.albumsByPage[1] = [makeAlbum(id: "cached-1")]
         subject.queue.items = [
-            QueueItem(trackID: "track-valid", url: try #require(URL(string: "https://example.com/track-valid.mp3"))),
-            QueueItem(trackID: "track-missing", url: try #require(URL(string: "https://example.com/track-missing.mp3")))
+            QueueItem(trackID: "track-valid", streamKey: "/library/metadata/track-valid"),
+            QueueItem(trackID: "track-missing", streamKey: "/library/metadata/track-missing")
         ]
         subject.queue.currentIndex = 0
         subject.queue.currentItem = subject.queue.items.first
@@ -105,8 +105,8 @@ struct AppCoordinatorTests {
         let subject = makeSubject()
         subject.library.albumsByPage[1] = [makeAlbum(id: "cached-1")]
         subject.queue.items = [
-            QueueItem(trackID: "track-valid", url: try #require(URL(string: "https://example.com/track-valid.mp3"))),
-            QueueItem(trackID: "track-missing", url: try #require(URL(string: "https://example.com/track-missing.mp3")))
+            QueueItem(trackID: "track-valid", streamKey: "/library/metadata/track-valid"),
+            QueueItem(trackID: "track-missing", streamKey: "/library/metadata/track-missing")
         ]
         subject.queue.currentIndex = 0
         subject.queue.currentItem = subject.queue.items.first
@@ -124,7 +124,7 @@ struct AppCoordinatorTests {
         subject.library.albumsByPage[1] = [makeAlbum(id: "cached-1")]
         subject.library.refreshError = LibraryError.timeout
         subject.queue.items = [
-            QueueItem(trackID: "track-valid", url: try #require(URL(string: "https://example.com/track-valid.mp3")))
+            QueueItem(trackID: "track-valid", streamKey: "/library/metadata/track-valid")
         ]
         subject.queue.currentIndex = 0
         subject.queue.currentItem = subject.queue.items.first

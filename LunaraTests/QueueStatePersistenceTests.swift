@@ -20,8 +20,8 @@ struct QueueStatePersistenceTests {
 
         let snapshot = QueueSnapshot(
             items: [
-                QueueItem(trackID: "track-1", url: URL(string: "https://example.com/1.mp3")!),
-                QueueItem(trackID: "track-2", url: URL(string: "https://example.com/2.mp3")!)
+                QueueItem(trackID: "track-1", streamKey: "/library/metadata/track-1"),
+                QueueItem(trackID: "track-2", streamKey: "/library/metadata/track-2")
             ],
             currentIndex: 1,
             elapsed: 31
@@ -31,6 +31,8 @@ struct QueueStatePersistenceTests {
         let loaded = try persistence.load()
 
         #expect(loaded == snapshot)
+        // Persisted snapshot carries stable identifiers only — no resolved URLs.
+        #expect(loaded?.items.first?.streamKey == "/library/metadata/track-1")
     }
 
     @Test
@@ -48,7 +50,7 @@ struct QueueStatePersistenceTests {
         }
 
         let snapshot = QueueSnapshot(
-            items: [QueueItem(trackID: "track-1", url: URL(string: "https://example.com/1.mp3")!)],
+            items: [QueueItem(trackID: "track-1", streamKey: "/library/metadata/track-1")],
             currentIndex: 0,
             elapsed: 0
         )

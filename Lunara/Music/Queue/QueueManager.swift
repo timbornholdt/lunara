@@ -19,10 +19,18 @@ final class QueueManager: QueueManagerProtocol {
     private let persistence: QueueStatePersisting
     private let trackCache: TrackCache?
     private let loudnessProvider: LoudnessDataProviding?
+    private let resolver: PlaybackURLResolving?
     var lastPersistedElapsed: TimeInterval = 0
     var pendingSeekAfterNextPlay: TimeInterval?
     private var persistenceTask: Task<Void, Never>?
     private var prepareNextTask: Task<Void, Never>?
+    // The in-flight play resolution. Cancelled when a newer play supersedes it
+    // (rapid skip), so a stale resolve can never reach the engine out of order.
+    private var currentPlayTask: Task<Void, Never>?
+    // True while a play's URL is being resolved off the main actor. Suppresses the
+    // engine-idle auto-advance during the transient window before engine.play, so a
+    // late idle notification can't be mistaken for queue exhaustion.
+    private var isResolvingPlayback = false
     private var elapsedPersistenceTimer: Timer?
     // Set during manual skip/navigation to prevent the observer from
     // re-syncing currentIndex to a stale engine trackID while the
@@ -37,12 +45,14 @@ final class QueueManager: QueueManagerProtocol {
         engine: PlaybackEngineProtocol,
         persistence: QueueStatePersisting,
         trackCache: TrackCache? = nil,
-        loudnessProvider: LoudnessDataProviding? = nil
+        loudnessProvider: LoudnessDataProviding? = nil,
+        resolver: PlaybackURLResolving? = nil
     ) {
         self.engine = engine
         self.persistence = persistence
         self.trackCache = trackCache
         self.loudnessProvider = loudnessProvider
+        self.resolver = resolver
         restorePersistedQueue()
         observeEngineState()
     }
@@ -153,6 +163,9 @@ final class QueueManager: QueueManagerProtocol {
     }
 
     func clear() {
+        currentPlayTask?.cancel()
+        prepareNextTask?.cancel()
+        isResolvingPlayback = false
         items = []
         currentIndex = nil
         pendingSeekAfterNextPlay = nil
@@ -169,64 +182,95 @@ final class QueueManager: QueueManagerProtocol {
     }
 
     func playCurrentItem() {
-        guard let currentItem else { return }
+        guard let currentItem, let targetIndex = currentIndex, let resolver else { return }
 
-        if currentItem.url.isFileURL || trackCache == nil {
-            // Local file — skip TrackCache entirely, play directly
-            engine.play(url: currentItem.url, trackID: currentItem.trackID)
+        // Supersede any in-flight resolve so a slower earlier one can't play late.
+        currentPlayTask?.cancel()
+        isResolvingPlayback = true
+        // Move the engine off idle while we resolve, so the idle observer doesn't
+        // treat the resolve window as queue exhaustion.
+        engine.signalBuffering()
 
-            if let pendingSeekAfterNextPlay {
-                engine.seek(to: pendingSeekAfterNextPlay)
-                self.pendingSeekAfterNextPlay = nil
-            }
+        let trackCache = self.trackCache
+        currentPlayTask = Task { [weak self] in
+            do {
+                let resolvedURL = try await resolver.resolvePlaybackURL(for: currentItem)
 
-            persistQueueState(elapsed: engine.elapsed)
-            prepareNextTrackIfNeeded()
-        } else {
-            engine.signalBuffering()
-            Task {
-                do {
-                    let localURL = try await trackCache!.prepare(url: currentItem.url, trackID: currentItem.trackID)
-                    guard !Task.isCancelled else { return }
-                    await MainActor.run {
-                        engine.play(url: localURL, trackID: currentItem.trackID)
-                        if let pendingSeekAfterNextPlay {
-                            engine.seek(to: pendingSeekAfterNextPlay)
-                            self.pendingSeekAfterNextPlay = nil
-                        }
-                        persistQueueState(elapsed: engine.elapsed)
-                        prepareNextTrackIfNeeded()
-                    }
-                } catch {
-                    // Cache download failed — fall back to direct play
-                    await MainActor.run {
-                        engine.play(url: currentItem.url, trackID: currentItem.trackID)
-                        if let pendingSeekAfterNextPlay {
-                            engine.seek(to: pendingSeekAfterNextPlay)
-                            self.pendingSeekAfterNextPlay = nil
-                        }
-                        persistQueueState(elapsed: engine.elapsed)
-                        prepareNextTrackIfNeeded()
+                // Remote URLs route through the track cache (download/cache),
+                // falling back to direct play if caching fails. Local files play directly.
+                var playURL = resolvedURL
+                if !resolvedURL.isFileURL, let trackCache {
+                    if let cached = try? await trackCache.prepare(url: resolvedURL, trackID: currentItem.trackID) {
+                        playURL = cached
                     }
                 }
+
+                try Task.checkCancellation()
+                await MainActor.run {
+                    guard let self else { return }
+                    guard self.isCurrent(item: currentItem, index: targetIndex) else { return }
+                    self.engine.play(url: playURL, trackID: currentItem.trackID)
+                    self.consumePendingSeek()
+                    self.persistQueueState(elapsed: self.engine.elapsed)
+                    self.isResolvingPlayback = false
+                    self.prepareNextTrackIfNeeded()
+                }
+            } catch is CancellationError {
+                // Superseded by a newer play — a later task owns isResolvingPlayback.
+                return
+            } catch {
+                await MainActor.run {
+                    guard let self else { return }
+                    // Only fail the item that's still current; never play a stale URL.
+                    guard self.isCurrent(item: currentItem, index: targetIndex) else { return }
+                    self.lastError = .queueOperationFailed(
+                        reason: "Failed to resolve playback URL: \(error.localizedDescription)"
+                    )
+                    // Retain currentIndex (no auto-advance); leave the engine where it
+                    // is so a retry/play() re-attempts this same item.
+                    self.isResolvingPlayback = false
+                }
             }
+        }
+    }
+
+    /// True only if the given item is still the current one (guards against a
+    /// resolve that completed after the queue moved on).
+    private func isCurrent(item: QueueItem, index: Int) -> Bool {
+        !Task.isCancelled && currentIndex == index && currentItem?.trackID == item.trackID
+    }
+
+    private func consumePendingSeek() {
+        if let pendingSeekAfterNextPlay {
+            engine.seek(to: pendingSeekAfterNextPlay)
+            self.pendingSeekAfterNextPlay = nil
         }
     }
 
     private func prepareNextTrackIfNeeded() {
         prepareNextTask?.cancel()
         guard engine.crossfadeEnabled,
-              let currentIndex else { return }
+              let currentIndex,
+              let resolver else { return }
 
         let nextIndex = currentIndex + 1
         guard items.indices.contains(nextIndex) else { return }
 
         let currentItem = items[currentIndex]
         let nextItem = items[nextIndex]
+        let trackCache = self.trackCache
 
-        if nextItem.url.isFileURL {
-            // Local file — skip TrackCache, prepare directly
-            prepareNextTask = Task { [weak self, loudnessProvider] in
+        prepareNextTask = Task { [weak self, loudnessProvider] in
+            do {
+                let resolvedURL = try await resolver.resolvePlaybackURL(for: nextItem)
+
+                var prepareURL = resolvedURL
+                if !resolvedURL.isFileURL, let trackCache {
+                    if let cached = try? await trackCache.prepare(url: resolvedURL, trackID: nextItem.trackID) {
+                        prepareURL = cached
+                    }
+                }
+
                 let loudness = try? await loudnessProvider?.fetchLoudnessLevels(trackID: nextItem.trackID)
                 guard !Task.isCancelled else { return }
 
@@ -240,34 +284,10 @@ final class QueueManager: QueueManagerProtocol {
                         currentTrackDuration: self.engine.duration,
                         loudnessLevels: loudness
                     )
-                    self.engine.prepareNext(url: nextItem.url, trackID: nextItem.trackID, transition: transition)
+                    self.engine.prepareNext(url: prepareURL, trackID: nextItem.trackID, transition: transition)
                 }
-            }
-        } else {
-            guard let trackCache else { return }
-            prepareNextTask = Task { [weak self, loudnessProvider] in
-                do {
-                    let localURL = try await trackCache.prepare(url: nextItem.url, trackID: nextItem.trackID)
-                    guard !Task.isCancelled else { return }
-
-                    let loudness = try? await loudnessProvider?.fetchLoudnessLevels(trackID: nextItem.trackID)
-                    guard !Task.isCancelled else { return }
-
-                    await MainActor.run {
-                        guard let self else { return }
-                        let transition = CrossfadePolicy.transition(
-                            currentAlbumID: currentItem.albumID,
-                            currentTrackNumber: currentItem.trackNumber,
-                            nextAlbumID: nextItem.albumID,
-                            nextTrackNumber: nextItem.trackNumber,
-                            currentTrackDuration: self.engine.duration,
-                            loudnessLevels: loudness
-                        )
-                        self.engine.prepareNext(url: localURL, trackID: nextItem.trackID, transition: transition)
-                    }
-                } catch {
-                    // Cache download failed — skip preparing next track
-                }
+            } catch {
+                // Resolve or cache prep failed — skip preparing the next track.
             }
         }
     }
@@ -383,7 +403,7 @@ final class QueueManager: QueueManagerProtocol {
             }
         }
 
-        if engine.currentTrackID == nil, engine.playbackState == .idle, hasPlaybackBegun {
+        if engine.currentTrackID == nil, engine.playbackState == .idle, hasPlaybackBegun, !isResolvingPlayback {
             advanceAndPlayNextIfPossible()
         } else if let engineTrackID = engine.currentTrackID,
                   engineTrackID != currentItem?.trackID {

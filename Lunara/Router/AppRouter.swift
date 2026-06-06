@@ -12,26 +12,17 @@ struct QueueReconciliationOutcome: Equatable {
 final class AppRouter {
     private let library: LibraryRepoProtocol
     private let queue: QueueManagerProtocol
-    private let offlineStore: OfflineStoreProtocol?
     private let logger = Logger(subsystem: "holdings.chinlock.lunara", category: "AppRouter")
 
-    init(library: LibraryRepoProtocol, queue: QueueManagerProtocol, offlineStore: OfflineStoreProtocol? = nil) {
+    init(library: LibraryRepoProtocol, queue: QueueManagerProtocol) {
         self.library = library
         self.queue = queue
-        self.offlineStore = offlineStore
-    }
-
-    func resolveURL(for track: Track) async throws -> URL {
-        if let offlineStore, let localURL = try await offlineStore.localFileURL(forTrackID: track.plexID) {
-            return localURL
-        }
-        return try await library.streamURL(for: track)
     }
 
     func playAlbum(_ album: Album) async throws {
         logger.info("playAlbum started for album '\(album.title, privacy: .public)' id '\(album.plexID, privacy: .public)'")
         let tracks = try await tracks(forAlbum: album)
-        let items = try await queueItems(for: tracks, actionName: "playAlbum")
+        let items = queueItems(forTracks: tracks)
 
         logEnqueueReport(album: album, tracks: tracks, items: items)
         queue.playNow(items)
@@ -41,7 +32,7 @@ final class AppRouter {
     func queueAlbumNext(_ album: Album) async throws {
         logger.info("queueAlbumNext started for album '\(album.title, privacy: .public)' id '\(album.plexID, privacy: .public)'")
         let tracks = try await tracks(forAlbum: album)
-        let items = try await queueItems(for: tracks, actionName: "queueAlbumNext")
+        let items = queueItems(forTracks: tracks)
         queue.playNext(items)
         logger.info("queueAlbumNext queued \(items.count, privacy: .public) items for album id '\(album.plexID, privacy: .public)'")
     }
@@ -49,29 +40,25 @@ final class AppRouter {
     func queueAlbumLater(_ album: Album) async throws {
         logger.info("queueAlbumLater started for album '\(album.title, privacy: .public)' id '\(album.plexID, privacy: .public)'")
         let tracks = try await tracks(forAlbum: album)
-        let items = try await queueItems(for: tracks, actionName: "queueAlbumLater")
+        let items = queueItems(forTracks: tracks)
         queue.playLater(items)
         logger.info("queueAlbumLater queued \(items.count, privacy: .public) items for album id '\(album.plexID, privacy: .public)'")
     }
 
     func playTrackNow(_ track: Track) async throws {
-        let item = try await queueItem(for: track, actionName: "playTrackNow")
-        queue.playNow([item])
+        queue.playNow(queueItems(forTracks: [track]))
     }
 
     func playTracksNow(_ tracks: [Track]) async throws {
-        let items = try await queueItems(for: tracks, actionName: "playTracksNow")
-        queue.playNow(items)
+        queue.playNow(queueItems(forTracks: tracks))
     }
 
     func queueTrackNext(_ track: Track) async throws {
-        let item = try await queueItem(for: track, actionName: "queueTrackNext")
-        queue.playNext([item])
+        queue.playNext(queueItems(forTracks: [track]))
     }
 
     func queueTrackLater(_ track: Track) async throws {
-        let item = try await queueItem(for: track, actionName: "queueTrackLater")
-        queue.playLater([item])
+        queue.playLater(queueItems(forTracks: [track]))
     }
 
     func playPlaylist(_ playlist: Playlist) async throws {
@@ -118,14 +105,14 @@ final class AppRouter {
 
     func playAlbums(_ albums: [Album]) async throws {
         logger.info("playAlbums started for \(albums.count, privacy: .public) albums")
-        let items = try await allQueueItemsForAlbums(albums, actionName: "play-albums")
+        let items = try await allQueueItemsForAlbums(albums)
         queue.playNow(items)
         logger.info("playAlbums queued \(items.count, privacy: .public) items")
     }
 
     func shuffleAlbums(_ albums: [Album]) async throws {
         logger.info("shuffleAlbums started for \(albums.count, privacy: .public) albums")
-        let items = try await allQueueItemsForAlbums(albums, actionName: "shuffle-albums")
+        let items = try await allQueueItemsForAlbums(albums)
         queue.playNow(items.shuffled())
         logger.info("shuffleAlbums queued \(items.count, privacy: .public) shuffled items")
     }
@@ -133,7 +120,7 @@ final class AppRouter {
     func shuffleAllAlbums() async throws {
         logger.info("shuffleAllAlbums started")
         let albums = try await library.fetchAlbums()
-        let items = try await allQueueItemsForAlbums(albums, actionName: "shuffle-all")
+        let items = try await allQueueItemsForAlbums(albums)
         guard !items.isEmpty else {
             throw LibraryError.resourceNotFound(type: "tracks", id: "all")
         }
@@ -206,17 +193,17 @@ final class AppRouter {
             throw LibraryError.resourceNotFound(type: "tracks", id: playlist.plexID)
         }
 
-        var queueItems: [QueueItem] = []
-        queueItems.reserveCapacity(playlistItems.count)
+        var tracks: [Track] = []
+        tracks.reserveCapacity(playlistItems.count)
         for item in playlistItems {
             guard let track = try await library.track(id: item.trackID) else {
                 logger.warning("Playlist item trackID '\(item.trackID, privacy: .public)' not found in library, skipping")
                 continue
             }
-            let qItem = try await queueItem(for: track, actionName: "playlist-\(playlist.plexID)")
-            queueItems.append(qItem)
+            tracks.append(track)
         }
 
+        let queueItems = queueItems(forTracks: tracks)
         guard !queueItems.isEmpty else {
             logger.error("No resolvable tracks for playlist id '\(playlist.plexID, privacy: .public)'")
             throw LibraryError.resourceNotFound(type: "tracks", id: playlist.plexID)
@@ -231,7 +218,7 @@ final class AppRouter {
             logger.error("Found zero albums for collection id '\(collection.plexID, privacy: .public)'")
             throw LibraryError.resourceNotFound(type: "albums", id: collection.plexID)
         }
-        let items = try await allQueueItemsForAlbums(albums, actionName: "collection-\(collection.plexID)")
+        let items = try await allQueueItemsForAlbums(albums)
         guard !items.isEmpty else {
             logger.error("Found zero tracks across \(albums.count, privacy: .public) albums for collection id '\(collection.plexID, privacy: .public)'")
             throw LibraryError.resourceNotFound(type: "tracks", id: collection.plexID)
@@ -245,7 +232,7 @@ final class AppRouter {
             logger.error("Found zero albums for artist id '\(artist.plexID, privacy: .public)'")
             throw LibraryError.resourceNotFound(type: "albums", id: artist.plexID)
         }
-        let items = try await allQueueItemsForAlbums(albums, actionName: "artist-\(artist.plexID)")
+        let items = try await allQueueItemsForAlbums(albums)
         guard !items.isEmpty else {
             logger.error("Found zero tracks across \(albums.count, privacy: .public) albums for artist id '\(artist.plexID, privacy: .public)'")
             throw LibraryError.resourceNotFound(type: "tracks", id: artist.plexID)
@@ -253,40 +240,26 @@ final class AppRouter {
         return items
     }
 
-    private func allQueueItemsForAlbums(_ albums: [Album], actionName: String) async throws -> [QueueItem] {
+    private func allQueueItemsForAlbums(_ albums: [Album]) async throws -> [QueueItem] {
         var allTracks: [Track] = []
         for album in albums {
             let tracks = try await library.tracks(forAlbum: album.plexID)
             allTracks.append(contentsOf: tracks)
         }
         guard !allTracks.isEmpty else { return [] }
-        return try await resolveQueueItemsConcurrently(for: allTracks, actionName: actionName)
+        return queueItems(forTracks: allTracks)
     }
 
-    private func resolveQueueItemsConcurrently(for tracks: [Track], actionName: String) async throws -> [QueueItem] {
-        let offlineStore = self.offlineStore
-        let library = self.library
-
-        return try await withThrowingTaskGroup(of: (Int, QueueItem).self) { group in
-            for (index, track) in tracks.enumerated() {
-                group.addTask {
-                    let url: URL
-                    if let offlineStore, let localURL = try await offlineStore.localFileURL(forTrackID: track.plexID) {
-                        url = localURL
-                    } else {
-                        url = try await library.streamURL(for: track)
-                    }
-                    return (index, QueueItem(trackID: track.plexID, url: url, albumID: track.albumID, trackNumber: track.trackNumber))
-                }
-            }
-
-            var results = [(Int, QueueItem)]()
-            results.reserveCapacity(tracks.count)
-            for try await result in group {
-                results.append(result)
-            }
-            results.sort { $0.0 < $1.0 }
-            return results.map(\.1)
+    /// Builds queue items from stable identifiers only. The playable URL is
+    /// resolved lazily at play time (see PlaybackURLResolver), never baked in here.
+    private func queueItems(forTracks tracks: [Track]) -> [QueueItem] {
+        tracks.map { track in
+            QueueItem(
+                trackID: track.plexID,
+                streamKey: track.key,
+                albumID: track.albumID,
+                trackNumber: track.trackNumber
+            )
         }
     }
 
@@ -308,28 +281,6 @@ final class AppRouter {
         return tracks
     }
 
-    private func queueItems(for tracks: [Track], actionName: String) async throws -> [QueueItem] {
-        var items: [QueueItem] = []
-        items.reserveCapacity(tracks.count)
-        for track in tracks {
-            items.append(try await queueItem(for: track, actionName: actionName))
-        }
-        return items
-    }
-
-    private func queueItem(for track: Track, actionName: String) async throws -> QueueItem {
-        let url: URL
-        do {
-            url = try await resolveURL(for: track)
-        } catch {
-            logger.error(
-                "\(actionName, privacy: .public) failed to resolve URL for track id '\(track.plexID, privacy: .public)' key '\(track.key, privacy: .public)': \(error.localizedDescription, privacy: .public)"
-            )
-            throw error
-        }
-        return QueueItem(trackID: track.plexID, url: url, albumID: track.albumID, trackNumber: track.trackNumber)
-    }
-
     private func logEnqueueReport(album: Album, tracks: [Track], items: [QueueItem]) {
         var tracksByID: [String: Track] = [:]
         tracksByID.reserveCapacity(tracks.count)
@@ -346,28 +297,16 @@ final class AppRouter {
 
         for (index, item) in items.enumerated() {
             guard let track = tracksByID[item.trackID] else {
-                lines.append("[\(index + 1)] trackID=\(item.trackID) missing-track-metadata url=\(sanitizeURL(item.url))")
+                lines.append("[\(index + 1)] trackID=\(item.trackID) missing-track-metadata streamKey=\(item.streamKey)")
                 continue
             }
 
             lines.append(
-                "[\(index + 1)] trackNumber=\(track.trackNumber) trackID=\(track.plexID) title=\(track.title) duration=\(Int(track.duration))s key=\(track.key) url=\(sanitizeURL(item.url))"
+                "[\(index + 1)] trackNumber=\(track.trackNumber) trackID=\(track.plexID) title=\(track.title) duration=\(Int(track.duration))s key=\(track.key)"
             )
         }
 
         lines.append("======================================================")
         logger.info("\(lines.joined(separator: "\n"), privacy: .public)")
-    }
-
-    private func sanitizeURL(_ url: URL) -> String {
-        guard let host = url.host else {
-            return url.path.isEmpty ? url.absoluteString : url.path
-        }
-
-        if url.path.isEmpty {
-            return host
-        }
-
-        return host + url.path
     }
 }
