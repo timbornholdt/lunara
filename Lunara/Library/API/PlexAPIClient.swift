@@ -132,9 +132,15 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
     /// - Parameter track: The track to stream
     /// - Returns: Direct play URL for the track
     func streamURL(forTrack track: Track) async throws -> URL {
+        try await streamURL(forKey: track.key)
+    }
+
+    /// Builds a fresh streaming URL from a stable Plex stream key (track.key),
+    /// stamping a current X-Plex-Token. Used for lazy play-time URL resolution.
+    func streamURL(forKey key: String) async throws -> URL {
         let token = try await authManager.validToken()
         var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)!
-        components.path = track.key
+        components.path = key
         components.queryItems = [
             URLQueryItem(name: "X-Plex-Token", value: token)
         ]
@@ -290,7 +296,7 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
         let startedAt = Date()
         let method = request.httpMethod ?? "GET"
         let path = request.url?.path ?? "unknown"
-        logger.info("network start op=\(operation, privacy: .public) method=\(method, privacy: .public) path=\(path, privacy: .public)")
+        logger.notice("network start op=\(operation, privacy: .public) method=\(method, privacy: .public) path=\(path, privacy: .public)")
 
         do {
             let (data, response) = try await session.data(for: request)
@@ -306,7 +312,7 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
             }
 
             try validateResponse(response)
-            logger.info("network success op=\(operation, privacy: .public)")
+            logger.notice("network success op=\(operation, privacy: .public)")
             return (data, response)
         } catch {
             let elapsedMS = Int(Date().timeIntervalSince(startedAt) * 1000)

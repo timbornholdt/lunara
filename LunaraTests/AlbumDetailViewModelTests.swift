@@ -1,9 +1,32 @@
 import Foundation
+import UIKit
 import Testing
 @testable import Lunara
 
 @MainActor
 struct AlbumDetailViewModelTests {
+    @Test
+    func loadIfNeeded_resolvesPaletteFromArtwork() async throws {
+        let subject = makeSubject()
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("adv-\(UUID().uuidString).png")
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 800, height: 800), format: format)
+            .image { ctx in
+                UIColor.systemOrange.setFill()
+                ctx.fill(CGRect(x: 0, y: 0, width: 800, height: 800))
+            }
+        try #require(image.pngData()).write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+        subject.artwork.fullSizeURLToReturn = url
+
+        await subject.viewModel.loadIfNeeded()
+
+        #expect(subject.viewModel.artworkURL == url)
+        #expect(subject.viewModel.palette != .default)
+    }
+
     @Test
     func loadIfNeeded_fetchesAlbumTracks() async {
         let subject = makeSubject()
@@ -263,8 +286,9 @@ private final class AlbumDetailLibraryRepoMock: LibraryRepoProtocol {
 
 @MainActor
 private final class AlbumDetailArtworkPipelineMock: ArtworkPipelineProtocol {
+    var fullSizeURLToReturn: URL?
     func fetchThumbnail(for ownerID: String, ownerKind: ArtworkOwnerKind, sourceURL: URL?) async throws -> URL? { nil }
-    func fetchFullSize(for ownerID: String, ownerKind: ArtworkOwnerKind, sourceURL: URL?) async throws -> URL? { nil }
+    func fetchFullSize(for ownerID: String, ownerKind: ArtworkOwnerKind, sourceURL: URL?) async throws -> URL? { fullSizeURLToReturn }
     func invalidateCache(for key: ArtworkCacheKey) async throws { }
     func invalidateCache(for ownerID: String, ownerKind: ArtworkOwnerKind) async throws { }
     func invalidateAllCache() async throws { }

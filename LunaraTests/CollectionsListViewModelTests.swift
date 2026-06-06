@@ -49,6 +49,40 @@ struct CollectionsListViewModelTests {
     }
 
     @Test
+    func loadInitialIfNeeded_afterError_retriesOnSecondCall() async {
+        let subject = makeSubject()
+        subject.library.collectionsError = .timeout
+        await subject.viewModel.loadInitialIfNeeded()
+
+        subject.library.collectionsError = nil
+        subject.library.stubbedCollections = [makeCollection(id: "c1")]
+        await subject.viewModel.loadInitialIfNeeded()
+
+        #expect(subject.viewModel.collections.map(\.plexID) == ["c1"])
+        #expect(subject.viewModel.loadingState == .loaded)
+    }
+
+    @Test
+    func applyBackgroundRefreshUpdateIfNeeded_reloadsCollectionsFromStore() async {
+        let subject = makeSubject()
+        subject.library.stubbedCollections = [makeCollection(id: "c1"), makeCollection(id: "c2")]
+
+        await subject.viewModel.applyBackgroundRefreshUpdateIfNeeded(successToken: 1)
+
+        #expect(subject.viewModel.collections.map(\.plexID).sorted() == ["c1", "c2"])
+    }
+
+    @Test
+    func applyBackgroundRefreshUpdateIfNeeded_withZeroToken_doesNothing() async {
+        let subject = makeSubject()
+        subject.library.stubbedCollections = [makeCollection(id: "c1")]
+
+        await subject.viewModel.applyBackgroundRefreshUpdateIfNeeded(successToken: 0)
+
+        #expect(subject.viewModel.collections.isEmpty)
+    }
+
+    @Test
     func pinnedCollections_filtersCorrectly() async {
         let subject = makeSubject()
         subject.library.stubbedCollections = [

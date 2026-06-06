@@ -54,10 +54,23 @@ final class NowPlayingScreenViewModel {
     // MARK: - Private State
 
     private var resolvedTrackID: String?
+    private var resolvedUpNextIndex: Int?
+    private var resolvedUpNextCount: Int?
     private var metadataTask: Task<Void, Never>?
     private var prefetchTask: Task<Void, Never>?
+    private var prefetchingTrackID: String?
     private var upNextTask: Task<Void, Never>?
     private var snapshotCache: [String: TrackSnapshot] = [:]
+
+    /// Rendered size of an up-next row thumbnail; artwork is downsampled to this.
+    private static let upNextThumbnailPointSize = CGSize(width: 40, height: 40)
+    /// Fixed display scale used when downsampling (matches the target device; keeps decoding deterministic).
+    private let displayScale: CGFloat = 3
+
+    #if DEBUG
+    /// Test hook: number of retained track snapshots (bounded to current + next).
+    var snapshotCacheCountForTesting: Int { snapshotCache.count }
+    #endif
 
     // MARK: - Initialization
 
@@ -74,7 +87,7 @@ final class NowPlayingScreenViewModel {
 
         observeQueue()
         handleCurrentItemChange()
-        resolveUpNext()
+        resolveUpNextIfNeeded()
     }
 
     // MARK: - Actions
@@ -117,7 +130,7 @@ final class NowPlayingScreenViewModel {
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 self?.handleCurrentItemChange()
-                self?.resolveUpNext()
+                self?.resolveUpNextIfNeeded()
                 self?.observeQueue()
             }
         }
@@ -151,6 +164,7 @@ final class NowPlayingScreenViewModel {
         // If we have a pre-fetched snapshot, apply it immediately.
         if let cached = snapshotCache[trackID] {
             applySnapshot(cached)
+            evictStaleSnapshots()
             prefetchNextTrack()
             return
         }
@@ -166,6 +180,7 @@ final class NowPlayingScreenViewModel {
 
         snapshotCache[trackID] = snapshot
         applySnapshot(snapshot)
+        evictStaleSnapshots()
         prefetchNextTrack()
     }
 
@@ -251,29 +266,62 @@ final class NowPlayingScreenViewModel {
         )
     }
 
+    // MARK: - Cache Eviction
+
+    /// Keeps only the current and next track snapshots to prevent unbounded
+    /// memory growth from full-size UIImages accumulating over a long session.
+    private func evictStaleSnapshots() {
+        let items = queueManager.items
+        guard let currentIndex = queueManager.currentIndex,
+              items.indices.contains(currentIndex) else {
+            snapshotCache.removeAll()
+            return
+        }
+
+        var keepIDs = Set<String>()
+        keepIDs.insert(items[currentIndex].trackID)
+        let nextIndex = currentIndex + 1
+        if items.indices.contains(nextIndex) {
+            keepIDs.insert(items[nextIndex].trackID)
+        }
+
+        for key in snapshotCache.keys where !keepIDs.contains(key) {
+            snapshotCache.removeValue(forKey: key)
+        }
+    }
+
     // MARK: - Prefetch
 
     private func prefetchNextTrack() {
-        prefetchTask?.cancel()
-
         guard let currentIndex = queueManager.currentIndex else { return }
         let items = queueManager.items
         let nextIndex = currentIndex + 1
         guard items.indices.contains(nextIndex) else { return }
 
         let nextTrackID = items[nextIndex].trackID
-        guard snapshotCache[nextTrackID] == nil else { return }
+        // Already cached or already in-flight — nothing to do.
+        guard snapshotCache[nextTrackID] == nil,
+              prefetchingTrackID != nextTrackID else { return }
 
+        prefetchTask?.cancel()
+        prefetchingTrackID = nextTrackID
         prefetchTask = Task { [weak self] in
             guard let snapshot = await self?.buildSnapshot(for: nextTrackID) else { return }
             guard !Task.isCancelled else { return }
             self?.snapshotCache[nextTrackID] = snapshot
+            self?.prefetchingTrackID = nil
         }
     }
 
     // MARK: - Up Next Resolution
 
-    private func resolveUpNext() {
+    private func resolveUpNextIfNeeded() {
+        let newIndex = queueManager.currentIndex
+        let newCount = queueManager.items.count
+        guard newIndex != resolvedUpNextIndex || newCount != resolvedUpNextCount else { return }
+        resolvedUpNextIndex = newIndex
+        resolvedUpNextCount = newCount
+
         upNextTask?.cancel()
         upNextTask = Task { [weak self] in
             await self?.resolveUpNextItems()
@@ -312,9 +360,12 @@ final class NowPlayingScreenViewModel {
                 ownerKind: .album,
                 sourceURL: sourceURL
             )
-            var thumbImage: UIImage?
-            if let thumbURL, let data = try? Data(contentsOf: thumbURL) {
-                thumbImage = UIImage(data: data)
+            let thumbImage = thumbURL.flatMap {
+                DownsamplingImageLoader.load(
+                    contentsOf: $0,
+                    pointSize: Self.upNextThumbnailPointSize,
+                    scale: displayScale
+                )
             }
             resolved.append(UpNextItem(
                 id: item.trackID,

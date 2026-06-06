@@ -91,19 +91,30 @@ struct PlaylistDetailViewModelTests {
     @Test
     func playAll_delegatesToActions() async {
         let subject = makeSubject()
+        subject.library.playlistItemsByPlaylistID["pl-1"] = [
+            LibraryPlaylistItemSnapshot(trackID: "t-1", position: 0, playlistItemID: "pi-1")
+        ]
+        subject.library.tracksByID["t-1"] = makeTrack(id: "t-1", title: "Song A")
 
+        await subject.viewModel.loadIfNeeded()
         await subject.viewModel.playAll()
 
-        #expect(subject.actions.playPlaylistRequests == ["pl-1"])
+        #expect(subject.actions.playTracksNowRequests.count == 1)
+        #expect(subject.actions.playTracksNowRequests.first?.map(\.plexID) == ["t-1"])
     }
 
     @Test
     func shuffle_delegatesToActions() async {
         let subject = makeSubject()
+        subject.library.playlistItemsByPlaylistID["pl-1"] = [
+            LibraryPlaylistItemSnapshot(trackID: "t-1", position: 0, playlistItemID: "pi-1")
+        ]
+        subject.library.tracksByID["t-1"] = makeTrack(id: "t-1", title: "Song A")
 
+        await subject.viewModel.loadIfNeeded()
         await subject.viewModel.shuffle()
 
-        #expect(subject.actions.shufflePlaylistRequests == ["pl-1"])
+        #expect(subject.actions.playTracksNowRequests.count == 1)
     }
 
     private func makeSubject(
@@ -201,6 +212,7 @@ private final class PlaylistDetailRepoMock: LibraryRepoProtocol {
 private final class PlaylistDetailActionsMock: PlaylistsListActionRouting {
     var playPlaylistRequests: [String] = []
     var shufflePlaylistRequests: [String] = []
+    var playTracksNowRequests: [[Track]] = []
 
     func playPlaylist(_ playlist: Playlist) async throws {
         playPlaylistRequests.append(playlist.plexID)
@@ -212,7 +224,9 @@ private final class PlaylistDetailActionsMock: PlaylistsListActionRouting {
     func queueAlbumNext(_ album: Album) async throws { }
     func queueAlbumLater(_ album: Album) async throws { }
     func playTrackNow(_ track: Track) async throws { }
-    func playTracksNow(_ tracks: [Track]) async throws { }
+    func playTracksNow(_ tracks: [Track]) async throws {
+        playTracksNowRequests.append(tracks)
+    }
     func queueTrackNext(_ track: Track) async throws { }
     func queueTrackLater(_ track: Track) async throws { }
 }

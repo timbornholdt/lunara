@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "Lunara",
+  "project_id": "19367712-8b6d-4975-bf46-fb2e478b6662"
+}

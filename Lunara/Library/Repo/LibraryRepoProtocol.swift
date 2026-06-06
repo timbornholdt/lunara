@@ -84,6 +84,7 @@ protocol LibraryRepoProtocol: AnyObject {
     func lastRefreshDate() async throws -> Date?
 
     func streamURL(for track: Track) async throws -> URL
+    func streamURL(forKey key: String) async throws -> URL
     func authenticatedArtworkURL(for rawValue: String?) async throws -> URL?
     func fetchLoudnessLevels(trackID: String) async throws -> [Float]?
 }

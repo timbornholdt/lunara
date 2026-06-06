@@ -19,7 +19,7 @@ final class ArtistsListViewModel {
         case error(String)
     }
 
-    private let library: LibraryRepoProtocol
+    let library: LibraryRepoProtocol
     private let artworkPipeline: ArtworkPipelineProtocol
     let actions: ArtistsListActionRouting
     private let downloadManager: DownloadManagerProtocol?
@@ -68,8 +68,11 @@ final class ArtistsListViewModel {
     }
 
     func loadInitialIfNeeded() async {
-        guard case .idle = loadingState else {
+        switch loadingState {
+        case .loading, .loaded:
             return
+        case .idle, .error:
+            break
         }
 
         await reloadArtists()
@@ -185,7 +188,7 @@ final class ArtistsListViewModel {
             .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
     }
 
-    private func userFacingMessage(for error: Error) -> String {
+    func userFacingMessage(for error: Error) -> String {
         if let lunaraError = error as? LunaraError {
             return lunaraError.userMessage
         }

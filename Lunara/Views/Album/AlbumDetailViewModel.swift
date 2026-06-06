@@ -197,8 +197,15 @@ final class AlbumDetailViewModel {
                 sourceURL: sourceURL
             )
             artworkURL = url
-            if let url, let data = try? Data(contentsOf: url), let img = UIImage(data: data) {
-                palette = ArtworkPaletteExtractor.extract(from: img)
+            if let url {
+                // Decode off the main actor, downsampled small: the palette extractor
+                // only samples a 50x50 context, so 64px is ample and avoids a full decode.
+                let img = await Task.detached {
+                    DownsamplingImageLoader.load(contentsOf: url, maxPixelSize: 64)
+                }.value
+                if let img {
+                    palette = ArtworkPaletteExtractor.extract(from: img)
+                }
             }
         } catch {
             // Artwork is non-blocking for detail presentation.

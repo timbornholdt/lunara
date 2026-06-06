@@ -6,37 +6,25 @@ import Testing
 @MainActor
 struct AppRouterTests {
     @Test
-    func resolveURL_delegatesToLibraryRepo() async throws {
-        let subject = makeSubject()
-        let track = makeTrack(id: "track-1")
-        let expectedURL = try #require(URL(string: "https://example.com/stream/track-1.mp3"))
-        subject.library.streamURLByTrackID[track.plexID] = expectedURL
-
-        let resolvedURL = try await subject.router.resolveURL(for: track)
-
-        #expect(resolvedURL == expectedURL)
-        #expect(subject.library.streamURLRequests == [track.plexID])
-    }
-
-    @Test
-    func playAlbum_fetchesTracksResolvesURLsAndQueuesPlayNow() async throws {
+    func playAlbum_fetchesTracksBuildsStableQueueItemsAndDoesNotResolveURLs() async throws {
         let subject = makeSubject()
         let album = makeAlbum(id: "album-1")
         let firstTrack = makeTrack(id: "track-1", albumID: album.plexID)
         let secondTrack = makeTrack(id: "track-2", albumID: album.plexID)
         subject.library.tracksByAlbumID[album.plexID] = [firstTrack, secondTrack]
-        subject.library.streamURLByTrackID[firstTrack.plexID] = try #require(URL(string: "https://example.com/stream/track-1.mp3"))
-        subject.library.streamURLByTrackID[secondTrack.plexID] = try #require(URL(string: "https://example.com/stream/track-2.mp3"))
 
         try await subject.router.playAlbum(album)
 
         #expect(subject.library.trackRequests == [album.plexID])
-        #expect(subject.library.streamURLRequests == [firstTrack.plexID, secondTrack.plexID])
+        // URLs are resolved lazily at play time, never at queue-build time.
+        #expect(subject.library.streamURLRequests.isEmpty)
         #expect(subject.queue.playNowCalls.count == 1)
         #expect(subject.queue.playNowCalls[0] == [
-            expectedQueueItem(for: firstTrack, url: try #require(subject.library.streamURLByTrackID[firstTrack.plexID])),
-            expectedQueueItem(for: secondTrack, url: try #require(subject.library.streamURLByTrackID[secondTrack.plexID]))
+            expectedQueueItem(for: firstTrack),
+            expectedQueueItem(for: secondTrack)
         ])
+        // Queue items carry the stable stream key (track.key).
+        #expect(subject.queue.playNowCalls[0].map(\.streamKey) == [firstTrack.key, secondTrack.key])
     }
 
     @Test
@@ -76,27 +64,6 @@ struct AppRouterTests {
         #expect(subject.library.trackRequests == [album.plexID])
         #expect(subject.library.streamURLRequests.isEmpty)
         #expect(subject.queue.playNowCalls.isEmpty)
-    }
-
-    @Test
-    func playAlbum_whenURLResolutionFails_propagatesErrorAndDoesNotQueue() async {
-        let subject = makeSubject()
-        let album = makeAlbum(id: "album-3")
-        let track = makeTrack(id: "track-3", albumID: album.plexID)
-        subject.library.tracksByAlbumID[album.plexID] = [track]
-        subject.library.streamURLError = LibraryError.timeout
-
-        do {
-            try await subject.router.playAlbum(album)
-            Issue.record("Expected playAlbum to throw")
-        } catch let error as LibraryError {
-            #expect(error == .timeout)
-        } catch {
-            Issue.record("Expected LibraryError, got: \(error)")
-        }
-
-        #expect(subject.queue.playNowCalls.isEmpty)
-        #expect(subject.library.streamURLRequests == [track.plexID])
     }
 
     @Test
@@ -141,8 +108,8 @@ struct AppRouterTests {
         let keptTrack = makeTrack(id: "track-kept")
         subject.library.trackByID[keptTrack.plexID] = keptTrack
         subject.queue.playNow([
-            QueueItem(trackID: keptTrack.plexID, url: try #require(URL(string: "https://example.com/\(keptTrack.plexID).mp3"))),
-            QueueItem(trackID: "track-missing", url: try #require(URL(string: "https://example.com/track-missing.mp3")))
+            QueueItem(trackID: keptTrack.plexID, streamKey: "https://example.com/\(keptTrack.plexID).mp3"),
+            QueueItem(trackID: "track-missing", streamKey: "https://example.com/track-missing.mp3")
         ])
 
         let outcome = try await subject.router.reconcileQueueAgainstLibrary()
@@ -159,11 +126,11 @@ struct AppRouterTests {
         let subject = makeSubject()
         let firstItem = QueueItem(
             trackID: "track-1",
-            url: try #require(URL(string: "https://example.com/track-1.mp3"))
+            streamKey: "https://example.com/track-1.mp3"
         )
         let secondItem = QueueItem(
             trackID: "track-2",
-            url: try #require(URL(string: "https://example.com/track-2.mp3"))
+            streamKey: "https://example.com/track-2.mp3"
         )
         subject.queue.playNow([firstItem, secondItem])
         subject.library.trackLookupErrorByID["track-2"] = LibraryError.timeout
@@ -187,9 +154,9 @@ struct AppRouterTests {
         let subject = makeSubject()
         subject.library.trackByID["track-2"] = makeTrack(id: "track-2")
         subject.queue.playNow([
-            QueueItem(trackID: "track-missing", url: try #require(URL(string: "https://example.com/track-missing-a.mp3"))),
-            QueueItem(trackID: "track-missing", url: try #require(URL(string: "https://example.com/track-missing-b.mp3"))),
-            QueueItem(trackID: "track-2", url: try #require(URL(string: "https://example.com/track-2.mp3")))
+            QueueItem(trackID: "track-missing", streamKey: "https://example.com/track-missing-a.mp3"),
+            QueueItem(trackID: "track-missing", streamKey: "https://example.com/track-missing-b.mp3"),
+            QueueItem(trackID: "track-2", streamKey: "https://example.com/track-2.mp3")
         ])
 
         let outcome = try await subject.router.reconcileQueueAgainstLibrary()
@@ -207,12 +174,10 @@ struct AppRouterTests {
         let album = makeAlbum(id: "album-next")
         let track = makeTrack(id: "track-next", albumID: album.plexID)
         subject.library.tracksByAlbumID[album.plexID] = [track]
-        let streamURL = try #require(URL(string: "https://example.com/stream/track-next.mp3"))
-        subject.library.streamURLByTrackID[track.plexID] = streamURL
 
         try await subject.router.queueAlbumNext(album)
 
-        #expect(subject.queue.playNextCalls == [[expectedQueueItem(for: track, url: streamURL)]])
+        #expect(subject.queue.playNextCalls == [[expectedQueueItem(for: track)]])
     }
 
     @Test
@@ -221,48 +186,40 @@ struct AppRouterTests {
         let album = makeAlbum(id: "album-later")
         let track = makeTrack(id: "track-later", albumID: album.plexID)
         subject.library.tracksByAlbumID[album.plexID] = [track]
-        let streamURL = try #require(URL(string: "https://example.com/stream/track-later.mp3"))
-        subject.library.streamURLByTrackID[track.plexID] = streamURL
 
         try await subject.router.queueAlbumLater(album)
 
-        #expect(subject.queue.playLaterCalls == [[expectedQueueItem(for: track, url: streamURL)]])
+        #expect(subject.queue.playLaterCalls == [[expectedQueueItem(for: track)]])
     }
 
     @Test
     func playTrackNow_resolvesURLAndQueuesSingleItemPlayNow() async throws {
         let subject = makeSubject()
         let track = makeTrack(id: "track-now")
-        let streamURL = try #require(URL(string: "https://example.com/stream/track-now.mp3"))
-        subject.library.streamURLByTrackID[track.plexID] = streamURL
 
         try await subject.router.playTrackNow(track)
 
-        #expect(subject.queue.playNowCalls == [[expectedQueueItem(for: track, url: streamURL)]])
+        #expect(subject.queue.playNowCalls == [[expectedQueueItem(for: track)]])
     }
 
     @Test
     func queueTrackNext_resolvesURLAndQueuesSingleItemPlayNext() async throws {
         let subject = makeSubject()
         let track = makeTrack(id: "track-next-single")
-        let streamURL = try #require(URL(string: "https://example.com/stream/track-next-single.mp3"))
-        subject.library.streamURLByTrackID[track.plexID] = streamURL
 
         try await subject.router.queueTrackNext(track)
 
-        #expect(subject.queue.playNextCalls == [[expectedQueueItem(for: track, url: streamURL)]])
+        #expect(subject.queue.playNextCalls == [[expectedQueueItem(for: track)]])
     }
 
     @Test
     func queueTrackLater_resolvesURLAndQueuesSingleItemPlayLater() async throws {
         let subject = makeSubject()
         let track = makeTrack(id: "track-later-single")
-        let streamURL = try #require(URL(string: "https://example.com/stream/track-later-single.mp3"))
-        subject.library.streamURLByTrackID[track.plexID] = streamURL
 
         try await subject.router.queueTrackLater(track)
 
-        #expect(subject.queue.playLaterCalls == [[expectedQueueItem(for: track, url: streamURL)]])
+        #expect(subject.queue.playLaterCalls == [[expectedQueueItem(for: track)]])
     }
 
     @Test
@@ -271,16 +228,14 @@ struct AppRouterTests {
         let collection = makeCollection(id: "col-1")
         let album = makeAlbum(id: "album-c1")
         let track = makeTrack(id: "track-c1", albumID: album.plexID)
-        let streamURL = try #require(URL(string: "https://example.com/stream/track-c1.mp3"))
 
         subject.library.collectionAlbumsByCollectionID[collection.plexID] = [album]
         subject.library.tracksByAlbumID[album.plexID] = [track]
-        subject.library.streamURLByTrackID[track.plexID] = streamURL
 
         try await subject.router.playCollection(collection)
 
         #expect(subject.queue.playNowCalls.count == 1)
-        #expect(subject.queue.playNowCalls[0] == [expectedQueueItem(for: track, url: streamURL)])
+        #expect(subject.queue.playNowCalls[0] == [expectedQueueItem(for: track)])
     }
 
     @Test
@@ -290,19 +245,15 @@ struct AppRouterTests {
         let album = makeAlbum(id: "album-c2")
         let track1 = makeTrack(id: "track-s1", albumID: album.plexID)
         let track2 = makeTrack(id: "track-s2", albumID: album.plexID)
-        let url1 = try #require(URL(string: "https://example.com/stream/track-s1.mp3"))
-        let url2 = try #require(URL(string: "https://example.com/stream/track-s2.mp3"))
 
         subject.library.collectionAlbumsByCollectionID[collection.plexID] = [album]
         subject.library.tracksByAlbumID[album.plexID] = [track1, track2]
-        subject.library.streamURLByTrackID[track1.plexID] = url1
-        subject.library.streamURLByTrackID[track2.plexID] = url2
 
         try await subject.router.shuffleCollection(collection)
 
         #expect(subject.queue.playNowCalls.count == 1)
-        let queuedTrackIDs = Set(subject.queue.playNowCalls[0].map(\.trackID))
-        #expect(queuedTrackIDs == Set(["track-s1", "track-s2"]))
+        let allTrackIDs = Set(subject.queue.playNowCalls[0].map(\.trackID))
+        #expect(allTrackIDs == Set(["track-s1", "track-s2"]))
     }
 
     @Test
@@ -311,16 +262,14 @@ struct AppRouterTests {
         let artist = makeArtist(id: "artist-1")
         let album = makeAlbum(id: "album-a1")
         let track = makeTrack(id: "track-a1", albumID: album.plexID)
-        let streamURL = try #require(URL(string: "https://example.com/stream/track-a1.mp3"))
 
         subject.library.artistAlbumsByName[artist.name] = [album]
         subject.library.tracksByAlbumID[album.plexID] = [track]
-        subject.library.streamURLByTrackID[track.plexID] = streamURL
 
         try await subject.router.playArtist(artist)
 
         #expect(subject.queue.playNowCalls.count == 1)
-        #expect(subject.queue.playNowCalls[0] == [expectedQueueItem(for: track, url: streamURL)])
+        #expect(subject.queue.playNowCalls[0] == [expectedQueueItem(for: track)])
     }
 
     @Test
@@ -330,19 +279,15 @@ struct AppRouterTests {
         let album = makeAlbum(id: "album-a2")
         let track1 = makeTrack(id: "track-sa1", albumID: album.plexID)
         let track2 = makeTrack(id: "track-sa2", albumID: album.plexID)
-        let url1 = try #require(URL(string: "https://example.com/stream/track-sa1.mp3"))
-        let url2 = try #require(URL(string: "https://example.com/stream/track-sa2.mp3"))
 
         subject.library.artistAlbumsByName[artist.name] = [album]
         subject.library.tracksByAlbumID[album.plexID] = [track1, track2]
-        subject.library.streamURLByTrackID[track1.plexID] = url1
-        subject.library.streamURLByTrackID[track2.plexID] = url2
 
         try await subject.router.shuffleArtist(artist)
 
         #expect(subject.queue.playNowCalls.count == 1)
-        let queuedTrackIDs = Set(subject.queue.playNowCalls[0].map(\.trackID))
-        #expect(queuedTrackIDs == Set(["track-sa1", "track-sa2"]))
+        let allTrackIDs = Set(subject.queue.playNowCalls[0].map(\.trackID))
+        #expect(allTrackIDs == Set(["track-sa1", "track-sa2"]))
     }
 
     @Test
@@ -381,34 +326,8 @@ struct AppRouterTests {
         #expect(subject.queue.playNowCalls.isEmpty)
     }
 
-    @Test
-    func resolveURL_returnsLocalFileWhenOfflineTrackExists() async throws {
-        let offlineStore = MockOfflineStore()
-        let subject = makeSubject(offlineStore: offlineStore)
-        let track = makeTrack(id: "track-offline")
-        let localURL = try #require(URL(string: "file:///offline/track-offline.flac"))
-        offlineStore.localFileURLsByTrackID[track.plexID] = localURL
-
-        let resolvedURL = try await subject.router.resolveURL(for: track)
-
-        #expect(resolvedURL == localURL)
-        // Should NOT have called streamURL
-        #expect(subject.library.streamURLRequests.isEmpty)
-    }
-
-    @Test
-    func resolveURL_fallsBackToStreamWhenNoOfflineTrack() async throws {
-        let offlineStore = MockOfflineStore()
-        let subject = makeSubject(offlineStore: offlineStore)
-        let track = makeTrack(id: "track-stream")
-        let streamURL = try #require(URL(string: "https://example.com/stream/track-stream.mp3"))
-        subject.library.streamURLByTrackID[track.plexID] = streamURL
-
-        let resolvedURL = try await subject.router.resolveURL(for: track)
-
-        #expect(resolvedURL == streamURL)
-        #expect(subject.library.streamURLRequests == [track.plexID])
-    }
+    // NOTE: offline-vs-stream URL resolution moved out of AppRouter into
+    // PlaybackURLResolver (resolved lazily at play time). See PlaybackURLResolverTests.
 
     private func makeCollection(id: String) -> Collection {
         Collection(
@@ -421,16 +340,15 @@ struct AppRouterTests {
         )
     }
 
-    private func makeSubject(offlineStore: MockOfflineStore? = nil) -> (
+    private func makeSubject() -> (
         router: AppRouter,
         library: LibraryRepoMock,
-        queue: QueueManagerMock,
-        offlineStore: MockOfflineStore?
+        queue: QueueManagerMock
     ) {
         let library = LibraryRepoMock()
         let queue = QueueManagerMock()
-        let router = AppRouter(library: library, queue: queue, offlineStore: offlineStore)
-        return (router, library, queue, offlineStore)
+        let router = AppRouter(library: library, queue: queue)
+        return (router, library, queue)
     }
 
     private func makeAlbum(id: String) -> Album {
@@ -473,8 +391,8 @@ struct AppRouterTests {
         )
     }
 
-    private func expectedQueueItem(for track: Track, url: URL) -> QueueItem {
-        QueueItem(trackID: track.plexID, url: url, albumID: track.albumID, trackNumber: track.trackNumber)
+    private func expectedQueueItem(for track: Track) -> QueueItem {
+        QueueItem(trackID: track.plexID, streamKey: track.key, albumID: track.albumID, trackNumber: track.trackNumber)
     }
 }
 

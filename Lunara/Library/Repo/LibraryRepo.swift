@@ -28,6 +28,7 @@ protocol LibraryRemoteDataSource: AnyObject {
     func fetchTrack(id trackID: String) async throws -> Track?
     func fetchAlbumsByTag(kind: LibraryTagKind, value: String) async throws -> [Album]
     func streamURL(forTrack track: Track) async throws -> URL
+    func streamURL(forKey key: String) async throws -> URL
     func authenticatedArtworkURL(for rawValue: String?) async throws -> URL?
     func fetchLoudnessLevels(trackID: String, sampleCount: Int) async throws -> [Float]?
     func addToPlaylist(playlistID: String, ratingKey: String) async throws
@@ -52,6 +53,7 @@ final class LibraryRepo: LibraryRepoProtocol {
     let store: LibraryStoreProtocol
     let artworkPipeline: ArtworkPipelineProtocol
     let nowProvider: () -> Date
+    private var loudnessCache: [String: [Float]?] = [:]
 
     init(
         remote: LibraryRemoteDataSource,
@@ -139,7 +141,14 @@ final class LibraryRepo: LibraryRepoProtocol {
     }
 
     func collectionAlbums(collectionID: String) async throws -> [Album] {
-        let albumIDs = try await remote.fetchCollectionAlbumIDs(collectionID: collectionID)
+        // Try local cache first to avoid a network round-trip
+        let cachedAlbumIDs = try await store.fetchAlbumIDs(forCollectionID: collectionID)
+        let albumIDs: [String]
+        if !cachedAlbumIDs.isEmpty {
+            albumIDs = cachedAlbumIDs
+        } else {
+            albumIDs = try await remote.fetchCollectionAlbumIDs(collectionID: collectionID)
+        }
         guard !albumIDs.isEmpty else { return [] }
         var seen = Set<String>()
         var albums: [Album] = []
@@ -214,6 +223,16 @@ final class LibraryRepo: LibraryRepoProtocol {
         }
     }
 
+    func streamURL(forKey key: String) async throws -> URL {
+        do {
+            return try await remote.streamURL(forKey: key)
+        } catch let error as LibraryError {
+            throw error
+        } catch {
+            throw LibraryError.operationFailed(reason: "Stream URL resolution failed: \(error.localizedDescription)")
+        }
+    }
+
     func authenticatedArtworkURL(for rawValue: String?) async throws -> URL? {
         do {
             return try await remote.authenticatedArtworkURL(for: rawValue)
@@ -225,6 +244,11 @@ final class LibraryRepo: LibraryRepoProtocol {
     }
 
     func fetchLoudnessLevels(trackID: String) async throws -> [Float]? {
-        try await remote.fetchLoudnessLevels(trackID: trackID, sampleCount: 128)
+        if let cached = loudnessCache[trackID] {
+            return cached
+        }
+        let levels = try await remote.fetchLoudnessLevels(trackID: trackID, sampleCount: 128)
+        loudnessCache[trackID] = levels
+        return levels
     }
 }

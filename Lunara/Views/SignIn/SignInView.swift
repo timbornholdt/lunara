@@ -171,7 +171,7 @@ struct SignInView: View {
             do {
                 if let token = try await coordinator.plexClient.checkPin(pinID: pinID) {
                     // Got token! Save it
-                    try coordinator.authManager.setToken(token)
+                    try coordinator.completeSignIn(token: token)
                     print("\n" + String(repeating: "=", count: 60))
                     print("🔐 SIGN-IN SUCCESSFUL")
                     print(String(repeating: "=", count: 60))

@@ -461,6 +461,15 @@ struct LibraryRepoTests {
         #expect(subject.remote.streamURLRequests == [track.plexID])
     }
     @Test
+    func streamURLForKey_delegatesToRemote() async throws {
+        let subject = makeSubject()
+        let url = try #require(URL(string: "https://example.com/stream-by-key.mp3"))
+        subject.remote.streamURLByKey["/library/metadata/track-key"] = url
+        let resolved = try await subject.repo.streamURL(forKey: "/library/metadata/track-key")
+        #expect(resolved == url)
+        #expect(subject.remote.streamURLForKeyRequests == ["/library/metadata/track-key"])
+    }
+    @Test
     func streamURL_whenRemoteThrowsLibraryError_propagatesError() async {
         let subject = makeSubject()
         let track = makeTrack(id: "track-url", albumID: "album-1", number: 1)

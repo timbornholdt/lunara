@@ -3,13 +3,17 @@ import Observation
 
 struct QueueItem: Codable, Equatable, Hashable, Sendable {
     let trackID: String
-    let url: URL
+    /// Stable Plex stream key (track.key). The playable URL is resolved lazily
+    /// at play time from this key — never baked in at queue-build time — so a
+    /// track downloaded/deleted after enqueue resolves to the right source and
+    /// persisted queues never carry an expired X-Plex-Token.
+    let streamKey: String
     let albumID: String
     let trackNumber: Int
 
-    init(trackID: String, url: URL, albumID: String = "", trackNumber: Int = 0) {
+    init(trackID: String, streamKey: String, albumID: String = "", trackNumber: Int = 0) {
         self.trackID = trackID
-        self.url = url
+        self.streamKey = streamKey
         self.albumID = albumID
         self.trackNumber = trackNumber
     }
