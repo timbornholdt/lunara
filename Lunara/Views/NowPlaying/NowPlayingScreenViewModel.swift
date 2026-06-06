@@ -62,6 +62,11 @@ final class NowPlayingScreenViewModel {
     private var upNextTask: Task<Void, Never>?
     private var snapshotCache: [String: TrackSnapshot] = [:]
 
+    /// Rendered size of an up-next row thumbnail; artwork is downsampled to this.
+    private static let upNextThumbnailPointSize = CGSize(width: 40, height: 40)
+    /// Fixed display scale used when downsampling (matches the target device; keeps decoding deterministic).
+    private let displayScale: CGFloat = 3
+
     // MARK: - Initialization
 
     init(
@@ -349,9 +354,12 @@ final class NowPlayingScreenViewModel {
                 ownerKind: .album,
                 sourceURL: sourceURL
             )
-            var thumbImage: UIImage?
-            if let thumbURL, let data = try? Data(contentsOf: thumbURL) {
-                thumbImage = UIImage(data: data)
+            let thumbImage = thumbURL.flatMap {
+                DownsamplingImageLoader.load(
+                    contentsOf: $0,
+                    pointSize: Self.upNextThumbnailPointSize,
+                    scale: displayScale
+                )
             }
             resolved.append(UpNextItem(
                 id: item.trackID,
