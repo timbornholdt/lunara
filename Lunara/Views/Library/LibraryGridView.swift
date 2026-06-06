@@ -154,6 +154,9 @@ struct LibraryGridView: View {
         .buttonStyle(.plain)
         .background(Color.lunara(.backgroundElevated))
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .task {
+            await viewModel.loadNextPageIfNeeded(currentItem: album)
+        }
     }
 
     @ViewBuilder

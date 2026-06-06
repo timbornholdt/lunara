@@ -134,6 +134,70 @@ struct LibraryStoreAlbumQueryPlannerTests {
         #expect(results.map(\.plexID) == ["album-a", "album-b", "album-c"])
     }
 
+    // MARK: - Keyset pagination (Lunara-uww.4.1)
+
+    @Test
+    func queryAlbums_keyset_firstPageRespectsLimitAndOrder() async throws {
+        let store = try LibraryStore.inMemory()
+        let run = try await store.beginIncrementalSync(startedAt: Date(timeIntervalSince1970: 7400))
+        try await store.upsertAlbums(
+            [
+                Self.makeAlbum(id: "album-c", title: "C", artist: "Artist", year: 1990, genres: [], moods: []),
+                Self.makeAlbum(id: "album-a", title: "A", artist: "Artist", year: 1990, genres: [], moods: []),
+                Self.makeAlbum(id: "album-b", title: "B", artist: "Artist", year: 1990, genres: [], moods: [])
+            ],
+            in: run
+        )
+
+        let page = try await store.queryAlbums(filter: .all, after: nil, limit: 2)
+        #expect(page.map(\.plexID) == ["album-a", "album-b"])
+    }
+
+    @Test
+    func queryAlbums_keyset_cursorReturnsRemainderWithoutOverlap() async throws {
+        let store = try LibraryStore.inMemory()
+        let run = try await store.beginIncrementalSync(startedAt: Date(timeIntervalSince1970: 7500))
+        try await store.upsertAlbums(
+            [
+                Self.makeAlbum(id: "album-c", title: "C", artist: "Artist", year: 1990, genres: [], moods: []),
+                Self.makeAlbum(id: "album-a", title: "A", artist: "Artist", year: 1990, genres: [], moods: []),
+                Self.makeAlbum(id: "album-b", title: "B", artist: "Artist", year: 1990, genres: [], moods: [])
+            ],
+            in: run
+        )
+
+        let first = try await store.queryAlbums(filter: .all, after: nil, limit: 2)
+        let cursor = AlbumCursor(album: try #require(first.last))
+        let next = try await store.queryAlbums(filter: .all, after: cursor, limit: 2)
+
+        #expect(next.map(\.plexID) == ["album-c"])
+        #expect(Set(first.map(\.plexID)).isDisjoint(with: Set(next.map(\.plexID))))
+    }
+
+    @Test
+    func queryAlbums_keyset_appliesFilterAndCursorTogether() async throws {
+        let store = try LibraryStore.inMemory()
+        let run = try await store.beginIncrementalSync(startedAt: Date(timeIntervalSince1970: 7600))
+        try await store.upsertAlbums(
+            [
+                Self.makeAlbum(id: "amb-a", title: "A", artist: "Artist", year: 1990, genres: ["Ambient"], moods: []),
+                Self.makeAlbum(id: "amb-b", title: "B", artist: "Artist", year: 1990, genres: ["Ambient"], moods: []),
+                Self.makeAlbum(id: "amb-c", title: "C", artist: "Artist", year: 1990, genres: ["Ambient"], moods: []),
+                Self.makeAlbum(id: "other", title: "AA", artist: "Artist", year: 1990, genres: ["Drone"], moods: [])
+            ],
+            in: run
+        )
+
+        let filter = AlbumQueryFilter(genreTags: ["ambient"])
+        let first = try await store.queryAlbums(filter: filter, after: nil, limit: 1)
+        let cursor = AlbumCursor(album: try #require(first.last))
+        let next = try await store.queryAlbums(filter: filter, after: cursor, limit: 10)
+
+        // Cursor advances within the FILTERED set; the non-ambient "other" never appears.
+        #expect(first.map(\.plexID) == ["amb-a"])
+        #expect(next.map(\.plexID) == ["amb-b", "amb-c"])
+    }
+
     private nonisolated static func makeAlbum(
         id: String,
         title: String,

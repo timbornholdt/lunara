@@ -27,7 +27,8 @@ extension LibraryGridViewModel {
 
     private func reloadCachedCatalogForBackgroundUpdate() async {
         do {
-            albums = try await library.queryAlbums(filter: .all)
+            // Preserve the user's loaded scroll depth instead of collapsing to one page.
+            try await replaceCatalog(limit: reloadLimit)
             await refreshSearchResultsIfNeeded()
             loadingState = .loaded
         } catch {

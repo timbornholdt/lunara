@@ -3,8 +3,15 @@ import GRDB
 
 extension LibraryStore {
     func queryAlbums(filter: AlbumQueryFilter) async throws -> [Album] {
-        let plan = AlbumQueryPlan(filter: filter)
-        return try await dbQueue.read { db in
+        try await runAlbumPlan(AlbumQueryPlan(filter: filter))
+    }
+
+    func queryAlbums(filter: AlbumQueryFilter, after: AlbumCursor?, limit: Int) async throws -> [Album] {
+        try await runAlbumPlan(AlbumQueryPlan(filter: filter, after: after, limit: limit))
+    }
+
+    private func runAlbumPlan(_ plan: AlbumQueryPlan) async throws -> [Album] {
+        try await dbQueue.read { db in
             let records = try AlbumRecord.fetchAll(db, sql: plan.sql, arguments: plan.arguments)
             return records.map(\.model)
         }
@@ -15,7 +22,7 @@ private struct AlbumQueryPlan {
     let sql: String
     let arguments: StatementArguments
 
-    init(filter: AlbumQueryFilter) {
+    init(filter: AlbumQueryFilter, after: AlbumCursor? = nil, limit: Int? = nil) {
         var predicates: [String] = []
         var arguments = StatementArguments()
 
@@ -48,11 +55,25 @@ private struct AlbumQueryPlan {
             arguments: &arguments
         )
 
+        // Keyset (seek) predicate: rows strictly AFTER the cursor in source order.
+        // Row-value comparison matches the ORDER BY exactly; all three columns use
+        // BINARY collation (no NOCASE in the schema), so the boundary can't drift.
+        if let after {
+            predicates.append("(albums.artistName, albums.title, albums.plexID) > (?, ?, ?)")
+            arguments += [after.artistName, after.title, after.plexID]
+        }
+
         var sql = "SELECT albums.* FROM albums"
         if !predicates.isEmpty {
             sql += " WHERE " + predicates.joined(separator: " AND ")
         }
         sql += " ORDER BY albums.artistName ASC, albums.title ASC, albums.plexID ASC"
+
+        // LIMIT is the final clause, so its argument must be appended last.
+        if let limit {
+            sql += " LIMIT ?"
+            arguments += [limit]
+        }
 
         self.sql = sql
         self.arguments = arguments

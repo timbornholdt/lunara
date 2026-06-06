@@ -36,6 +36,10 @@ protocol LibraryRepoProtocol: AnyObject {
     /// - Sorting guarantee: results are fully sorted by source ordering (`artistName`, then `title`, then `plexID`).
     func queryAlbums(filter: AlbumQueryFilter) async throws -> [Album]
 
+    /// Keyset-paginated album query: at most `limit` albums in source ordering,
+    /// starting strictly after `after` (or from the start when nil).
+    func queryAlbums(filter: AlbumQueryFilter, after: AlbumCursor?, limit: Int) async throws -> [Album]
+
     func tracks(forAlbum albumID: String) async throws -> [Track]
     func track(id: String) async throws -> Track?
     func refreshAlbumDetail(albumID: String) async throws -> AlbumDetailRefreshOutcome
@@ -145,6 +149,10 @@ extension PlexAPIClient: LibraryRepoProtocol {
     }
 
     func queryAlbums(filter: AlbumQueryFilter) async throws -> [Album] {
+        throw LibraryError.operationFailed(reason: "Album filtering is not implemented on PlexAPIClient-backed LibraryRepo yet.")
+    }
+
+    func queryAlbums(filter: AlbumQueryFilter, after: AlbumCursor?, limit: Int) async throws -> [Album] {
         throw LibraryError.operationFailed(reason: "Album filtering is not implemented on PlexAPIClient-backed LibraryRepo yet.")
     }
 

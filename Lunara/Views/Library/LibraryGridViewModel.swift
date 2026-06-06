@@ -28,6 +28,17 @@ final class LibraryGridViewModel {
     private var searchRequestID = 0
     private var searchTask: Task<Void, Never>?
 
+    // Keyset pagination state.
+    private let pageSize = 50
+    private var nextCursor: AlbumCursor?
+    private var isLoadingNextPage = false
+    // plexID of the album ~10 from the end of `albums`; the card whose appearance
+    // triggers the next page load (O(1) compare, no array scan per card).
+    private var triggerAlbumID: String?
+    // Bumped on every full catalog replace; an in-flight append checks it after its
+    // await so a background refresh mid-fetch can't append onto a replaced catalog.
+    private var catalogGeneration = 0
+
     var albums: [Album] = []
     var searchQuery = "" {
         didSet {
@@ -35,6 +46,7 @@ final class LibraryGridViewModel {
         }
     }
     var queriedAlbums: [Album] = []
+    var hasMorePages = true
     var loadingState: LoadingState = .idle
     var artworkByAlbumID: [String: URL] = [:]
     var errorBannerState = ErrorBannerState()
@@ -67,6 +79,15 @@ final class LibraryGridViewModel {
         }
 
         await reloadCachedCatalog()
+    }
+
+    /// Called as each grid card appears. Loads the next page only when the card
+    /// that sits ~10 from the end scrolls into view.
+    func loadNextPageIfNeeded(currentItem: Album) async {
+        guard currentItem.plexID == triggerAlbumID else {
+            return
+        }
+        await appendNextPage()
     }
 
     func refresh() async {
@@ -214,12 +235,69 @@ final class LibraryGridViewModel {
     private func reloadCachedCatalog() async {
         loadingState = .loading
         do {
-            albums = try await library.queryAlbums(filter: .all)
+            try await replaceCatalog(limit: pageSize)
             await refreshSearchResultsIfNeeded()
             loadingState = .loaded
         } catch {
             loadingState = .error(userFacingMessage(for: error))
         }
+    }
+
+    /// Loads the first `limit` albums fresh and resets all pagination state. Used by
+    /// initial load, pull-to-refresh, and background refresh — the single place a
+    /// catalog replacement happens, so cursor/flags can never drift between them.
+    func replaceCatalog(limit: Int) async throws {
+        catalogGeneration += 1
+        let generation = catalogGeneration
+        let page = try await library.queryAlbums(filter: .all, after: nil, limit: limit)
+        guard generation == catalogGeneration else {
+            return // a newer replace superseded this one
+        }
+        isLoadingNextPage = false
+        albums = page
+        finishPage(page, limit: limit)
+    }
+
+    /// Depth-preserving limit for a background/refresh reload: at least one page,
+    /// but enough to keep what the user has already scrolled through.
+    var reloadLimit: Int {
+        max(pageSize, albums.count)
+    }
+
+    private func appendNextPage() async {
+        guard !isSearchActive,
+              hasMorePages,
+              !isLoadingNextPage,
+              loadingState == .loaded,
+              let cursor = nextCursor else {
+            return
+        }
+
+        // Set synchronously before the first await so two near-simultaneous card
+        // triggers can't both pass the guard and double-fetch / skip a page.
+        isLoadingNextPage = true
+        defer { isLoadingNextPage = false }
+
+        let generation = catalogGeneration
+        do {
+            let page = try await library.queryAlbums(filter: .all, after: cursor, limit: pageSize)
+            guard generation == catalogGeneration else {
+                return // a catalog replace happened during the fetch; drop this page
+            }
+            albums.append(contentsOf: page)
+            finishPage(page, limit: pageSize)
+        } catch {
+            // Leave state intact; the next card appearance retries.
+        }
+    }
+
+    /// Single place that records the cursor, whether more pages remain, and the
+    /// next scroll trigger after a page is loaded.
+    private func finishPage(_ page: [Album], limit: Int) {
+        nextCursor = page.last.map(AlbumCursor.init(album:))
+        hasMorePages = (page.count == limit)
+        let triggerIndex = max(0, albums.count - 10)
+        triggerAlbumID = albums.indices.contains(triggerIndex) ? albums[triggerIndex].plexID : nil
     }
 
     private func normalizedSearchQuery(_ value: String) -> String {
