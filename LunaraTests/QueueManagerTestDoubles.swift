@@ -20,8 +20,22 @@ final class PlaybackEngineMock: PlaybackEngineProtocol {
     private(set) var signalBufferingCallCount = 0
     private(set) var skipWithFadeCallCount = 0
 
+    /// URLs whose `play(url:)` should simulate a load failure: the engine enters
+    /// `.error` and (mirroring CrossfadeEngine) does NOT set `currentTrackID`.
+    /// Lets tests drive the reactive stream-recovery path.
+    var playFailsForURLs: Set<URL> = []
+
     func play(url: URL, trackID: String) {
         playCalls.append((url, trackID))
+        if playFailsForURLs.contains(url) {
+            // CrossfadeEngine sets currentTrackID only on a successful load
+            // (transitionToError leaves it untouched); replicate that here.
+            // Encode the URL in the message so consecutive distinct-URL failures
+            // (offline → stream) are observed as a state CHANGE, the way the real
+            // engine surfaces them via an intervening .buffering transition.
+            playbackState = .error("Simulated load failure: \(url.absoluteString)")
+            return
+        }
         currentTrackID = trackID
         playbackState = .playing
     }
@@ -115,6 +129,9 @@ final class PlaybackURLResolvingMock: PlaybackURLResolving, @unchecked Sendable 
     var error: Error?
 
     private(set) var resolvedTrackIDs: [String] = []
+    /// Every resolve call, with the `allowOffline` flag it was invoked with, so
+    /// tests can assert the stream-recovery retry forced `allowOffline: false`.
+    private(set) var resolveCalls: [(trackID: String, allowOffline: Bool)] = []
     private let lock = NSLock()
 
     /// When set, resolution for this trackID suspends until `releaseGate()` is
@@ -137,9 +154,10 @@ final class PlaybackURLResolvingMock: PlaybackURLResolving, @unchecked Sendable 
         continuation?.resume()
     }
 
-    func resolvePlaybackURL(for item: QueueItem) async throws -> URL {
+    func resolvePlaybackURL(for item: QueueItem, allowOffline: Bool) async throws -> URL {
         lock.lock()
         resolvedTrackIDs.append(item.trackID)
+        resolveCalls.append((item.trackID, allowOffline))
         let isGated = item.trackID == gateTrackID
         lock.unlock()
 
