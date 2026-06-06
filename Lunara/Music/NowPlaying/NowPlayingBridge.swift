@@ -208,7 +208,11 @@ final class NowPlayingBridge {
             artworkURL = nil
         }
 
-        if let artworkURL, let imageData = try? Data(contentsOf: artworkURL), let image = UIImage(data: imageData) {
+        // Decode off the main actor; the lock screen wants a reasonably-sized image, not a thumbnail.
+        let image = await Task.detached {
+            artworkURL.flatMap { DownsamplingImageLoader.load(contentsOf: $0, maxPixelSize: 1024) }
+        }.value
+        if let image {
             applyArtwork(image, forTrackID: trackID)
             lastPublishHadArtwork = true
         } else {
