@@ -40,6 +40,14 @@ final class QueueManager: QueueManagerProtocol {
     // on a cold launch with a restored queue. Only set to true when
     // playback is explicitly triggered by the user.
     private var hasPlaybackBegun = false
+    // One-shot stream-recovery budget per track: set to the trackID when a load
+    // failure triggers a forced-stream retry, so a second failure for the same
+    // track stops instead of ping-ponging. Reset when a different track begins.
+    private var streamRecoveryAttemptedTrackID: String?
+    // Whether the URL most recently handed to engine.play was a file (offline file
+    // or a cached stream). A load failure is only worth re-streaming when the
+    // source was a file; an already-streamed source can't be improved by retrying.
+    private var lastPlayedURLWasFile = false
 
     init(
         engine: PlaybackEngineProtocol,
@@ -181,8 +189,17 @@ final class QueueManager: QueueManagerProtocol {
         )
     }
 
-    func playCurrentItem() {
+    /// Plays the current queue item, resolving its URL at play time.
+    /// - Parameter forceStream: when `true`, this is a reactive recovery retry —
+    ///   the offline file is skipped and a fresh stream URL is forced, and the
+    ///   per-track recovery budget is left intact (a normal play resets it).
+    func playCurrentItem(forceStream: Bool = false) {
         guard let currentItem, let targetIndex = currentIndex, let resolver else { return }
+
+        // A fresh, non-recovery play of an item restores its one-shot recovery budget.
+        if !forceStream {
+            streamRecoveryAttemptedTrackID = nil
+        }
 
         // Supersede any in-flight resolve so a slower earlier one can't play late.
         currentPlayTask?.cancel()
@@ -192,9 +209,10 @@ final class QueueManager: QueueManagerProtocol {
         engine.signalBuffering()
 
         let trackCache = self.trackCache
+        let allowOffline = !forceStream
         currentPlayTask = Task { [weak self] in
             do {
-                let resolvedURL = try await resolver.resolvePlaybackURL(for: currentItem)
+                let resolvedURL = try await resolver.resolvePlaybackURL(for: currentItem, allowOffline: allowOffline)
 
                 // Remote URLs route through the track cache (download/cache),
                 // falling back to direct play if caching fails. Local files play directly.
@@ -209,10 +227,16 @@ final class QueueManager: QueueManagerProtocol {
                 await MainActor.run {
                     guard let self else { return }
                     guard self.isCurrent(item: currentItem, index: targetIndex) else { return }
+                    self.lastPlayedURLWasFile = playURL.isFileURL
                     self.engine.play(url: playURL, trackID: currentItem.trackID)
+                    self.isResolvingPlayback = false
+                    // CrossfadeEngine reports a load failure synchronously via
+                    // playbackState. On failure, skip persisting/preparing a dead
+                    // play (a successful persist would also clear the error we're
+                    // about to surface) and let the state observer drive recovery.
+                    guard !self.engine.playbackState.hasError else { return }
                     self.consumePendingSeek()
                     self.persistQueueState(elapsed: self.engine.elapsed)
-                    self.isResolvingPlayback = false
                     self.prepareNextTrackIfNeeded()
                 }
             } catch is CancellationError {
@@ -262,7 +286,7 @@ final class QueueManager: QueueManagerProtocol {
 
         prepareNextTask = Task { [weak self, loudnessProvider] in
             do {
-                let resolvedURL = try await resolver.resolvePlaybackURL(for: nextItem)
+                let resolvedURL = try await resolver.resolvePlaybackURL(for: nextItem, allowOffline: true)
 
                 var prepareURL = resolvedURL
                 if !resolvedURL.isFileURL, let trackCache {
@@ -393,6 +417,14 @@ final class QueueManager: QueueManagerProtocol {
     }
 
     private func handleEngineStateChange() {
+        // A load failure must be handled before the manual-nav suppression below:
+        // on a failed load the engine does NOT set currentTrackID, so the manual-nav
+        // early-return would otherwise swallow the error and dead-end playback.
+        if engine.playbackState.hasError {
+            recoverFromPlaybackLoadFailure()
+            return
+        }
+
         // If a manual navigation is in progress (skipBack/skipTo), suppress
         // auto-sync until the engine starts playing the intended track.
         if let targetID = manualNavigationTargetTrackID {
@@ -437,6 +469,41 @@ final class QueueManager: QueueManagerProtocol {
         elapsedPersistenceTimer = nil
     }
 
+    /// Reactively recovers from an engine load failure on the current item —
+    /// a corrupt/truncated offline file, a file deleted in the resolve→load race,
+    /// or a stream that failed to load — by re-resolving with the offline file
+    /// skipped and retrying playback once, resuming near the prior position.
+    ///
+    /// Keys off `currentItem` (not `engine.currentTrackID`, which the engine leaves
+    /// untouched on a failed load). Crossfade/next-track load failures are out of
+    /// scope: those are handled by the engine and the track re-resolves when it
+    /// becomes current.
+    private func recoverFromPlaybackLoadFailure() {
+        // A failure that lands while a resolve is in flight belongs to a superseded
+        // attempt — the in-flight play owns the outcome; don't double-recover.
+        guard !isResolvingPlayback, let item = currentItem else { return }
+
+        // Only a file source (offline file or a cached stream) is worth re-streaming.
+        // A failure on an already-streamed source can't be improved by retrying it.
+        guard lastPlayedURLWasFile else {
+            lastError = .streamFailed(reason: "Playback failed and no alternate source is available.")
+            return
+        }
+
+        // One forced-stream retry per track; a second failure stops, never loops.
+        guard streamRecoveryAttemptedTrackID != item.trackID else {
+            lastError = .streamFailed(reason: "Playback failed for both the offline file and the stream.")
+            return
+        }
+
+        streamRecoveryAttemptedTrackID = item.trackID
+        // We're taking over playback for this item; drop any manual-nav suppression.
+        manualNavigationTargetTrackID = nil
+        // Resume near where playback died.
+        pendingSeekAfterNextPlay = lastPersistedElapsed
+        playCurrentItem(forceStream: true)
+    }
+
     private func syncCurrentIndexToEngineTrack(_ engineTrackID: String) {
         guard let currentIndex else { return }
         let nextIndex = currentIndex + 1
@@ -446,6 +513,12 @@ final class QueueManager: QueueManagerProtocol {
         self.currentIndex = nextIndex
         pendingSeekAfterNextPlay = nil
         lastPersistedElapsed = 0
+        // The engine crossfaded into this track itself; we never called engine.play
+        // for it, so the recovery state for the prior track no longer applies. Reset
+        // it (and default lastPlayedURLWasFile to false) so an out-of-scope crossfade
+        // failure doesn't trigger a spurious stream recovery off stale state.
+        streamRecoveryAttemptedTrackID = nil
+        lastPlayedURLWasFile = false
         persistQueueState(elapsed: engine.elapsed)
         prepareNextTrackIfNeeded()
     }

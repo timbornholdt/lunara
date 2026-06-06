@@ -405,6 +405,191 @@ struct QueueManagerTests {
         #expect(subject.manager.currentIndex == 2)
     }
 
+    // MARK: - Reactive stream recovery on load failure (Lunara-uww.3.4)
+
+    @Test
+    func engineErrorOnOfflineFile_reResolvesForcingStream_andPlaysStreamURL() async throws {
+        let subject = makeSubject()
+        let item = QueueItem(trackID: "track-0", streamKey: "/library/metadata/track-0")
+        let offlineFile = URL(fileURLWithPath: "/tmp/offline-0.m4a")
+        let streamURL = try #require(URL(string: "https://cdn.example.com/stream-0.mp3"))
+        // First resolve (allowOffline) → corrupt offline file; second (forced stream) → stream.
+        subject.resolver.resultsByTrackID["track-0"] = [offlineFile, streamURL]
+        subject.engine.playFailsForURLs = [offlineFile]
+
+        subject.manager.playNow([item])
+        await waitUntil { subject.engine.playCalls.last?.0 == streamURL }
+
+        #expect(subject.engine.playCalls.map(\.0) == [offlineFile, streamURL])
+        // The retry must have forced a stream-only resolve.
+        #expect(subject.resolver.resolveCalls.map(\.allowOffline) == [true, false])
+        #expect(subject.manager.currentItem?.trackID == "track-0")
+    }
+
+    @Test
+    func engineErrorOnStreamRetryToo_setsStreamFailed_andDoesNotLoop() async throws {
+        let subject = makeSubject()
+        let item = QueueItem(trackID: "track-0", streamKey: "/library/metadata/track-0")
+        let offlineFile = URL(fileURLWithPath: "/tmp/offline-0.m4a")
+        let streamURL = try #require(URL(string: "https://cdn.example.com/stream-0.mp3"))
+        subject.resolver.resultsByTrackID["track-0"] = [offlineFile, streamURL]
+        // Both the offline file AND the stream fail to load.
+        subject.engine.playFailsForURLs = [offlineFile, streamURL]
+
+        subject.manager.playNow([item])
+        await waitUntil { subject.manager.lastError != nil }
+        // Allow any (incorrect) third recovery attempt to surface.
+        await settleObservation()
+        await settleObservation()
+
+        // Exactly two plays (offline, stream) and two resolves — no infinite loop.
+        #expect(subject.engine.playCalls.map(\.0) == [offlineFile, streamURL])
+        #expect(subject.resolver.resolveCalls.count == 2)
+        let error = try #require(subject.manager.lastError)
+        guard case .streamFailed = error else {
+            Issue.record("Expected .streamFailed, got \(error)")
+            return
+        }
+    }
+
+    @Test
+    func recoveryGuardResets_perTrack_soNextTrackCanAlsoRecover() async throws {
+        let subject = makeSubject()
+        let item0 = QueueItem(trackID: "track-0", streamKey: "/library/metadata/track-0")
+        let item1 = QueueItem(trackID: "track-1", streamKey: "/library/metadata/track-1")
+        let offline0 = URL(fileURLWithPath: "/tmp/offline-0.m4a")
+        let offline1 = URL(fileURLWithPath: "/tmp/offline-1.m4a")
+        let stream0 = try #require(URL(string: "https://cdn.example.com/stream-0.mp3"))
+        let stream1 = try #require(URL(string: "https://cdn.example.com/stream-1.mp3"))
+        subject.resolver.resultsByTrackID["track-0"] = [offline0, stream0]
+        subject.resolver.resultsByTrackID["track-1"] = [offline1, stream1]
+        // Both offline files fail; both streams succeed.
+        subject.engine.playFailsForURLs = [offline0, offline1]
+
+        subject.manager.playNow([item0, item1])
+        await waitUntil { subject.engine.playCalls.last?.0 == stream0 }
+
+        subject.manager.skipToNext()
+        await waitUntil { subject.engine.playCalls.last?.0 == stream1 }
+
+        // track-1 recovered on its own, proving the per-track guard reset.
+        #expect(subject.engine.playCalls.map(\.0) == [offline0, stream0, offline1, stream1])
+        #expect(subject.manager.currentItem?.trackID == "track-1")
+    }
+
+    @Test
+    func engineErrorOnStreamSource_doesNotRecover_setsStreamFailed() async throws {
+        let subject = makeSubject()
+        let item = QueueItem(trackID: "track-0", streamKey: "/library/metadata/track-0")
+        let streamURL = try #require(URL(string: "https://cdn.example.com/stream-0.mp3"))
+        // The only source is a stream (no offline copy) and it fails to load.
+        subject.resolver.resultsByTrackID["track-0"] = [streamURL]
+        subject.engine.playFailsForURLs = [streamURL]
+
+        subject.manager.playNow([item])
+        await waitUntil { subject.manager.lastError != nil }
+        await settleObservation()
+        await settleObservation()
+
+        // Re-streaming an already-streamed source can't help — no retry.
+        #expect(subject.engine.playCalls.count == 1)
+        #expect(subject.resolver.resolveCalls.count == 1)
+        let error = try #require(subject.manager.lastError)
+        guard case .streamFailed = error else {
+            Issue.record("Expected .streamFailed, got \(error)")
+            return
+        }
+    }
+
+    @Test
+    func engineError_whileResolveInFlight_doesNotTriggerRecovery() async throws {
+        let subject = makeSubject()
+        let item = QueueItem(trackID: "track-0", streamKey: "/library/metadata/track-0")
+        // Hold the very first resolve in flight so isResolvingPlayback stays true.
+        subject.resolver.gateResolution(forTrackID: "track-0")
+
+        subject.manager.playNow([item])
+        await waitUntil { subject.resolver.resolvedTrackIDs.contains("track-0") }
+
+        // A late error lands while a resolve is still in flight — must be ignored.
+        subject.engine.playbackState = .error("late error during resolve")
+        await settleObservation()
+        await settleObservation()
+
+        // No recovery resolve happened (still just the single gated resolve).
+        #expect(subject.resolver.resolveCalls.count == 1)
+        subject.resolver.releaseGate()
+    }
+
+    @Test
+    func crossfadeAdvancedTrackFailure_isNotRecovered_outOfScope() async throws {
+        let subject = makeSubject()
+        let item0 = QueueItem(trackID: "track-0", streamKey: "/library/metadata/track-0")
+        let item1 = QueueItem(trackID: "track-1", streamKey: "/library/metadata/track-1")
+        subject.manager.playNow([item0, item1])
+        await waitUntil { subject.engine.playCalls.count == 1 }
+        let resolveCountAfterFirstPlay = subject.resolver.resolveCalls.count
+
+        // Engine crossfades into track-1 on its own (QueueManager never called play),
+        // then that track errors. Per the bead this is out of scope — no recovery.
+        subject.engine.currentTrackID = "track-1"
+        await settleObservation()
+        subject.engine.playbackState = .error("crossfade load failure")
+        await settleObservation()
+        await settleObservation()
+
+        #expect(subject.resolver.resolveCalls.count == resolveCountAfterFirstPlay)
+    }
+
+    @Test
+    func manualNavigationTargetFailure_stillRecovers() async throws {
+        let subject = makeSubject()
+        let item0 = QueueItem(trackID: "track-0", streamKey: "/library/metadata/track-0")
+        let item1 = QueueItem(trackID: "track-1", streamKey: "/library/metadata/track-1")
+        let offline1 = URL(fileURLWithPath: "/tmp/offline-1.m4a")
+        let stream1 = try #require(URL(string: "https://cdn.example.com/stream-1.mp3"))
+        subject.resolver.resultsByTrackID["track-1"] = [offline1, stream1]
+        subject.engine.playFailsForURLs = [offline1]
+
+        subject.manager.playNow([item0, item1])
+        await waitUntil { subject.engine.playCalls.count == 1 }
+
+        // skipTo sets manualNavigationTargetTrackID; the target's offline file then
+        // fails to load. The engine never reaches the target trackID, so the .error
+        // branch must fire ABOVE the manual-nav early-return.
+        subject.manager.skipTo(index: 1)
+        await waitUntil { subject.engine.playCalls.last?.0 == stream1 }
+
+        // Recovery must have played the STREAM for the manual-nav target (not just
+        // left the failed offline file as the last play).
+        #expect(Array(subject.engine.playCalls.suffix(2).map(\.0)) == [offline1, stream1])
+        #expect(subject.manager.currentItem?.trackID == "track-1")
+    }
+
+    @Test
+    func recovery_preservesPlaybackPosition() async throws {
+        let subject = makeSubject()
+        let item = QueueItem(trackID: "track-0", streamKey: "/library/metadata/track-0")
+        let offlineFile = URL(fileURLWithPath: "/tmp/offline-0.m4a")
+        let streamURL = try #require(URL(string: "https://cdn.example.com/stream-0.mp3"))
+
+        // Play the offline file successfully, accrue position, persist it.
+        subject.resolver.resultsByTrackID["track-0"] = [offlineFile, streamURL]
+        subject.manager.playNow([item])
+        await waitUntil { subject.engine.playCalls.last?.0 == offlineFile }
+
+        subject.engine.elapsed = 30
+        subject.engine.playbackState = .paused          // persists elapsed → lastPersistedElapsed = 30
+        await waitUntil { subject.persistence.savedSnapshots.last?.elapsed == 30 }
+
+        // Now the offline file goes bad mid-track; recovery should resume near 30s.
+        subject.engine.playFailsForURLs = []             // stream will succeed
+        subject.engine.playbackState = .error("file became unreadable")
+        await waitUntil { subject.engine.playCalls.last?.0 == streamURL }
+
+        #expect(subject.engine.seekCalls.contains(30))
+    }
+
     private func makeSubject() -> (
         manager: QueueManager,
         engine: PlaybackEngineMock,
