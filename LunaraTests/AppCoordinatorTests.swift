@@ -170,6 +170,28 @@ struct AppCoordinatorTests {
         #expect(subject.queue.clearCallCount == 1)
     }
     @Test
+    func loadLibraryOnLaunch_whenCacheEmpty_bumpsBackgroundRefreshSuccessToken() async throws {
+        let subject = makeSubject()
+        // No cached albums -> foreground refresh path.
+        _ = try await subject.coordinator.loadLibraryOnLaunch()
+        #expect(subject.coordinator.backgroundRefreshSuccessToken == 1)
+    }
+    @Test
+    func completeSignIn_setsIsSignedInTrue() throws {
+        let subject = makeSubject()
+        #expect(subject.coordinator.isSignedIn == false)
+        try subject.coordinator.completeSignIn(token: "test-token")
+        #expect(subject.coordinator.isSignedIn == true)
+    }
+    @Test
+    func signOut_setsIsSignedInFalse() throws {
+        let subject = makeSubject()
+        try subject.coordinator.completeSignIn(token: "test-token")
+        #expect(subject.coordinator.isSignedIn == true)
+        subject.coordinator.signOut()
+        #expect(subject.coordinator.isSignedIn == false)
+    }
+    @Test
     func fetchAlbums_withConcreteLibraryRepo_refreshesAndPreloadsArtwork() async throws {
         let keychain = MockKeychainHelper()
         let authManager = AuthManager(keychain: keychain, authAPI: nil, debugTokenProvider: { nil })

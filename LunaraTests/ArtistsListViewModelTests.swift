@@ -20,6 +20,19 @@ struct ArtistsListViewModelTests {
     }
 
     @Test
+    func applyBackgroundRefreshUpdateIfNeeded_reloadsArtistsFromStore() async {
+        let subject = makeSubject()
+        subject.library.stubbedArtists = [
+            makeArtist(id: "art-1", name: "Radiohead"),
+            makeArtist(id: "art-2", name: "Bjork")
+        ]
+
+        await subject.viewModel.applyBackgroundRefreshUpdateIfNeeded(successToken: 1)
+
+        #expect(subject.viewModel.artists.map(\.plexID).sorted() == ["art-1", "art-2"])
+    }
+
+    @Test
     func loadInitialIfNeeded_sortsByEffectiveSortName() async {
         let subject = makeSubject()
         subject.library.stubbedArtists = [

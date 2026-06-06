@@ -56,7 +56,10 @@ struct LibraryRootTabView: View {
                             downloadManager: coordinator.downloadManager,
                             gardenClient: coordinator.gardenClient,
                             offlineStore: coordinator.offlineStore
-                        )
+                        ),
+                        backgroundRefreshSuccessToken: coordinator.backgroundRefreshSuccessToken,
+                        backgroundRefreshFailureToken: coordinator.backgroundRefreshFailureToken,
+                        backgroundRefreshErrorMessage: coordinator.lastBackgroundRefreshErrorMessage
                     )
                     .toolbarBackground(Color.lunara(.backgroundBase), for: .tabBar)
                     .toolbarBackgroundVisibility(.visible, for: .tabBar)
@@ -69,7 +72,10 @@ struct LibraryRootTabView: View {
                             artworkPipeline: coordinator.artworkPipeline,
                             actions: coordinator,
                             gardenClient: coordinator.gardenClient
-                        )
+                        ),
+                        backgroundRefreshSuccessToken: coordinator.backgroundRefreshSuccessToken,
+                        backgroundRefreshFailureToken: coordinator.backgroundRefreshFailureToken,
+                        backgroundRefreshErrorMessage: coordinator.lastBackgroundRefreshErrorMessage
                     )
                     .toolbarBackground(Color.lunara(.backgroundBase), for: .tabBar)
                     .toolbarBackgroundVisibility(.visible, for: .tabBar)
@@ -101,6 +107,9 @@ struct LibraryRootTabView: View {
                             downloadManager: coordinator.downloadManager,
                             gardenClient: coordinator.gardenClient
                         ),
+                        backgroundRefreshSuccessToken: coordinator.backgroundRefreshSuccessToken,
+                        backgroundRefreshFailureToken: coordinator.backgroundRefreshFailureToken,
+                        backgroundRefreshErrorMessage: coordinator.lastBackgroundRefreshErrorMessage
                     )
                     .toolbarBackground(Color.lunara(.backgroundBase), for: .tabBar)
                     .toolbarBackgroundVisibility(.visible, for: .tabBar)
@@ -169,6 +178,12 @@ struct LibraryRootTabView: View {
                     )
                 )
             }
+        }
+        .task {
+            // Single launch-time library sync for all tabs. Returns cached data
+            // immediately when present and triggers a refresh that bumps the
+            // coordinator's success token, which each tab observes to reload.
+            _ = try? await coordinator.loadLibraryOnLaunch()
         }
     }
 

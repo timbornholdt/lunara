@@ -4,9 +4,20 @@ import UIKit
 struct PlaylistsListView: View {
     @State private var viewModel: PlaylistsListViewModel
     @State private var selectedPlaylist: Playlist?
+    private let backgroundRefreshSuccessToken: Int
+    private let backgroundRefreshFailureToken: Int
+    private let backgroundRefreshErrorMessage: String?
 
-    init(viewModel: PlaylistsListViewModel) {
+    init(
+        viewModel: PlaylistsListViewModel,
+        backgroundRefreshSuccessToken: Int = 0,
+        backgroundRefreshFailureToken: Int = 0,
+        backgroundRefreshErrorMessage: String? = nil
+    ) {
         _viewModel = State(initialValue: viewModel)
+        self.backgroundRefreshSuccessToken = backgroundRefreshSuccessToken
+        self.backgroundRefreshFailureToken = backgroundRefreshFailureToken
+        self.backgroundRefreshErrorMessage = backgroundRefreshErrorMessage
     }
 
     var body: some View {
@@ -32,6 +43,15 @@ struct PlaylistsListView: View {
                 .lunaraErrorBanner(using: viewModel.errorBannerState)
                 .task {
                     await viewModel.loadInitialIfNeeded()
+                }
+                .task(id: backgroundRefreshSuccessToken) {
+                    await viewModel.applyBackgroundRefreshUpdateIfNeeded(successToken: backgroundRefreshSuccessToken)
+                }
+                .task(id: backgroundRefreshFailureToken) {
+                    viewModel.applyBackgroundRefreshFailureIfNeeded(
+                        failureToken: backgroundRefreshFailureToken,
+                        message: backgroundRefreshErrorMessage
+                    )
                 }
                 .refreshable {
                     await viewModel.refresh()

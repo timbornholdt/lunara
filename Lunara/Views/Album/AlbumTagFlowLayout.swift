@@ -44,10 +44,20 @@ struct AlbumTagFlowLayout: Layout {
         let maxWidth = proposal.width ?? .greatestFiniteMagnitude
         let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
         let rows = AlbumTagFlowRows.rowIndices(for: sizes, maxWidth: maxWidth, spacing: spacing)
-        let width = rows.map { row in row.reduce(CGFloat(0)) { $0 + sizes[$1].width } + spacing * CGFloat(max(0, row.count - 1)) }.max() ?? 0
-        let height = rows.reduce(CGFloat(0)) { total, row in
-            total + (row.map { sizes[$0].height }.max() ?? 0)
-        } + rowSpacing * CGFloat(max(0, rows.count - 1))
+
+        let rowWidths: [CGFloat] = rows.map { row in
+            let itemsWidth = row.reduce(CGFloat(0)) { $0 + sizes[$1].width }
+            let gaps = spacing * CGFloat(max(0, row.count - 1))
+            return itemsWidth + gaps
+        }
+        let width = rowWidths.max() ?? 0
+
+        let rowsHeight = rows.reduce(CGFloat(0)) { total, row in
+            let rowHeight = row.map { sizes[$0].height }.max() ?? 0
+            return total + rowHeight
+        }
+        let height = rowsHeight + rowSpacing * CGFloat(max(0, rows.count - 1))
+
         return CGSize(width: width, height: height)
     }
 

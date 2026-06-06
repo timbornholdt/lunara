@@ -19,7 +19,7 @@ final class PlaylistsListViewModel {
         case error(String)
     }
 
-    private let library: LibraryRepoProtocol
+    let library: LibraryRepoProtocol
     private let artworkPipeline: ArtworkPipelineProtocol
     let actions: PlaylistsListActionRouting
     private let gardenClient: GardenAPIClientProtocol?
@@ -67,8 +67,11 @@ final class PlaylistsListViewModel {
     }
 
     func loadInitialIfNeeded() async {
-        guard case .idle = loadingState else {
+        switch loadingState {
+        case .loading, .loaded:
             return
+        case .idle, .error:
+            break
         }
 
         await reloadPlaylists()
@@ -183,7 +186,7 @@ final class PlaylistsListViewModel {
             .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
     }
 
-    private func userFacingMessage(for error: Error) -> String {
+    func userFacingMessage(for error: Error) -> String {
         if let lunaraError = error as? LunaraError {
             return lunaraError.userMessage
         }

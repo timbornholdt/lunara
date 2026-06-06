@@ -31,9 +31,7 @@ final class AppCoordinator {
 
     // MARK: - State
 
-    var isSignedIn: Bool {
-        authManager.isSignedIn
-    }
+    private(set) var isSignedIn: Bool
 
     private(set) var backgroundRefreshSuccessToken = 0
     private(set) var backgroundRefreshFailureToken = 0
@@ -70,6 +68,7 @@ final class AppCoordinator {
         self.lastFMAuthManager = lastFMAuthManager
         self.scrobbleManager = scrobbleManager
         self.gardenClient = gardenClient
+        self.isSignedIn = authManager.isSignedIn
         nowPlayingBridge.configure()
         scrobbleManager.configure()
     }
@@ -260,6 +259,12 @@ final class AppCoordinator {
         appRouter.stopPlayback()
     }
 
+    /// Persist a freshly obtained auth token and update signed-in state
+    func completeSignIn(token: String) throws {
+        try authManager.setToken(token)
+        isSignedIn = authManager.isSignedIn
+    }
+
     /// Sign out and clear stored token
     func signOut() {
         do {
@@ -267,6 +272,7 @@ final class AppCoordinator {
         } catch {
             assertionFailure("Failed to clear token during sign-out: \(error)")
         }
+        isSignedIn = authManager.isSignedIn
     }
 
     /// Reconciles all synced collections against their current album lists.
@@ -314,7 +320,20 @@ final class AppCoordinator {
             return cachedAlbums
         }
 
-        _ = try await libraryRepo.refreshLibrary(reason: refreshReason)
+        do {
+            let outcome = try await libraryRepo.refreshLibrary(reason: refreshReason)
+            backgroundRefreshSuccessToken += 1
+            lastBackgroundRefreshDate = outcome.refreshedAt
+            lastBackgroundRefreshErrorMessage = nil
+        } catch let error as LunaraError {
+            backgroundRefreshFailureToken += 1
+            lastBackgroundRefreshErrorMessage = error.userMessage
+            throw error
+        } catch {
+            backgroundRefreshFailureToken += 1
+            lastBackgroundRefreshErrorMessage = error.localizedDescription
+            throw error
+        }
         await reconcileQueueAfterCatalogUpdate(trigger: "foreground-refresh-\(String(describing: refreshReason))")
         return try await libraryRepo.fetchAlbums()
     }

@@ -290,7 +290,7 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
         let startedAt = Date()
         let method = request.httpMethod ?? "GET"
         let path = request.url?.path ?? "unknown"
-        logger.info("network start op=\(operation, privacy: .public) method=\(method, privacy: .public) path=\(path, privacy: .public)")
+        logger.notice("network start op=\(operation, privacy: .public) method=\(method, privacy: .public) path=\(path, privacy: .public)")
 
         do {
             let (data, response) = try await session.data(for: request)
@@ -306,7 +306,7 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
             }
 
             try validateResponse(response)
-            logger.info("network success op=\(operation, privacy: .public)")
+            logger.notice("network success op=\(operation, privacy: .public)")
             return (data, response)
         } catch {
             let elapsedMS = Int(Date().timeIntervalSince(startedAt) * 1000)
