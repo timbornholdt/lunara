@@ -125,6 +125,22 @@ struct AlbumQueryFilter: Equatable, Hashable, Sendable {
     static let all = AlbumQueryFilter()
 }
 
+/// A keyset (seek) cursor into the album catalog's deterministic ordering
+/// (`artistName`, then `title`, then `plexID`). Pages resume strictly *after*
+/// this position, so they never skip or duplicate rows when the catalog shifts
+/// between fetches — unlike OFFSET paging.
+struct AlbumCursor: Equatable, Sendable {
+    let artistName: String
+    let title: String
+    let plexID: String
+
+    init(album: Album) {
+        self.artistName = album.artistName
+        self.title = album.title
+        self.plexID = album.plexID
+    }
+}
+
 struct ArtworkKey: Equatable, Hashable, Sendable {
     let ownerID: String
     let ownerType: ArtworkOwnerType
@@ -164,6 +180,11 @@ protocol LibraryStoreProtocol: AnyObject {
     ///
     /// - Sorting guarantee: deterministic source ordering (`artistName`, then `title`, then `plexID`).
     func queryAlbums(filter: AlbumQueryFilter) async throws -> [Album]
+
+    /// Keyset-paginated variant of `queryAlbums(filter:)`. Returns at most `limit`
+    /// albums in the same deterministic ordering, starting strictly after `after`
+    /// (or from the beginning when `after` is nil).
+    func queryAlbums(filter: AlbumQueryFilter, after: AlbumCursor?, limit: Int) async throws -> [Album]
 
     /// Queries the full cached artist catalog by artist name and sort name.
     /// - Sorting guarantee: results are fully sorted by source ordering (`sortName`, then `name`).

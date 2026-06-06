@@ -251,6 +251,138 @@ struct LibraryGridViewModelTests {
         #expect(subject.viewModel.errorBannerState.message == LibraryError.timeout.userMessage)
     }
 
+    // MARK: - Keyset pagination (Lunara-uww.4.1)
+
+    @Test
+    func loadInitialIfNeeded_loadsOnlyFirstPage_whenCatalogExceedsPageSize() async {
+        let subject = makeSubject()
+        subject.library.queriedAlbumsByFilter[.all] = makeAlbums(120)
+
+        await subject.viewModel.loadInitialIfNeeded()
+
+        #expect(subject.viewModel.albums.count == 50)
+        #expect(subject.viewModel.hasMorePages == true)
+        #expect(subject.viewModel.loadingState == .loaded)
+    }
+
+    @Test
+    func loadNextPageIfNeeded_appendsPagesUntilExhausted() async {
+        let subject = makeSubject()
+        subject.library.queriedAlbumsByFilter[.all] = makeAlbums(120)
+        await subject.viewModel.loadInitialIfNeeded()
+
+        await subject.viewModel.loadNextPageIfNeeded(currentItem: triggerItem(subject.viewModel.albums))
+        #expect(subject.viewModel.albums.count == 100)
+        #expect(subject.viewModel.hasMorePages == true)
+
+        await subject.viewModel.loadNextPageIfNeeded(currentItem: triggerItem(subject.viewModel.albums))
+        #expect(subject.viewModel.albums.count == 120)
+        #expect(subject.viewModel.hasMorePages == false)
+
+        // Past the end → no-op (no infinite loop).
+        await subject.viewModel.loadNextPageIfNeeded(currentItem: triggerItem(subject.viewModel.albums))
+        #expect(subject.viewModel.albums.count == 120)
+    }
+
+    @Test
+    func loadNextPageIfNeeded_handlesExactMultipleBoundary() async {
+        let subject = makeSubject()
+        subject.library.queriedAlbumsByFilter[.all] = makeAlbums(100)
+        await subject.viewModel.loadInitialIfNeeded()
+        #expect(subject.viewModel.albums.count == 50)
+
+        await subject.viewModel.loadNextPageIfNeeded(currentItem: triggerItem(subject.viewModel.albums))
+        #expect(subject.viewModel.albums.count == 100)
+        #expect(subject.viewModel.hasMorePages == true)   // full page → maybe more
+
+        // Final fetch returns 0 rows: must not crash and must stop.
+        await subject.viewModel.loadNextPageIfNeeded(currentItem: triggerItem(subject.viewModel.albums))
+        #expect(subject.viewModel.albums.count == 100)
+        #expect(subject.viewModel.hasMorePages == false)
+    }
+
+    @Test
+    func loadInitialIfNeeded_emptyCatalog_setsNoMorePages() async {
+        let subject = makeSubject()
+        subject.library.queriedAlbumsByFilter[.all] = []
+
+        await subject.viewModel.loadInitialIfNeeded()
+
+        #expect(subject.viewModel.albums.isEmpty)
+        #expect(subject.viewModel.hasMorePages == false)
+        #expect(subject.viewModel.loadingState == .loaded)
+    }
+
+    @Test
+    func loadNextPageIfNeeded_isReentrancySafe() async {
+        let subject = makeSubject()
+        subject.library.queriedAlbumsByFilter[.all] = makeAlbums(120)
+        await subject.viewModel.loadInitialIfNeeded()
+        let baseline = subject.library.pagedQueryCalls.count
+
+        // Two concurrent triggers (as many trailing cards appear at once) → ONE fetch.
+        let trigger = triggerItem(subject.viewModel.albums)
+        async let first: Void = subject.viewModel.loadNextPageIfNeeded(currentItem: trigger)
+        async let second: Void = subject.viewModel.loadNextPageIfNeeded(currentItem: trigger)
+        _ = await (first, second)
+
+        #expect(subject.library.pagedQueryCalls.count == baseline + 1)
+        #expect(subject.viewModel.albums.count == 100)
+    }
+
+    @Test
+    func refresh_resetsPaginationToFirstPage() async {
+        let subject = makeSubject()
+        subject.library.queriedAlbumsByFilter[.all] = makeAlbums(120)
+        await subject.viewModel.loadInitialIfNeeded()
+        await subject.viewModel.loadNextPageIfNeeded(currentItem: triggerItem(subject.viewModel.albums))
+        #expect(subject.viewModel.albums.count == 100)
+
+        await subject.viewModel.refresh()
+
+        #expect(subject.viewModel.albums.count == 50)
+        #expect(subject.viewModel.hasMorePages == true)
+    }
+
+    @Test
+    func clearingSearch_preservesPaginatedCatalog() async {
+        let subject = makeSubject()
+        subject.library.queriedAlbumsByFilter[.all] = makeAlbums(120)
+        await subject.viewModel.loadInitialIfNeeded()
+        await subject.viewModel.loadNextPageIfNeeded(currentItem: triggerItem(subject.viewModel.albums))
+        #expect(subject.viewModel.albums.count == 100)
+
+        subject.library.queriedAlbumsByFilter[AlbumQueryFilter(textQuery: "x")] = [makeAlbum(id: "search-hit")]
+        subject.viewModel.searchQuery = "x"
+        subject.viewModel.searchQuery = ""
+
+        // Clearing search must NOT collapse the paginated catalog back to one page.
+        #expect(subject.viewModel.albums.count == 100)
+        #expect(subject.viewModel.filteredAlbums.count == 100)
+    }
+
+    @Test
+    func loadNextPageIfNeeded_isNoOpWhileSearching() async {
+        let subject = makeSubject()
+        subject.library.queriedAlbumsByFilter[.all] = makeAlbums(120)
+        await subject.viewModel.loadInitialIfNeeded()
+        let baseline = subject.library.pagedQueryCalls.count
+
+        subject.library.queriedAlbumsByFilter[AlbumQueryFilter(textQuery: "x")] = [makeAlbum(id: "hit")]
+        subject.viewModel.searchQuery = "x"
+        await subject.viewModel.loadNextPageIfNeeded(currentItem: triggerItem(subject.viewModel.albums))
+
+        #expect(subject.library.pagedQueryCalls.count == baseline)
+    }
+
+    private func triggerItem(_ albums: [Album]) -> Album {
+        albums[max(0, albums.count - 10)]
+    }
+
+    private func makeAlbums(_ count: Int) -> [Album] {
+        (0..<count).map { makeAlbum(id: String(format: "album-%03d", $0)) }
+    }
+
     private func makeSubject() -> (
         viewModel: LibraryGridViewModel,
         library: LibraryGridRepoMock,
@@ -310,9 +442,16 @@ struct LibraryGridViewModelTests {
 
 @MainActor
 private final class LibraryGridRepoMock: LibraryRepoProtocol {
+    struct PagedQuery: Equatable {
+        let filter: AlbumQueryFilter
+        let after: AlbumCursor?
+        let limit: Int
+    }
+
     var queriedAlbumsByFilter: [AlbumQueryFilter: [Album]] = [:]
     var queryErrorByFilter: [AlbumQueryFilter: LibraryError] = [:]
     var albumQueryFilters: [AlbumQueryFilter] = []
+    var pagedQueryCalls: [PagedQuery] = []
     var authenticatedArtworkURLByRawValue: [String: URL] = [:]
     var authenticatedArtworkURLRequests: [String?] = []
     var tracksByAlbumID: [String: [Track]] = [:]
@@ -343,6 +482,28 @@ private final class LibraryGridRepoMock: LibraryRepoProtocol {
             throw error
         }
         return queriedAlbumsByFilter[filter] ?? []
+    }
+
+    func queryAlbums(filter: AlbumQueryFilter, after: AlbumCursor?, limit: Int) async throws -> [Album] {
+        // Record into albumQueryFilters too so existing grid-load assertions still hold,
+        // plus the richer paged tracker for pagination/re-entrancy assertions.
+        albumQueryFilters.append(filter)
+        pagedQueryCalls.append(PagedQuery(filter: filter, after: after, limit: limit))
+        if let error = queryErrorByFilter[filter] {
+            throw error
+        }
+        let sorted = (queriedAlbumsByFilter[filter] ?? []).sorted { lhs, rhs in
+            (lhs.artistName, lhs.title, lhs.plexID) < (rhs.artistName, rhs.title, rhs.plexID)
+        }
+        let start: Int
+        if let after {
+            start = sorted.firstIndex {
+                ($0.artistName, $0.title, $0.plexID) > (after.artistName, after.title, after.plexID)
+            } ?? sorted.count
+        } else {
+            start = 0
+        }
+        return Array(sorted[start...].prefix(limit))
     }
 
     func tracks(forAlbum albumID: String) async throws -> [Track] {
