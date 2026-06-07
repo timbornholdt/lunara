@@ -175,13 +175,41 @@ final class NowPlayingScreenViewModel {
     }
 
     private func resolveAndApply(trackID: String) async {
-        guard let snapshot = await buildSnapshot(for: trackID) else { return }
+        // Phase 1 — apply the new track's TEXT immediately and clear the previous
+        // track's artwork/palette/waveform, so the old album art is never shown
+        // next to the new track's metadata while the (possibly networked) artwork
+        // fetch is still in flight.
+        guard let track = try? await library.track(id: trackID) else { return }
         guard !Task.isCancelled else { return }
+        let album = try? await library.album(id: track.albumID)
+        guard !Task.isCancelled else { return }
+        applyTextClearingVisuals(track: track, album: album)
 
+        // Phase 2 — resolve artwork, palette, artist and waveform (slow: network
+        // fetch + off-main decode) and apply them once ready.
+        guard let snapshot = await buildSnapshot(track: track, album: album) else { return }
+        guard !Task.isCancelled else { return }
         snapshotCache[trackID] = snapshot
         applySnapshot(snapshot)
         evictStaleSnapshots()
         prefetchNextTrack()
+    }
+
+    /// Applies the new track's text metadata at once and clears every visual that
+    /// belonged to the previous track (artwork, palette, artist, waveform), so a
+    /// stale album cover can't linger while the new artwork resolves.
+    private func applyTextClearingVisuals(track: Track, album: Album?) {
+        withAnimation(.easeInOut(duration: 0.3)) {
+            trackTitle = track.title
+            artistName = track.artistName
+            albumTitle = album?.title
+            albumID = track.albumID
+            currentAlbum = album
+            artworkImage = nil
+            palette = .default
+            currentArtist = nil
+            waveformLevels = nil
+        }
     }
 
     private func applySnapshot(_ snapshot: TrackSnapshot) {
@@ -198,23 +226,10 @@ final class NowPlayingScreenViewModel {
         }
     }
 
-    /// Builds a complete snapshot with all display data resolved.
-    /// Returns nil if the track can't be found.
-    private func buildSnapshot(for trackID: String) async -> TrackSnapshot? {
-        let track: Track?
-        do {
-            track = try await library.track(id: trackID)
-        } catch {
-            return nil
-        }
-
-        guard let track else { return nil }
-        guard !Task.isCancelled else { return nil }
-
-        // Resolve album
-        let album = try? await library.album(id: track.albumID)
-        guard !Task.isCancelled else { return nil }
-
+    /// Builds a complete snapshot with all display data resolved. The CPU-heavy
+    /// image decode + palette extraction run off the main actor. Returns nil if the
+    /// task is cancelled.
+    private func buildSnapshot(track: Track, album: Album?) async -> TrackSnapshot? {
         // Resolve artist
         let artist: Artist?
         if let artists = try? await library.searchArtists(query: track.artistName) {
@@ -224,7 +239,7 @@ final class NowPlayingScreenViewModel {
         }
         guard !Task.isCancelled else { return nil }
 
-        // Fetch full-size artwork
+        // Fetch full-size artwork source
         let sourceURL: URL?
         if let album {
             sourceURL = try? await library.authenticatedArtworkURL(for: album.thumbURL)
@@ -239,18 +254,18 @@ final class NowPlayingScreenViewModel {
         )
         guard !Task.isCancelled else { return nil }
 
-        let resolvedImage: UIImage?
-        let resolvedPalette: ArtworkPaletteTheme
-        if let fileURL, let data = try? Data(contentsOf: fileURL), let img = UIImage(data: data) {
-            resolvedImage = img
-            resolvedPalette = ArtworkPaletteExtractor.extract(from: img)
-        } else {
-            resolvedImage = nil
-            resolvedPalette = .default
-        }
+        // Decode the image and extract its palette OFF the main actor (both are
+        // CPU-heavy and would otherwise stall the UI / starve other resolution).
+        let decoded: (image: UIImage?, palette: ArtworkPaletteTheme) = await Task.detached {
+            if let fileURL, let data = try? Data(contentsOf: fileURL), let img = UIImage(data: data) {
+                return (img, ArtworkPaletteExtractor.extract(from: img))
+            }
+            return (nil, .default)
+        }.value
+        guard !Task.isCancelled else { return nil }
 
         // Fetch waveform loudness levels
-        let levels = try? await library.fetchLoudnessLevels(trackID: trackID)
+        let levels = try? await library.fetchLoudnessLevels(trackID: track.plexID)
         guard !Task.isCancelled else { return nil }
 
         return TrackSnapshot(
@@ -258,8 +273,8 @@ final class NowPlayingScreenViewModel {
             artistName: track.artistName,
             albumTitle: album?.title,
             albumID: track.albumID,
-            artworkImage: resolvedImage,
-            palette: resolvedPalette,
+            artworkImage: decoded.image,
+            palette: decoded.palette,
             album: album,
             artist: artist,
             waveformLevels: levels
@@ -306,10 +321,13 @@ final class NowPlayingScreenViewModel {
         prefetchTask?.cancel()
         prefetchingTrackID = nextTrackID
         prefetchTask = Task { [weak self] in
-            guard let snapshot = await self?.buildSnapshot(for: nextTrackID) else { return }
+            guard let self else { return }
+            guard let track = try? await self.library.track(id: nextTrackID) else { return }
+            let album = try? await self.library.album(id: track.albumID)
+            guard let snapshot = await self.buildSnapshot(track: track, album: album) else { return }
             guard !Task.isCancelled else { return }
-            self?.snapshotCache[nextTrackID] = snapshot
-            self?.prefetchingTrackID = nil
+            self.snapshotCache[nextTrackID] = snapshot
+            self.prefetchingTrackID = nil
         }
     }
 
@@ -323,6 +341,9 @@ final class NowPlayingScreenViewModel {
         resolvedUpNextCount = newCount
 
         upNextTask?.cancel()
+        // Runs at default priority: the heavy image work is already offloaded via
+        // Task.detached, so this no longer hogs the main actor — and a lower QoS
+        // here gets starved during active playback, leaving Up Next stale.
         upNextTask = Task { [weak self] in
             await self?.resolveUpNextItems()
         }
@@ -360,12 +381,16 @@ final class NowPlayingScreenViewModel {
                 ownerKind: .album,
                 sourceURL: sourceURL
             )
-            let thumbImage = thumbURL.flatMap {
-                DownsamplingImageLoader.load(
-                    contentsOf: $0,
-                    pointSize: Self.upNextThumbnailPointSize,
-                    scale: displayScale
-                )
+            let thumbImage: UIImage?
+            if let thumbURL {
+                let pointSize = Self.upNextThumbnailPointSize
+                let scale = displayScale
+                // Downsample off the main actor (CPU-heavy, runs up to 20× per refresh).
+                thumbImage = await Task.detached {
+                    DownsamplingImageLoader.load(contentsOf: thumbURL, pointSize: pointSize, scale: scale)
+                }.value
+            } else {
+                thumbImage = nil
             }
             resolved.append(UpNextItem(
                 id: item.trackID,
