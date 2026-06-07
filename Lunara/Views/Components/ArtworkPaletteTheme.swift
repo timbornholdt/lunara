@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct ArtworkPaletteTheme: Equatable {
+struct ArtworkPaletteTheme: Equatable, Sendable {
     let background: Color
     let textPrimary: Color
     let textSecondary: Color
