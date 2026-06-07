@@ -17,6 +17,12 @@ final class DownloadManager: DownloadManagerProtocol {
     private(set) var albumStates: [String: AlbumDownloadState] = [:]
     private var activeTasks: [String: Task<Void, Never>] = [:]
 
+    /// Fired after offline availability for albums changes (a download completed
+    /// or its files were deleted) so the queue can re-resolve any pre-loaded next
+    /// track that now points at the wrong source. Carries the affected album IDs.
+    @ObservationIgnored
+    var onOfflineAvailabilityChanged: ((Set<String>) -> Void)?
+
     init(
         offlineStore: OfflineStoreProtocol,
         library: LibraryRepoProtocol,
@@ -79,6 +85,7 @@ final class DownloadManager: DownloadManagerProtocol {
         Task { [weak self] in
             guard let self else { return }
             try? await self.offlineStore.deleteOfflineTracks(forAlbum: albumID)
+            self.onOfflineAvailabilityChanged?([albumID])
         }
     }
 
@@ -86,6 +93,7 @@ final class DownloadManager: DownloadManagerProtocol {
         cancelDownload(forAlbum: albumID)
         try await offlineStore.deleteOfflineTracks(forAlbum: albumID)
         albumStates[albumID] = .idle
+        onOfflineAvailabilityChanged?([albumID])
     }
 
     func syncCollection(_ collectionID: String, albums: [Album], library: LibraryRepoProtocol) async {
@@ -233,10 +241,12 @@ final class DownloadManager: DownloadManagerProtocol {
 
         albumStates[albumID] = .complete
         logger.info("Download complete for album '\(albumID, privacy: .public)' (\(totalTracks) tracks)")
+        onOfflineAvailabilityChanged?([albumID])
     }
 
     private func cleanupFailedDownload(albumID: String) async {
         try? await offlineStore.deleteOfflineTracks(forAlbum: albumID)
+        onOfflineAvailabilityChanged?([albumID])
     }
 
     private nonisolated func isOnWifi() -> Bool {

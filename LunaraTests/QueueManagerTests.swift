@@ -590,6 +590,94 @@ struct QueueManagerTests {
         #expect(subject.engine.seekCalls.contains(30))
     }
 
+    // MARK: - Offline availability change → re-resolve preloaded next (Lunara-uww.3.6)
+
+    @Test
+    func offlineRemovedForNextAlbum_clearsPreparedNext_andReresolvesToStream() async throws {
+        let subject = makeSubject()
+        subject.engine.crossfadeEnabled = true
+        let item0 = QueueItem(trackID: "t0", streamKey: "/k/t0", albumID: "album-A")
+        let item1 = QueueItem(trackID: "t1", streamKey: "/k/t1", albumID: "album-B")
+        let offline1 = URL(fileURLWithPath: "/tmp/offline-t1.m4a")
+        let stream1 = try #require(URL(string: "https://cdn.example.com/t1.mp3"))
+        // First resolve → offline file (downloaded); second → stream (after removal).
+        subject.resolver.resultsByTrackID["t1"] = [offline1, stream1]
+
+        subject.manager.playNow([item0, item1])
+        await waitUntil { subject.engine.prepareNextCalls.last?.1 == "t1" }
+        #expect(subject.engine.prepareNextCalls.last?.0 == offline1)
+
+        // Album B's download is removed — the preloaded file:// is now dangling.
+        subject.manager.offlineAvailabilityDidChange(forAlbums: ["album-B"])
+        await waitUntil { subject.engine.prepareNextCalls.count >= 2 }
+
+        #expect(subject.engine.clearPreparedNextCallCount == 1)
+        #expect(subject.engine.prepareNextCalls.last?.1 == "t1")
+        #expect(subject.engine.prepareNextCalls.last?.0 == stream1)
+    }
+
+    @Test
+    func downloadCompletedForNextAlbum_reresolvesPreparedNextToOfflineFile() async throws {
+        let subject = makeSubject()
+        subject.engine.crossfadeEnabled = true
+        let item0 = QueueItem(trackID: "t0", streamKey: "/k/t0", albumID: "album-A")
+        let item1 = QueueItem(trackID: "t1", streamKey: "/k/t1", albumID: "album-B")
+        let stream1 = try #require(URL(string: "https://cdn.example.com/t1.mp3"))
+        let offline1 = URL(fileURLWithPath: "/tmp/offline-t1.m4a")
+        // First resolve → stream; second → offline file (download just completed).
+        subject.resolver.resultsByTrackID["t1"] = [stream1, offline1]
+
+        subject.manager.playNow([item0, item1])
+        await waitUntil { subject.engine.prepareNextCalls.last?.1 == "t1" }
+        #expect(subject.engine.prepareNextCalls.last?.0 == stream1)
+
+        subject.manager.offlineAvailabilityDidChange(forAlbums: ["album-B"])
+        await waitUntil { subject.engine.prepareNextCalls.count >= 2 }
+
+        #expect(subject.engine.prepareNextCalls.last?.0 == offline1)
+        #expect(subject.engine.prepareNextCalls.last?.0.isFileURL == true)
+    }
+
+    @Test
+    func offlineChangeForUnrelatedAlbum_doesNotReresolveNext() async throws {
+        let subject = makeSubject()
+        subject.engine.crossfadeEnabled = true
+        let item0 = QueueItem(trackID: "t0", streamKey: "/k/t0", albumID: "album-A")
+        let item1 = QueueItem(trackID: "t1", streamKey: "/k/t1", albumID: "album-B")
+        subject.manager.playNow([item0, item1])
+        await waitUntil { subject.engine.prepareNextCalls.last?.1 == "t1" }
+        let prepareCountBefore = subject.engine.prepareNextCalls.count
+
+        // A different album changed — the preloaded next is unaffected.
+        subject.manager.offlineAvailabilityDidChange(forAlbums: ["album-Z"])
+        await settleObservation()
+        await settleObservation()
+
+        #expect(subject.engine.clearPreparedNextCallCount == 0)
+        #expect(subject.engine.prepareNextCalls.count == prepareCountBefore)
+    }
+
+    @Test
+    func offlineChangeWhenCrossfadeDisabled_isNoOp() async throws {
+        let subject = makeSubject()
+        subject.engine.crossfadeEnabled = false
+        let item0 = QueueItem(trackID: "t0", streamKey: "/k/t0", albumID: "album-A")
+        let item1 = QueueItem(trackID: "t1", streamKey: "/k/t1", albumID: "album-B")
+        subject.manager.playNow([item0, item1])
+        await waitUntil { subject.engine.playCalls.count == 1 }
+        // No preload happens without crossfade — nothing to invalidate.
+        #expect(subject.engine.prepareNextCalls.isEmpty)
+        let resolveCountBefore = subject.resolver.resolveCalls.count
+
+        subject.manager.offlineAvailabilityDidChange(forAlbums: ["album-B"])
+        await settleObservation()
+        await settleObservation()
+
+        #expect(subject.engine.clearPreparedNextCallCount == 0)
+        #expect(subject.engine.prepareNextCalls.isEmpty)
+        #expect(subject.resolver.resolveCalls.count == resolveCountBefore)
+    }
+
     private func makeSubject() -> (
         manager: QueueManager,
         engine: PlaybackEngineMock,

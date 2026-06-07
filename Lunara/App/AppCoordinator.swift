@@ -136,6 +136,11 @@ final class AppCoordinator {
         let loadedSettings = OfflineSettings.load()
         downloadManager.storageLimitBytes = loadedSettings.storageLimitBytes
         downloadManager.wifiOnly = loadedSettings.wifiOnly
+        // When a download completes or is removed, let the queue re-resolve any
+        // pre-loaded next track that now points at a stale source.
+        downloadManager.onOfflineAvailabilityChanged = { [weak queueManager] changedAlbumIDs in
+            queueManager?.offlineAvailabilityDidChange(forAlbums: changedAlbumIDs)
+        }
 
         let nowPlayingBridge = NowPlayingBridge(
             engine: playbackEngine,
