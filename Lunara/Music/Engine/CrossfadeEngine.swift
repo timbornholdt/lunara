@@ -36,15 +36,45 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
     private var pendingTrackID: String?
 
     private let logger = Logger(subsystem: "holdings.chinlock.lunara", category: "CrossfadeEngine")
+    private let telemetry: PlaybackTelemetryEmitting?
 
     var crossfadeEnabled: Bool = true
 
-    init(audioSession: AudioSessionProtocol) {
+    init(audioSession: AudioSessionProtocol, telemetry: PlaybackTelemetryEmitting? = nil) {
         self.audioSession = audioSession
+        self.telemetry = telemetry
         self.activeSlot = slotA
         self.inactiveSlot = slotB
 
         wireInterruptions()
+    }
+
+    /// Emits a telemetry event stamped with the AUTHORITATIVE loaded-slot count
+    /// (a slot's `trackID` is non-nil iff it holds a file). Guarded so nothing is
+    /// built when recording is off.
+    private func emit(_ kind: PlaybackTelemetryEvent.Kind) {
+        guard telemetry?.isEnabled == true else { return }
+        let loadedSlots = [slotA, slotB].filter { $0.trackID != nil }.count
+        telemetry?.record(
+            PlaybackTelemetryEvent(
+                kind: kind,
+                slots: loadedSlots,
+                state: stateName,
+                trackID: currentTrackID,
+                durationSeconds: duration > 0 ? duration : nil,
+                crossfadeEnabled: crossfadeEnabled
+            )
+        )
+    }
+
+    private var stateName: String {
+        switch playbackState {
+        case .idle: return "idle"
+        case .buffering: return "buffering"
+        case .playing: return "playing"
+        case .paused: return "paused"
+        case .error: return "error"
+        }
     }
 
     func play(url: URL, trackID: String) {
@@ -80,6 +110,7 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
 
         startElapsedTimer()
         scheduleCrossfadeTriggerIfNeeded()
+        emit(.play)
     }
 
     func pause() {
@@ -93,6 +124,7 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
         if playbackState != .idle && !playbackState.hasError {
             playbackState = .paused
         }
+        emit(.pause)
     }
 
     func resume() {
@@ -113,6 +145,7 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
         }
         playbackState = .playing
         startElapsedTimer()
+        emit(.resume)
     }
 
     func seek(to time: TimeInterval) {
@@ -120,6 +153,7 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
         activeSlot.seek(to: time)
         elapsed = max(0, time)
         scheduleCrossfadeTriggerIfNeeded()
+        emit(.seek)
     }
 
     func stop() {
@@ -131,6 +165,7 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
         currentTrackID = nil
         elapsed = 0
         duration = 0
+        emit(.stop)
     }
 
     func signalBuffering() {
@@ -172,6 +207,7 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
                     self.playbackState = .idle
                     self.elapsed = 0
                     self.duration = 0
+                    self.emit(.skip)
                 }
             }
         }
@@ -190,6 +226,7 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
             pendingTrackID = trackID
             logger.debug("[CF] prepareNext: trackID=\(trackID, privacy: .public) transition=\(String(describing: transition), privacy: .public)")
             scheduleCrossfadeTriggerIfNeeded()
+            emit(.prepareNext)
         } catch {
             logger.error("Failed to prepare next track: \(error.localizedDescription, privacy: .public)")
             pendingTransition = nil
@@ -299,6 +336,7 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
         inactiveSlot.play()
 
         startCrossfadeRampTimer()
+        emit(.crossfadeBegin)
     }
 
     private func updateCrossfade() {
@@ -338,6 +376,7 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
         pendingTransition = nil
         pendingTrackID = nil
         logger.debug("[CF] completeCrossfade: done. activeTrackID=\(self.activeSlot.trackID ?? "nil", privacy: .public)")
+        emit(.crossfadeComplete)
     }
 
     private func handleTrackEnded() {
@@ -372,6 +411,7 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
             duration = activeSlot.duration
             pendingTransition = nil
             pendingTrackID = nil
+            emit(.play)
         } else {
             // No next track prepared - signal idle
             logger.debug("[CF] handleTrackEnded: no next track, going idle")
@@ -381,6 +421,7 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
             playbackState = .idle
             elapsed = 0
             duration = 0
+            emit(.stop)
         }
     }
 
@@ -409,6 +450,7 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
         playbackState = .error(message)
         activeSlot.stop()
         inactiveSlot.stop()
+        emit(.error)
     }
 
     // MARK: - Audio Interruptions

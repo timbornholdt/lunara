@@ -16,13 +16,15 @@ final class SettingsViewModel {
     private let signOutAction: () -> Void
     let lastFMAuthManager: LastFMAuthManager?
     let scrobbleManager: ScrobbleManager?
+    let playbackTelemetry: PlaybackTelemetry?
     init(
         offlineStore: OfflineStoreProtocol,
         downloadManager: DownloadManager,
         library: LibraryRepoProtocol,
         signOutAction: @escaping () -> Void,
         lastFMAuthManager: LastFMAuthManager? = nil,
-        scrobbleManager: ScrobbleManager? = nil
+        scrobbleManager: ScrobbleManager? = nil,
+        playbackTelemetry: PlaybackTelemetry? = nil
     ) {
         self.offlineStore = offlineStore
         self.downloadManager = downloadManager
@@ -30,6 +32,7 @@ final class SettingsViewModel {
         self.signOutAction = signOutAction
         self.lastFMAuthManager = lastFMAuthManager
         self.scrobbleManager = scrobbleManager
+        self.playbackTelemetry = playbackTelemetry
         self.settings = OfflineSettings.load()
     }
 
@@ -182,6 +185,21 @@ final class SettingsViewModel {
     var isScrobblingEnabled: Bool {
         get { scrobbleManager?.isEnabled ?? false }
         set { scrobbleManager?.isEnabled = newValue }
+    }
+
+    // MARK: - Diagnostics
+
+    var isDiagnosticsRecordingEnabled: Bool {
+        get { playbackTelemetry?.isEnabled ?? false }
+        set { playbackTelemetry?.isEnabled = newValue }
+    }
+
+    var diagnosticsLogURL: URL? {
+        playbackTelemetry?.exportFileURL()
+    }
+
+    func clearDiagnosticsLog() {
+        playbackTelemetry?.clear()
     }
 
     func signInToLastFM() async {
