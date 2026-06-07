@@ -12,6 +12,7 @@ import UIKit
 struct LunaraApp: App {
 
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @Environment(\.scenePhase) private var scenePhase
     @State private var coordinator: AppCoordinator
     @State private var colorSchemeManager = ColorSchemeManager()
 
@@ -51,6 +52,16 @@ struct LunaraApp: App {
                 guard url.scheme == "lunara", url.host == "lastfm-callback" else { return }
                 Task {
                     try? await coordinator.lastFMAuthManager.handleCallback(url: url)
+                }
+            }
+            .onChange(of: scenePhase) { _, newPhase in
+                switch newPhase {
+                case .active:
+                    coordinator.playbackTelemetry.recordScenePhase(active: true)
+                case .background:
+                    coordinator.playbackTelemetry.recordScenePhase(active: false)
+                default:
+                    break
                 }
             }
         }

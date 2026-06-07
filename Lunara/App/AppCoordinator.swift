@@ -27,6 +27,7 @@ final class AppCoordinator {
     let lastFMAuthManager: LastFMAuthManager
     let scrobbleManager: ScrobbleManager
     let gardenClient: GardenAPIClientProtocol?
+    let playbackTelemetry: PlaybackTelemetry
     private let logger = Logger(subsystem: "holdings.chinlock.lunara", category: "AppCoordinator")
 
     // MARK: - State
@@ -53,7 +54,8 @@ final class AppCoordinator {
         nowPlayingBridge: NowPlayingBridge,
         lastFMAuthManager: LastFMAuthManager,
         scrobbleManager: ScrobbleManager,
-        gardenClient: GardenAPIClientProtocol? = nil
+        gardenClient: GardenAPIClientProtocol? = nil,
+        playbackTelemetry: PlaybackTelemetry? = nil
     ) {
         self.authManager = authManager
         self.plexClient = plexClient
@@ -68,6 +70,7 @@ final class AppCoordinator {
         self.lastFMAuthManager = lastFMAuthManager
         self.scrobbleManager = scrobbleManager
         self.gardenClient = gardenClient
+        self.playbackTelemetry = playbackTelemetry ?? PlaybackTelemetry()
         self.isSignedIn = authManager.isSignedIn
         nowPlayingBridge.configure()
         scrobbleManager.configure()
@@ -99,7 +102,8 @@ final class AppCoordinator {
         }
 
         let libraryRepo = LibraryRepo(remote: plexClient, store: libraryStore, artworkPipeline: artworkPipeline)
-        let crossfadeEngine = CrossfadeEngine(audioSession: AudioSession())
+        let playbackTelemetry = PlaybackTelemetry()
+        let crossfadeEngine = CrossfadeEngine(audioSession: AudioSession(), telemetry: playbackTelemetry)
         let playbackEngine: PlaybackEngineProtocol = crossfadeEngine
         let trackCache = TrackCache()
         let loudnessAdapter = PlexLoudnessAdapter(library: libraryRepo)
@@ -165,7 +169,8 @@ final class AppCoordinator {
             nowPlayingBridge: nowPlayingBridge,
             lastFMAuthManager: lastFMAuthManager,
             scrobbleManager: scrobbleManager,
-            gardenClient: gardenClient
+            gardenClient: gardenClient,
+            playbackTelemetry: playbackTelemetry
         )
 
         // Apply persisted crossfade setting

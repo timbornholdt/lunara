@@ -17,6 +17,7 @@ struct SettingsView: View {
                 syncedCollectionsSection
                 activeDownloadsSection
                 downloadsSection
+                diagnosticsSection
                 accountSection
             }
             .navigationTitle("Settings")
@@ -259,6 +260,29 @@ struct SettingsView: View {
             Button("Sign Out", role: .destructive) {
                 viewModel.signOut()
             }
+        }
+    }
+
+    private var diagnosticsSection: some View {
+        Section {
+            Toggle(
+                "Record playback diagnostics",
+                isOn: Binding(
+                    get: { viewModel.isDiagnosticsRecordingEnabled },
+                    set: { viewModel.isDiagnosticsRecordingEnabled = $0 }
+                )
+            )
+
+            if let logURL = viewModel.diagnosticsLogURL {
+                ShareLink("Share Playback Log", item: logURL)
+                Button("Clear Log", role: .destructive) {
+                    viewModel.clearDiagnosticsLog()
+                }
+            }
+        } header: {
+            Text("Diagnostics")
+        } footer: {
+            Text("Records memory and playback events to an on-device log you can share. Includes track identifiers; stays on your device until you share or clear it.")
         }
     }
 }
