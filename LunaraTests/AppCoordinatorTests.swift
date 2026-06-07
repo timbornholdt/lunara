@@ -517,6 +517,8 @@ private final class CoordinatorQueueManagerMock: QueueManagerProtocol {
         clearCallCount += 1
     }
 
+    func offlineAvailabilityDidChange(forAlbums changedAlbumIDs: Set<String>) {}
+
     func reconcile(removingTrackIDs: Set<String>) {
         reconcileCalls.append(removingTrackIDs)
         guard !removingTrackIDs.isEmpty else { return }

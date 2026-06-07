@@ -130,7 +130,82 @@ struct DownloadManagerTests {
         #expect(subject.offlineStore.deletedAlbumIDs.contains("a1"))
     }
 
+    // MARK: - Offline availability change signal (Lunara-uww.3.6)
+
+    @Test
+    func downloadAlbumCompletion_firesOfflineAvailabilityChanged() async throws {
+        let subject = makeSubject()
+        var received: [Set<String>] = []
+        subject.manager.onOfflineAvailabilityChanged = { received.append($0) }
+        let album = makeAlbum(id: "a1")
+        let track = makeTrack(id: "t1", albumID: "a1")
+        subject.library.streamURLByTrackID["t1"] = URL(string: "https://example.com/t1.flac")!
+
+        await subject.manager.downloadAlbum(album, tracks: [track])
+
+        #expect(subject.manager.downloadState(forAlbum: "a1") == .complete)
+        #expect(received.contains(["a1"]))
+    }
+
+    @Test
+    func removeDownload_firesOfflineAvailabilityChanged() async throws {
+        let subject = makeSubject()
+        let album = makeAlbum(id: "a1")
+        let track = makeTrack(id: "t1", albumID: "a1")
+        subject.library.streamURLByTrackID["t1"] = URL(string: "https://example.com/t1.flac")!
+        await subject.manager.downloadAlbum(album, tracks: [track])
+
+        // Only watch the removal, not the prior completion.
+        var received: [Set<String>] = []
+        subject.manager.onOfflineAvailabilityChanged = { received.append($0) }
+
+        try await subject.manager.removeDownload(forAlbum: "a1")
+
+        #expect(received.contains(["a1"]))
+    }
+
+    @Test
+    func cancelDownload_firesOfflineAvailabilityChangedAfterDeletion() async throws {
+        let subject = makeSubject()
+        var received: [Set<String>] = []
+        subject.manager.onOfflineAvailabilityChanged = { received.append($0) }
+
+        subject.manager.cancelDownload(forAlbum: "a1")
+        // cancelDownload deletes offline files in a detached task; the signal fires
+        // after that deletion completes.
+        await waitUntil { received.contains(["a1"]) }
+
+        #expect(received.contains(["a1"]))
+        #expect(subject.offlineStore.deletedAlbumIDs.contains("a1"))
+    }
+
+    @Test
+    func failedDownloadCleanup_firesOfflineAvailabilityChanged() async throws {
+        let subject = makeSubject()
+        var received: [Set<String>] = []
+        subject.manager.onOfflineAvailabilityChanged = { received.append($0) }
+        let album = makeAlbum(id: "a1")
+        let track = makeTrack(id: "t1", albumID: "a1")
+        // Force a failure mid-download → cleanupFailedDownload deletes saved files.
+        subject.library.streamURLError = LibraryError.plexUnreachable
+
+        await subject.manager.downloadAlbum(album, tracks: [track])
+
+        #expect(subject.manager.downloadState(forAlbum: "a1") == .failed("Download failed"))
+        #expect(received.contains(["a1"]))
+    }
+
     // MARK: - Helpers
+
+    private func waitUntil(
+        iterations: Int = 50,
+        condition: @escaping () -> Bool
+    ) async {
+        for _ in 0..<iterations {
+            if condition() { return }
+            await Task.yield()
+        }
+    }
 
     private func makeSubject() -> (
         manager: DownloadManager,

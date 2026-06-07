@@ -241,6 +241,18 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
         }
     }
 
+    func clearPreparedNext() {
+        // While a fade is active the "next" track is already audibly playing in a
+        // promoting slot; tearing it down would glitch. Only discard a buffer that
+        // hasn't started crossfading yet.
+        guard !isCrossfading else { return }
+        cancelCrossfadeTriggerTimer()
+        inactiveSlot.stop()
+        pendingTransition = nil
+        pendingTrackID = nil
+        logger.debug("[CF] clearPreparedNext: discarded staged next track")
+    }
+
     // MARK: - Elapsed Timer (UI only)
 
     private func startElapsedTimer() {

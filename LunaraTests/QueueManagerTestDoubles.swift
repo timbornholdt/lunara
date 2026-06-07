@@ -17,6 +17,7 @@ final class PlaybackEngineMock: PlaybackEngineProtocol {
     private(set) var seekCalls: [TimeInterval] = []
     private(set) var stopCallCount = 0
     private(set) var prepareNextCalls: [(URL, String, TransitionStyle)] = []
+    private(set) var clearPreparedNextCallCount = 0
     private(set) var signalBufferingCallCount = 0
     private(set) var skipWithFadeCallCount = 0
 
@@ -65,6 +66,10 @@ final class PlaybackEngineMock: PlaybackEngineProtocol {
 
     func prepareNext(url: URL, trackID: String, transition: TransitionStyle) {
         prepareNextCalls.append((url, trackID, transition))
+    }
+
+    func clearPreparedNext() {
+        clearPreparedNextCallCount += 1
     }
 
     func signalBuffering() {

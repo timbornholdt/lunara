@@ -66,6 +66,7 @@ final class NowPlayingQueueMock: QueueManagerProtocol {
     func skipTo(index: Int) {}
     func clear() { clearCallCount += 1 }
     func reconcile(removingTrackIDs: Set<String>) {}
+    func offlineAvailabilityDidChange(forAlbums changedAlbumIDs: Set<String>) {}
 }
 
 @MainActor

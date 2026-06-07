@@ -43,4 +43,8 @@ protocol QueueManagerProtocol: AnyObject, Observable {
     func skipTo(index: Int)
     func clear()
     func reconcile(removingTrackIDs: Set<String>)
+    /// Offline availability for the given albums changed (a download completed or
+    /// was removed). Re-resolves any pre-loaded next track whose album is affected
+    /// so the engine never crossfades into a stale source.
+    func offlineAvailabilityDidChange(forAlbums changedAlbumIDs: Set<String>)
 }

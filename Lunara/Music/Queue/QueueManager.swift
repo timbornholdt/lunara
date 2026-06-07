@@ -316,6 +316,24 @@ final class QueueManager: QueueManagerProtocol {
         }
     }
 
+    func offlineAvailabilityDidChange(forAlbums changedAlbumIDs: Set<String>) {
+        // Only the crossfade preload snapshots a resolved URL ahead of play time;
+        // without it the next track is resolved fresh at advance time, so there's
+        // nothing stale to fix.
+        guard engine.crossfadeEnabled else { return }
+        guard let currentIndex else { return }
+        let nextIndex = currentIndex + 1
+        guard items.indices.contains(nextIndex) else { return }
+        guard changedAlbumIDs.contains(items[nextIndex].albumID) else { return }
+
+        // The preloaded next track's source is now stale (a removed offline file,
+        // or a stream when a local copy just became available). Discard the staged
+        // buffer synchronously — closing the window where the engine could fade into
+        // it — then re-resolve and re-prepare from the correct source.
+        engine.clearPreparedNext()
+        prepareNextTrackIfNeeded()
+    }
+
     private func advanceAndPlayNextIfPossible() {
         guard let currentIndex else { return }
         let nextIndex = currentIndex + 1

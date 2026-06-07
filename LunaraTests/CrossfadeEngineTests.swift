@@ -81,6 +81,63 @@ struct CrossfadeEngineTests {
         return (engine, outgoing, incoming)
     }
 
+    /// Builds an engine playing "A" with "B" prepared as the next crossfade
+    /// target but NOT yet crossfading (outgoing positioned well before startTime).
+    private func makeEngineWithPreparedNext(
+        fadeDuration: TimeInterval = 8
+    ) -> (engine: CrossfadeEngine, outgoing: MockPlayerSlot, incoming: MockPlayerSlot) {
+        let outgoing = MockPlayerSlot()
+        let incoming = MockPlayerSlot()
+        let slots: [MockPlayerSlot] = [outgoing, incoming]
+        var handed = 0
+        let engine = CrossfadeEngine(
+            audioSession: AudioSessionStub(),
+            slotFactory: {
+                defer { handed += 1 }
+                return slots[handed]
+            }
+        )
+        let url = URL(string: "file:///track.mp3")!
+        engine.play(url: url, trackID: "A")
+        outgoing.elapsed = 10 // well before startTime → trigger not yet armed to fire
+        engine.prepareNext(
+            url: url,
+            trackID: "B",
+            transition: .crossfade(startTime: 180, duration: fadeDuration)
+        )
+        return (engine, outgoing, incoming)
+    }
+
+    // MARK: - clearPreparedNext (Lunara-uww.3.6)
+
+    @Test
+    func clearPreparedNext_whenNotCrossfading_stopsInactiveSlot_andPreventsPromotionOnTrackEnd() {
+        let (engine, outgoing, incoming) = makeEngineWithPreparedNext()
+        #expect(engine.isCrossfading == false)
+        #expect(incoming.trackID == "B")
+
+        engine.clearPreparedNext()
+        #expect(incoming.stopCallCount == 1)
+
+        // Current track ends; with the prepared next cleared, B must NOT be promoted
+        // (no fade into a now-stale buffer).
+        outgoing.onPlaybackComplete?()
+        #expect(incoming.playCallCount == 0)
+    }
+
+    @Test
+    func clearPreparedNext_whileCrossfading_isNoOp() {
+        let (engine, _, incoming) = makeEngineMidCrossfade()
+        #expect(engine.isCrossfading == true)
+        let stopsBefore = incoming.stopCallCount
+
+        engine.clearPreparedNext()
+
+        // The incoming slot is mid-fade and audible — it must not be torn down.
+        #expect(incoming.stopCallCount == stopsBefore)
+        #expect(engine.isCrossfading == true)
+    }
+
     // MARK: - T1: root cause — completes via the incoming clock even when the
     // outgoing track's clock resets to 0 at end-of-file.
 
