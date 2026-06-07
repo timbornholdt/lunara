@@ -1,7 +1,24 @@
 import AVFoundation
 import Foundation
 
-final class PlayerSlot: NSObject, AVAudioPlayerDelegate {
+/// The surface `CrossfadeEngine` uses to drive a player slot. Extracted so the
+/// engine can be unit-tested with a mock slot (no real `AVAudioPlayer`/file).
+protocol PlayerSlotProtocol: AnyObject {
+    var trackID: String? { get }
+    var isActive: Bool { get }
+    var duration: TimeInterval { get }
+    var elapsed: TimeInterval { get }
+    var volume: Float { get set }
+    var onPlaybackComplete: (() -> Void)? { get set }
+    func load(url: URL, trackID: String) throws
+    func play()
+    func pause()
+    func resume()
+    func stop()
+    func seek(to time: TimeInterval)
+}
+
+final class PlayerSlot: NSObject, AVAudioPlayerDelegate, PlayerSlotProtocol {
     private var player: AVAudioPlayer?
     private(set) var trackID: String?
     private(set) var isActive = false

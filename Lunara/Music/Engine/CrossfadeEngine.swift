@@ -11,10 +11,10 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
     private(set) var currentTrackID: String?
 
     private let audioSession: AudioSessionProtocol
-    private let slotA = PlayerSlot()
-    private let slotB = PlayerSlot()
-    private var activeSlot: PlayerSlot
-    private var inactiveSlot: PlayerSlot
+    private let slotA: any PlayerSlotProtocol
+    private let slotB: any PlayerSlotProtocol
+    private var activeSlot: any PlayerSlotProtocol
+    private var inactiveSlot: any PlayerSlotProtocol
 
     /// UI-only timer for updating elapsed display. Runs on the default
     /// RunLoop mode — expected to stop when the app is backgrounded.
@@ -28,8 +28,7 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
     /// Runs only for the fade duration (2-12s), then stops.
     private var crossfadeRampTimer: DispatchSourceTimer?
 
-    private var isCrossfading = false
-    private var crossfadeStartTime: TimeInterval = 0
+    private(set) var isCrossfading = false
     private var crossfadeDuration: TimeInterval = 0
 
     private var pendingTransition: TransitionStyle?
@@ -40,11 +39,19 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
 
     var crossfadeEnabled: Bool = true
 
-    init(audioSession: AudioSessionProtocol, telemetry: PlaybackTelemetryEmitting? = nil) {
+    init(
+        audioSession: AudioSessionProtocol,
+        telemetry: PlaybackTelemetryEmitting? = nil,
+        slotFactory: () -> any PlayerSlotProtocol = { PlayerSlot() }
+    ) {
         self.audioSession = audioSession
         self.telemetry = telemetry
-        self.activeSlot = slotA
-        self.inactiveSlot = slotB
+        let a = slotFactory()
+        let b = slotFactory()
+        self.slotA = a
+        self.slotB = b
+        self.activeSlot = a
+        self.inactiveSlot = b
 
         wireInterruptions()
     }
@@ -320,7 +327,7 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
 
     // MARK: - Transition Logic
 
-    private func beginCrossfade() {
+    func beginCrossfade() {
         guard let transition = pendingTransition,
               case .crossfade(_, let fadeDuration) = transition else { return }
 
@@ -329,7 +336,6 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
         logger.debug("[CF] beginCrossfade: active=\(self.activeSlot.trackID ?? "nil", privacy: .public) inactive=\(self.inactiveSlot.trackID ?? "nil", privacy: .public) fadeDuration=\(fadeDuration)")
         isCrossfading = true
         crossfadeDuration = fadeDuration
-        crossfadeStartTime = activeSlot.elapsed
 
         inactiveSlot.onPlaybackComplete = nil
         inactiveSlot.volume = 0
@@ -339,11 +345,14 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
         emit(.crossfadeBegin)
     }
 
-    private func updateCrossfade() {
+    func updateCrossfade() {
         guard isCrossfading else { return }
 
-        let currentElapsed = activeSlot.elapsed
-        let progress = min(1.0, (currentElapsed - crossfadeStartTime) / crossfadeDuration)
+        // Drive progress from the INCOMING slot's clock. It starts at 0 when the
+        // fade begins, advances monotonically, and freezes on pause — unlike the
+        // outgoing slot's clock, which resets to 0 at end-of-file and would wedge
+        // the crossfade (progress never reaching 1.0) if the track ended mid-fade.
+        let progress = min(1.0, inactiveSlot.elapsed / crossfadeDuration)
         let angle = progress * .pi / 2.0
         activeSlot.volume = Float(cos(angle))
         inactiveSlot.volume = Float(sin(angle))
@@ -353,7 +362,11 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
         }
     }
 
-    private func completeCrossfade() {
+    func completeCrossfade() {
+        // Idempotent: the ramp timer and the outgoing slot's EOF callback can
+        // both reach here within the same ~100ms window. Without this guard a
+        // second call would stop and swap out the freshly-promoted active track.
+        guard isCrossfading else { return }
         cancelCrossfadeRampTimer()
 
         logger.debug("[CF] completeCrossfade: stopping old active=\(self.activeSlot.trackID ?? "nil", privacy: .public), new active will be=\(self.inactiveSlot.trackID ?? "nil", privacy: .public)")
@@ -379,11 +392,20 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
         emit(.crossfadeComplete)
     }
 
-    private func handleTrackEnded() {
+    func handleTrackEnded() {
         logger.debug("[CF] handleTrackEnded: state=\(String(describing: self.playbackState), privacy: .public) isCrossfading=\(self.isCrossfading) activeTrack=\(self.activeSlot.trackID ?? "nil", privacy: .public) inactiveTrack=\(self.inactiveSlot.trackID ?? "nil", privacy: .public) pendingTransition=\(String(describing: self.pendingTransition), privacy: .public)")
+        // If the outgoing track reaches its end while a crossfade is still
+        // ramping, finish the crossfade now rather than dropping the callback.
+        // Otherwise the fade could wedge (both slots pinned, incoming muted).
+        if isCrossfading {
+            logger.debug("[CF] handleTrackEnded: outgoing ended mid-crossfade, force-completing")
+            completeCrossfade()
+            return
+        }
+
         // Guard against spurious callbacks (e.g. node stopped during seek or interruption)
-        guard playbackState == .playing, !isCrossfading else {
-            logger.debug("[CF] handleTrackEnded: SKIPPED (not playing or mid-crossfade)")
+        guard playbackState == .playing else {
+            logger.debug("[CF] handleTrackEnded: SKIPPED (not playing)")
             return
         }
 
@@ -431,7 +453,15 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
         cancelCrossfadeRampTimer()
         cancelCrossfadeTriggerTimer()
         if isCrossfading {
-            inactiveSlot.stop()
+            // Keep the preloaded next track loaded (just rewound and muted) rather
+            // than discarding it, so the pending transition can re-trigger when the
+            // current track reaches the crossfade point again (e.g. after the user
+            // scrubs backward mid-fade). Stopping it here would leave the engine
+            // crossfading into an empty slot — silence, with the next song never
+            // playing.
+            inactiveSlot.pause()
+            inactiveSlot.seek(to: 0)
+            inactiveSlot.volume = 0
             activeSlot.volume = 1.0
             isCrossfading = false
         }
