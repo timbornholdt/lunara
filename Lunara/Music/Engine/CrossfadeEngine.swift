@@ -34,6 +34,12 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
     private var pendingTransition: TransitionStyle?
     private var pendingTrackID: String?
 
+    /// True only while playback is paused because of an audio-session interruption
+    /// (phone call, Siri, another app). A deliberate user pause leaves this false,
+    /// so `onInterruptionEnded` never auto-resumes a pause the user asked for
+    /// (Lunara-gf5).
+    private var pausedByInterruption = false
+
     private let logger = Logger(subsystem: "holdings.chinlock.lunara", category: "CrossfadeEngine")
     private let telemetry: PlaybackTelemetryEmitting?
 
@@ -94,6 +100,7 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
 
         cancelCrossfade()
         stopElapsedTimer()
+        pausedByInterruption = false
 
         do {
             try activeSlot.load(url: url, trackID: trackID)
@@ -121,6 +128,16 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
     }
 
     func pause() {
+        // User-initiated pause (transport control / lock screen). Clear the
+        // interruption-origin flag so a later interruption-ended cannot auto-resume
+        // a deliberate pause (Lunara-gf5).
+        pausedByInterruption = false
+        performPause()
+    }
+
+    /// Pauses playback without altering `pausedByInterruption`. Callers set that
+    /// flag to record whether the pause was user- or interruption-initiated.
+    private func performPause() {
         activeSlot.pause()
         if isCrossfading {
             inactiveSlot.pause()
@@ -140,6 +157,7 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
             return
         }
 
+        pausedByInterruption = false
         activeSlot.resume()
         if isCrossfading {
             inactiveSlot.resume()
@@ -499,10 +517,19 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
 
     private func wireInterruptions() {
         audioSession.onInterruptionBegan = { [weak self] in
-            self?.pause()
+            guard let self else { return }
+            // Record that THIS pause is interruption-initiated before pausing, so
+            // it (and only it) is eligible for auto-resume when the interruption ends.
+            self.pausedByInterruption = true
+            self.performPause()
         }
-        audioSession.onInterruptionEnded = { [weak self] _ in
-            guard let self, self.playbackState == .paused else { return }
+        audioSession.onInterruptionEnded = { [weak self] shouldResume in
+            guard let self else { return }
+            let wasInterrupted = self.pausedByInterruption
+            self.pausedByInterruption = false
+            // Auto-resume only an interruption-initiated pause the system says is
+            // resumable — never a deliberate user pause (Lunara-gf5).
+            guard wasInterrupted, shouldResume, self.playbackState == .paused else { return }
             // Re-activate the audio session — the system may have deactivated it.
             try? self.audioSession.configureForPlayback()
             self.resume()
