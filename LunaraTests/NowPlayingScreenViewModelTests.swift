@@ -96,6 +96,42 @@ struct NowPlayingScreenViewModelTests {
         #expect(viewModel.snapshotCacheCountForTesting <= 2)
     }
 
+    /// Lunara-rhp: replacing the whole queue (shuffle a new artist) with the SAME
+    /// item count while currentIndex stays 0 must still refresh Up Next. The old
+    /// (index, count) dedup guard suppressed this, leaving the previous queue's
+    /// tracks showing in Up Next until the track advanced.
+    @Test
+    func upNextRefreshesWhenQueueReplacedWithSameCountAndIndex() async throws {
+        let queueA = ["a0", "a1", "a2"]
+        let queueB = ["b0", "b1", "b2"]
+
+        let queue = NowPlayingQueueMock()
+        queue.items = queueA.map { makeQueueItem(trackID: $0) }
+        queue.currentIndex = 0
+        queue.currentItem = queue.items[0]
+
+        let viewModel = makeViewModel(queue: queue, trackIDs: queueA + queueB)
+
+        // Up Next resolves to queue A's upcoming tracks (a1, a2).
+        await waitUntil { viewModel.upNextItems.map(\.id) == ["a1", "a2"] }
+        #expect(viewModel.upNextItems.map(\.id) == ["a1", "a2"])
+
+        // Shuffle a new artist: same count (3), currentIndex stays 0, all-new tracks.
+        queue.items = queueB.map { makeQueueItem(trackID: $0) }
+        queue.currentItem = queue.items[0]
+
+        // Up Next must follow to queue B's upcoming tracks (b1, b2).
+        await waitUntil { viewModel.upNextItems.map(\.id) == ["b1", "b2"] }
+        #expect(viewModel.upNextItems.map(\.id) == ["b1", "b2"])
+    }
+
+    private func waitUntil(iterations: Int = 300, _ condition: @escaping () -> Bool) async {
+        for _ in 0..<iterations {
+            if condition() { return }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+    }
+
     @Test
     func upNextArtworkIsDownsampledToThumbnailSize() async throws {
         let bigArtwork = try makeImageFile(pixelSize: 1024)

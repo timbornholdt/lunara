@@ -54,8 +54,6 @@ final class NowPlayingScreenViewModel {
     // MARK: - Private State
 
     private var resolvedTrackID: String?
-    private var resolvedUpNextIndex: Int?
-    private var resolvedUpNextCount: Int?
     private var metadataTask: Task<Void, Never>?
     private var prefetchTask: Task<Void, Never>?
     private var prefetchingTrackID: String?
@@ -334,12 +332,13 @@ final class NowPlayingScreenViewModel {
     // MARK: - Up Next Resolution
 
     private func resolveUpNextIfNeeded() {
-        let newIndex = queueManager.currentIndex
-        let newCount = queueManager.items.count
-        guard newIndex != resolvedUpNextIndex || newCount != resolvedUpNextCount else { return }
-        resolvedUpNextIndex = newIndex
-        resolvedUpNextCount = newCount
-
+        // Re-resolve on every queue change. A dedup keyed on (index, count) wrongly
+        // suppressed a full queue REPLACE that preserved both (e.g. shuffling a new
+        // artist onto the same index 0 with the same track count), leaving the prior
+        // queue's tracks in Up Next until the index later moved (Lunara-rhp). The
+        // queue only mutates on genuine changes — reconcile() never reassigns an
+        // identical array — so there is no redundant work to guard against, and the
+        // in-flight task is cancelled below.
         upNextTask?.cancel()
         // Runs at default priority: the heavy image work is already offloaded via
         // Task.detached, so this no longer hogs the main actor — and a lower QoS
