@@ -226,7 +226,9 @@ struct LibraryRepoTests {
         subject.remote.artworkURLByRawValue[relativeThumb] = resolvedThumb
         _ = try await subject.repo.refreshLibrary(reason: .appLaunch)
         await waitForArtworkRequests(on: subject.artworkPipeline, expectedOwnerIDs: ["album-1"])
-        #expect(subject.remote.artworkURLRequests == [relativeThumb])
+        // Warm-up requests a downscaled transcode URL, not the raw original (Lunara-7lt).
+        #expect(subject.remote.thumbnailURLRequests == [relativeThumb])
+        #expect(subject.remote.artworkURLRequests.isEmpty)
         #expect(subject.artworkPipeline.thumbnailRequests.first?.sourceURL == resolvedThumb)
     }
     @Test

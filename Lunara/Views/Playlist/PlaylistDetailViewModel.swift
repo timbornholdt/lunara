@@ -171,7 +171,7 @@ final class PlaylistDetailViewModel {
             }
 
             do {
-                let sourceURL = try await library.authenticatedArtworkURL(for: track.thumbURL)
+                let sourceURL = try await library.authenticatedThumbnailURL(for: track.thumbURL)
                 if let resolvedURL = try await artworkPipeline.fetchThumbnail(
                     for: track.albumID,
                     ownerKind: .album,
@@ -191,7 +191,7 @@ final class PlaylistDetailViewModel {
         Task { [weak self] in
             guard let self else { return }
             do {
-                let sourceURL = try await library.authenticatedArtworkURL(for: playlist.thumbURL)
+                let sourceURL = try await library.authenticatedThumbnailURL(for: playlist.thumbURL)
                 if let resolvedURL = try await artworkPipeline.fetchThumbnail(
                     for: playlist.plexID,
                     ownerKind: .playlist,

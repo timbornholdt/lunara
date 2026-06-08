@@ -449,6 +449,57 @@ final class PlexAPIClientTests: XCTestCase {
         XCTAssertTrue(url.path.contains("file.mp3"))
     }
 
+    // MARK: - authenticatedThumbnailURL() Tests
+
+    func test_authenticatedThumbnailURL_buildsPlexTranscodeURL_withDimensionsAndToken() async throws {
+        try authManager.setToken("thumb_token")
+
+        let url = try await client.authenticatedThumbnailURL(for: "/library/metadata/1001/thumb/123")
+
+        let resolved = try XCTUnwrap(url)
+        XCTAssertEqual(resolved.path, "/photo/:/transcode")
+        let query = resolved.query ?? ""
+        XCTAssertTrue(query.contains("width=600"), "expected width=600 in \(query)")
+        XCTAssertTrue(query.contains("height=600"), "expected height=600 in \(query)")
+        XCTAssertTrue(query.contains("X-Plex-Token=thumb_token"), "expected token in \(query)")
+    }
+
+    func test_authenticatedThumbnailURL_encodesServerRelativePathOnce_inURLParam() async throws {
+        try authManager.setToken("token")
+
+        let url = try await client.authenticatedThumbnailURL(for: "/library/metadata/1001/thumb/123")
+
+        let resolved = try XCTUnwrap(url)
+        let components = try XCTUnwrap(URLComponents(url: resolved, resolvingAgainstBaseURL: false))
+        let urlParam = components.queryItems?.first(where: { $0.name == "url" })?.value
+        // URLComponents decodes once; a single-encoded value round-trips to the raw
+        // path, a double-encoded value would surface a leftover "%2F".
+        XCTAssertEqual(urlParam, "/library/metadata/1001/thumb/123")
+    }
+
+    func test_authenticatedThumbnailURL_absoluteRawValue_usesServerRelativePath() async throws {
+        try authManager.setToken("token")
+
+        let url = try await client.authenticatedThumbnailURL(
+            for: "http://192.168.1.100:32400/library/metadata/77/thumb/9"
+        )
+
+        let resolved = try XCTUnwrap(url)
+        let components = try XCTUnwrap(URLComponents(url: resolved, resolvingAgainstBaseURL: false))
+        let urlParam = components.queryItems?.first(where: { $0.name == "url" })?.value
+        XCTAssertEqual(urlParam, "/library/metadata/77/thumb/9")
+    }
+
+    func test_authenticatedThumbnailURL_nilOrEmptyRawValue_returnsNil() async throws {
+        try authManager.setToken("token")
+
+        let nilURL = try await client.authenticatedThumbnailURL(for: nil)
+        let emptyURL = try await client.authenticatedThumbnailURL(for: "")
+
+        XCTAssertNil(nilURL)
+        XCTAssertNil(emptyURL)
+    }
+
     // MARK: - OAuth Methods Tests
 
     func test_requestPin_returnsPin() async throws {

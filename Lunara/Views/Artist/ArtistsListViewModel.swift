@@ -117,7 +117,7 @@ final class ArtistsListViewModel {
             }
 
             do {
-                let sourceURL = try await library.authenticatedArtworkURL(for: artist.thumbURL)
+                let sourceURL = try await library.authenticatedThumbnailURL(for: artist.thumbURL)
                 if let resolvedURL = try await artworkPipeline.fetchThumbnail(
                     for: artist.plexID,
                     ownerKind: .artist,

@@ -90,6 +90,7 @@ protocol LibraryRepoProtocol: AnyObject {
     func streamURL(for track: Track) async throws -> URL
     func streamURL(forKey key: String) async throws -> URL
     func authenticatedArtworkURL(for rawValue: String?) async throws -> URL?
+    func authenticatedThumbnailURL(for rawValue: String?) async throws -> URL?
     func fetchLoudnessLevels(trackID: String) async throws -> [Float]?
 }
 
@@ -126,6 +127,14 @@ extension LibraryRepoProtocol {
         }
 
         return sourceURL
+    }
+
+    /// Default for conformers (e.g. lightweight view-model test doubles) that
+    /// don't build transcode URLs. Plex's real client overrides this to return a
+    /// downscaled `/photo/:/transcode` URL; everyone else falls back to the raw
+    /// artwork URL.
+    func authenticatedThumbnailURL(for rawValue: String?) async throws -> URL? {
+        try await authenticatedArtworkURL(for: rawValue)
     }
 }
 

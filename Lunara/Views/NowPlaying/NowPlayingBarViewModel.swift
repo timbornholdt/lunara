@@ -144,7 +144,7 @@ final class NowPlayingBarViewModel {
         // thumbnail from the server if it isn't already cached locally.
         let sourceURL: URL?
         if let album = try? await library.album(id: track.albumID) {
-            sourceURL = try? await library.authenticatedArtworkURL(for: album.thumbURL)
+            sourceURL = try? await library.authenticatedThumbnailURL(for: album.thumbURL)
         } else {
             sourceURL = nil
         }

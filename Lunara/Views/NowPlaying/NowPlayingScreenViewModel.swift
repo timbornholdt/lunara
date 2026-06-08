@@ -372,7 +372,7 @@ final class NowPlayingScreenViewModel {
             let albumID = track?.albumID ?? item.trackID
             let sourceURL: URL?
             if let track, let album = try? await library.album(id: track.albumID) {
-                sourceURL = try? await library.authenticatedArtworkURL(for: album.thumbURL)
+                sourceURL = try? await library.authenticatedThumbnailURL(for: album.thumbURL)
             } else {
                 sourceURL = nil
             }

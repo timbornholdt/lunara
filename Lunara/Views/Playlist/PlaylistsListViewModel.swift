@@ -151,7 +151,7 @@ final class PlaylistsListViewModel {
             }
 
             do {
-                let sourceURL = try await library.authenticatedArtworkURL(for: playlist.thumbURL)
+                let sourceURL = try await library.authenticatedThumbnailURL(for: playlist.thumbURL)
                 if let resolvedURL = try await artworkPipeline.fetchThumbnail(
                     for: playlist.plexID,
                     ownerKind: .playlist,

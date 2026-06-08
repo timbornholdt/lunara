@@ -185,7 +185,28 @@ final class AppCoordinator {
     // MARK: - Actions
 
     func loadLibraryOnLaunch() async throws -> [Album] {
-        try await syncAlbums(refreshReason: .appLaunch)
+        await purgeLegacyArtworkCacheIfNeeded()
+        return try await syncAlbums(refreshReason: .appLaunch)
+    }
+
+    /// One-shot migration for Lunara-7lt: earlier builds cached full-resolution
+    /// originals as "thumbnails" (up to ~10MB each), which thrashed the artwork
+    /// cache and re-downloaded constantly. Thumbnails are now fetched via Plex's
+    /// photo transcoder, so wipe the cache once to evict the oversized files;
+    /// they're replaced lazily by downscaled versions. Runs before the first
+    /// library load so nothing races the wipe.
+    private func purgeLegacyArtworkCacheIfNeeded() async {
+        let migrationKey = "artworkCacheSchemaV2"
+        guard !UserDefaults.standard.bool(forKey: migrationKey) else {
+            return
+        }
+        do {
+            try await artworkPipeline.invalidateAllCache()
+            UserDefaults.standard.set(true, forKey: migrationKey)
+        } catch {
+            // Best-effort: leave the flag unset so it retries next launch. The
+            // cache also self-heals as oversized files are evicted over time.
+        }
     }
 
     func fetchAlbums() async throws -> [Album] {
