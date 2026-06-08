@@ -27,6 +27,26 @@ final class ConfigurableLibraryRepoMock: LibraryRepoProtocol {
     /// Stream keys passed to `streamURL(forKey:)`, in call order.
     var streamURLForKeyRequests: [String] = []
 
+    // Loudness (waveform) levels, with an optional gate so a test can hold the
+    // fetch open and prove artwork is applied without waiting on it.
+    var loudnessByTrackID: [String: [Float]] = [:]
+    var gateLoudnessForTrackID: String?
+    private var loudnessGateContinuation: CheckedContinuation<Void, Never>?
+
+    func releaseLoudnessGate() {
+        let continuation = loudnessGateContinuation
+        loudnessGateContinuation = nil
+        gateLoudnessForTrackID = nil
+        continuation?.resume()
+    }
+
+    func fetchLoudnessLevels(trackID: String) async throws -> [Float]? {
+        if trackID == gateLoudnessForTrackID {
+            await withCheckedContinuation { loudnessGateContinuation = $0 }
+        }
+        return loudnessByTrackID[trackID]
+    }
+
     func albums(page: LibraryPage) async throws -> [Album] {
         guard page.offset < allAlbums.count else { return [] }
         let end = min(page.offset + page.size, allAlbums.count)

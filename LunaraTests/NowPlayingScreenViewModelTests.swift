@@ -132,6 +132,72 @@ struct NowPlayingScreenViewModelTests {
         }
     }
 
+    /// Lunara-uww.7.6: the full-size Now Playing artwork must be downsample-decoded
+    /// (bounded), not a full-resolution decode of the original.
+    @Test
+    func nowPlayingArtworkIsDownsampled() async throws {
+        let bigArtwork = try makeImageFile(pixelSize: 2048)
+        defer { try? FileManager.default.removeItem(at: bigArtwork) }
+
+        let queue = NowPlayingQueueMock()
+        queue.items = [makeQueueItem(trackID: "t0")]
+        queue.currentIndex = 0
+        queue.currentItem = queue.items[0]
+
+        let library = ConfigurableLibraryRepoMock()
+        library.tracksByID["t0"] = makeTrack(id: "t0", albumID: "al-t0")
+        library.albumsByID["al-t0"] = makeAlbum(id: "al-t0")
+        let artwork = ArtworkPipelineMock()
+        artwork.fullSizeResultByOwnerID["al-t0"] = bigArtwork
+
+        let viewModel = NowPlayingScreenViewModel(
+            queueManager: queue, engine: PlaybackEngineMock(),
+            library: library, artworkPipeline: artwork
+        )
+
+        await waitUntil { viewModel.artworkImage != nil }
+        let image = try #require(viewModel.artworkImage)
+        let cg = try #require(image.cgImage)
+        // Downsampled to ~1024px, far below the 2048px source.
+        #expect(max(cg.width, cg.height) <= 1100)
+    }
+
+    /// Lunara-uww.7.6: artwork must be applied as soon as it's decoded, WITHOUT
+    /// waiting on the (potentially slow) loudness/waveform fetch.
+    @Test
+    func artworkAppliesBeforeLoudnessResolves() async throws {
+        let art = try makeImageFile(pixelSize: 256)
+        defer { try? FileManager.default.removeItem(at: art) }
+
+        let queue = NowPlayingQueueMock()
+        queue.items = [makeQueueItem(trackID: "t0")]
+        queue.currentIndex = 0
+        queue.currentItem = queue.items[0]
+
+        let library = ConfigurableLibraryRepoMock()
+        library.tracksByID["t0"] = makeTrack(id: "t0", albumID: "al-t0")
+        library.albumsByID["al-t0"] = makeAlbum(id: "al-t0")
+        library.loudnessByTrackID["t0"] = [0.1, 0.2, 0.3]
+        library.gateLoudnessForTrackID = "t0" // hold the waveform fetch open
+        let artwork = ArtworkPipelineMock()
+        artwork.fullSizeResultByOwnerID["al-t0"] = art
+
+        let viewModel = NowPlayingScreenViewModel(
+            queueManager: queue, engine: PlaybackEngineMock(),
+            library: library, artworkPipeline: artwork
+        )
+
+        // Artwork appears while loudness is still gated; the waveform is not yet set.
+        await waitUntil { viewModel.artworkImage != nil }
+        #expect(viewModel.artworkImage != nil)
+        #expect(viewModel.waveformLevels == nil)
+
+        // Release the waveform fetch; it then populates.
+        library.releaseLoudnessGate()
+        await waitUntil { viewModel.waveformLevels != nil }
+        #expect(viewModel.waveformLevels == [0.1, 0.2, 0.3])
+    }
+
     @Test
     func upNextArtworkIsDownsampledToThumbnailSize() async throws {
         let bigArtwork = try makeImageFile(pixelSize: 1024)

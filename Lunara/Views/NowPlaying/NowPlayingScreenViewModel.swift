@@ -60,6 +60,10 @@ final class NowPlayingScreenViewModel {
     private var upNextTask: Task<Void, Never>?
     private var snapshotCache: [String: TrackSnapshot] = [:]
 
+    /// Max pixel dimension the hero artwork is downsampled to on decode. Bounds the
+    /// decode cost (the original Plex art is untranscoded/multi-MB) while staying
+    /// crisp at the near-full-width display size.
+    private static let fullArtMaxPixelSize = 1024
     /// Rendered size of an up-next row thumbnail; artwork is downsampled to this.
     private static let upNextThumbnailPointSize = CGSize(width: 40, height: 40)
     /// Fixed display scale used when downsampling (matches the target device; keeps decoding deterministic).
@@ -183,12 +187,33 @@ final class NowPlayingScreenViewModel {
         guard !Task.isCancelled else { return }
         applyTextClearingVisuals(track: track, album: album)
 
-        // Phase 2 — resolve artwork, palette, artist and waveform (slow: network
-        // fetch + off-main decode) and apply them once ready.
-        guard let snapshot = await buildSnapshot(track: track, album: album) else { return }
+        // Start the slower, independent legs in parallel so none gates the others.
+        async let artistTask = resolveArtist(forName: track.artistName)
+        async let levelsTask = resolveLoudness(plexID: track.plexID)
+
+        // Phase 2a — artwork + palette: apply the moment the image is decoded, so it
+        // is never held behind the artist/loudness fetches.
+        let (image, palette) = await resolveArtwork(track: track, album: album)
         guard !Task.isCancelled else { return }
-        snapshotCache[trackID] = snapshot
-        applySnapshot(snapshot)
+        applyArtwork(image: image, palette: palette)
+
+        // Phase 2b — artist + waveform, applied when they arrive.
+        let artist = await artistTask
+        let levels = await levelsTask
+        guard !Task.isCancelled else { return }
+        applyArtistAndWaveform(artist: artist, levels: levels)
+
+        snapshotCache[trackID] = TrackSnapshot(
+            trackTitle: track.title,
+            artistName: track.artistName,
+            albumTitle: album?.title,
+            albumID: track.albumID,
+            artworkImage: image,
+            palette: palette,
+            album: album,
+            artist: artist,
+            waveformLevels: levels
+        )
         evictStaleSnapshots()
         prefetchNextTrack()
     }
@@ -224,20 +249,26 @@ final class NowPlayingScreenViewModel {
         }
     }
 
-    /// Builds a complete snapshot with all display data resolved. The CPU-heavy
-    /// image decode + palette extraction run off the main actor. Returns nil if the
-    /// task is cancelled.
-    private func buildSnapshot(track: Track, album: Album?) async -> TrackSnapshot? {
-        // Resolve artist
-        let artist: Artist?
-        if let artists = try? await library.searchArtists(query: track.artistName) {
-            artist = artists.first { $0.name == track.artistName }
-        } else {
-            artist = nil
+    private func applyArtwork(image: UIImage?, palette: ArtworkPaletteTheme) {
+        withAnimation(.easeInOut(duration: 0.3)) {
+            artworkImage = image
+            self.palette = palette
         }
-        guard !Task.isCancelled else { return nil }
+    }
 
-        // Fetch full-size artwork source
+    private func applyArtistAndWaveform(artist: Artist?, levels: [Float]?) {
+        withAnimation(.easeInOut(duration: 0.3)) {
+            currentArtist = artist
+            waveformLevels = levels
+        }
+    }
+
+    // MARK: - Resolution helpers (shared by the live apply path and prefetch)
+
+    /// Fetches the full-size album art and decodes it OFF the main actor. The decode
+    /// is DOWNSAMPLED to a display-bounded size (not a full-resolution decode of the
+    /// multi-MB original), which is the dominant cost the lock screen/bar already avoid.
+    private func resolveArtwork(track: Track, album: Album?) async -> (image: UIImage?, palette: ArtworkPaletteTheme) {
         let sourceURL: URL?
         if let album {
             sourceURL = try? await library.authenticatedArtworkURL(for: album.thumbURL)
@@ -250,20 +281,37 @@ final class NowPlayingScreenViewModel {
             ownerKind: .album,
             sourceURL: sourceURL
         )
-        guard !Task.isCancelled else { return nil }
 
-        // Decode the image and extract its palette OFF the main actor (both are
-        // CPU-heavy and would otherwise stall the UI / starve other resolution).
-        let decoded: (image: UIImage?, palette: ArtworkPaletteTheme) = await Task.detached {
-            if let fileURL, let data = try? Data(contentsOf: fileURL), let img = UIImage(data: data) {
+        let maxPixelSize = Self.fullArtMaxPixelSize
+        return await Task.detached {
+            if let fileURL,
+               let img = DownsamplingImageLoader.load(contentsOf: fileURL, maxPixelSize: maxPixelSize) {
                 return (img, ArtworkPaletteExtractor.extract(from: img))
             }
             return (nil, .default)
         }.value
+    }
+
+    private func resolveArtist(forName name: String) async -> Artist? {
+        guard let artists = try? await library.searchArtists(query: name) else { return nil }
+        return artists.first { $0.name == name }
+    }
+
+    private func resolveLoudness(plexID: String) async -> [Float]? {
+        try? await library.fetchLoudnessLevels(trackID: plexID)
+    }
+
+    /// Builds a complete snapshot with all display data resolved (used by prefetch).
+    /// The independent legs run concurrently. Returns nil if the task is cancelled.
+    private func buildSnapshot(track: Track, album: Album?) async -> TrackSnapshot? {
+        async let artistTask = resolveArtist(forName: track.artistName)
+        async let levelsTask = resolveLoudness(plexID: track.plexID)
+
+        let (image, palette) = await resolveArtwork(track: track, album: album)
         guard !Task.isCancelled else { return nil }
 
-        // Fetch waveform loudness levels
-        let levels = try? await library.fetchLoudnessLevels(trackID: track.plexID)
+        let artist = await artistTask
+        let levels = await levelsTask
         guard !Task.isCancelled else { return nil }
 
         return TrackSnapshot(
@@ -271,8 +319,8 @@ final class NowPlayingScreenViewModel {
             artistName: track.artistName,
             albumTitle: album?.title,
             albumID: track.albumID,
-            artworkImage: decoded.image,
-            palette: decoded.palette,
+            artworkImage: image,
+            palette: palette,
             album: album,
             artist: artist,
             waveformLevels: levels
