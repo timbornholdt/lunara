@@ -239,4 +239,67 @@ struct CrossfadeEngineTests {
         #expect(engine.currentTrackID == "B")
         #expect(incoming.volume == 1.0)
     }
+
+    // MARK: - Lunara-gf5: a USER pause must not be auto-resumed when an audio
+    // interruption ends. Only an interruption-initiated pause may auto-resume,
+    // and only when the system reports shouldResume == true.
+
+    /// Builds an engine playing track "A", returning the engine and the audio
+    /// session stub so tests can fire interruption began/ended callbacks.
+    private func makeSingleTrackEngine() -> (engine: CrossfadeEngine, session: AudioSessionStub) {
+        let session = AudioSessionStub()
+        let engine = CrossfadeEngine(
+            audioSession: session,
+            slotFactory: { MockPlayerSlot() }
+        )
+        engine.play(url: URL(string: "file:///a.mp3")!, trackID: "A")
+        return (engine, session)
+    }
+
+    @Test
+    func manualPause_thenInterruptionEnded_doesNotAutoResume() {
+        let (engine, session) = makeSingleTrackEngine()
+
+        engine.pause() // user pause (e.g. lock-screen Pause)
+        #expect(engine.playbackState == .paused)
+
+        // A later interruption ends and reports it is resumable.
+        session.onInterruptionEnded?(true)
+
+        // The user paused — playback must stay paused.
+        #expect(engine.playbackState == .paused)
+    }
+
+    @Test
+    func interruptionPause_thenEndedShouldResumeTrue_resumes() {
+        let (engine, session) = makeSingleTrackEngine()
+
+        session.onInterruptionBegan?()
+        #expect(engine.playbackState == .paused)
+
+        session.onInterruptionEnded?(true)
+        #expect(engine.playbackState == .playing)
+    }
+
+    @Test
+    func interruptionPause_thenEndedShouldResumeFalse_staysPaused() {
+        let (engine, session) = makeSingleTrackEngine()
+
+        session.onInterruptionBegan?()
+        session.onInterruptionEnded?(false)
+
+        #expect(engine.playbackState == .paused)
+    }
+
+    @Test
+    func userPauseDuringInterruption_isNotAutoResumedOnEnded() {
+        let (engine, session) = makeSingleTrackEngine()
+
+        session.onInterruptionBegan?()       // interruption pauses us
+        engine.pause()                        // user then explicitly pauses too
+        session.onInterruptionEnded?(true)    // interruption ends, resumable
+
+        // The last intent was a user pause — stay paused.
+        #expect(engine.playbackState == .paused)
+    }
 }
