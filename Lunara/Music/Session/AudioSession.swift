@@ -59,7 +59,11 @@ final class AudioSession: AudioSessionProtocol {
 
     func configureForPlayback() throws {
         do {
-            try audioSession.setCategory(.playback, mode: .default, options: [.duckOthers])
+            // Plain `.playback` (no `.duckOthers`): interrupt other audio and claim
+            // the system Now Playing slot, so the lock screen / Control Center bind to
+            // Lunara. `.duckOthers` left the session mixable — other apps kept playing
+            // (ducked) and retained the Now Playing slot (Lunara-d12).
+            try audioSession.setCategory(.playback, mode: .default, options: [])
             try audioSession.setActive(true, options: [])
         } catch {
             throw MusicError.audioSessionFailed
