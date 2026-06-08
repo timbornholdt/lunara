@@ -1,5 +1,7 @@
 import Foundation
+import MediaPlayer
 import Testing
+import UIKit
 @testable import Lunara
 
 @MainActor
@@ -34,6 +36,137 @@ struct NowPlayingBridgeTests {
             artwork: artwork
         )
         #expect(bridge != nil)
+    }
+
+    // MARK: - Lunara-wtj: lock-screen metadata must follow the QUEUE promptly and
+    // never stall behind a slow artwork fetch.
+
+    /// Builds a configured bridge with the library seeded for the given track IDs
+    /// (each track t<i> belongs to album "al-t<i>"). Returns the bridge + mocks +
+    /// the QueueItems so tests can drive `queue.currentItem`.
+    private func makeBridge(
+        trackIDs: [String]
+    ) -> (
+        bridge: NowPlayingBridge,
+        engine: PlaybackEngineMock,
+        queue: NowPlayingQueueMock,
+        library: NowPlayingLibraryMock,
+        artwork: ArtworkPipelineMock,
+        items: [String: QueueItem]
+    ) {
+        let engine = PlaybackEngineMock()
+        let queue = NowPlayingQueueMock()
+        let library = NowPlayingLibraryMock()
+        let artwork = ArtworkPipelineMock()
+        var items: [String: QueueItem] = [:]
+        for id in trackIDs {
+            let albumID = "al-\(id)"
+            library.trackByID[id] = Track(
+                plexID: id, albumID: albumID, title: "Track \(id)", trackNumber: 1,
+                duration: 180, artistName: "Artist", key: "/library/metadata/\(id)", thumbURL: nil
+            )
+            library.albumByID[albumID] = Album(
+                plexID: albumID, title: "Album \(albumID)", artistName: "Artist", year: nil,
+                thumbURL: nil, genre: nil, rating: nil, addedAt: nil, trackCount: 1, duration: 180
+            )
+            items[id] = QueueItem(trackID: id, streamKey: "/library/metadata/\(id)", albumID: albumID)
+        }
+        let bridge = NowPlayingBridge(engine: engine, queue: queue, library: library, artwork: artwork)
+        return (bridge, engine, queue, library, artwork, items)
+    }
+
+    private func makeImageFile() throws -> URL {
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8))
+        let image = renderer.image { ctx in
+            UIColor.systemTeal.setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
+        }
+        let data = try #require(image.pngData())
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("npb-\(UUID().uuidString).png")
+        try data.write(to: url)
+        return url
+    }
+
+    private func waitUntil(iterations: Int = 300, _ condition: @escaping () -> Bool) async {
+        for _ in 0..<iterations {
+            if condition() { return }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+    }
+
+    @Test
+    func trackChange_publishesNewTrack_withoutWaitingOnPendingArtwork() async {
+        let env = makeBridge(trackIDs: ["t0", "t1"])
+        env.artwork.gateFullSizeForOwnerID = "al-t0" // t0 artwork never returns
+        env.bridge.configure()
+
+        env.queue.currentItem = env.items["t0"]
+        await waitUntil { env.artwork.fullSizeRequests.contains { $0.ownerID == "al-t0" } }
+
+        // Skip to t1 WITHOUT releasing the t0 artwork gate.
+        env.queue.currentItem = env.items["t1"]
+        await waitUntil { env.artwork.fullSizeRequests.contains { $0.ownerID == "al-t1" } }
+
+        #expect(env.artwork.fullSizeRequests.contains { $0.ownerID == "al-t1" })
+        env.artwork.releaseFullSizeGate()
+    }
+
+    @Test
+    func identityDrivenByQueue_notLateEngineSignal() async {
+        let env = makeBridge(trackIDs: ["t0", "t1"])
+        env.engine.currentTrackID = "t0" // engine lagging on the old track
+        env.bridge.configure()
+
+        env.queue.currentItem = env.items["t1"]
+
+        await waitUntil { env.bridge.lastPublishedTrackIDForTesting == "t1" }
+        #expect(env.bridge.lastPublishedTrackIDForTesting == "t1")
+    }
+
+    @Test
+    func artworkApplies_whenEngineLagsBehindQueue() async throws {
+        let env = makeBridge(trackIDs: ["t0", "t1"])
+        let art = try makeImageFile()
+        defer { try? FileManager.default.removeItem(at: art) }
+        env.artwork.fullSizeResultByOwnerID["al-t1"] = art
+        env.engine.currentTrackID = "t0" // engine still on the old track
+        env.bridge.configure()
+
+        env.queue.currentItem = env.items["t1"]
+
+        await waitUntil { env.bridge.lastPublishHadArtworkForTesting }
+        #expect(env.bridge.lastPublishHadArtworkForTesting)
+    }
+
+    @Test
+    func rapidSkip_landsOnFinalTrack() async {
+        let env = makeBridge(trackIDs: ["t0", "t1", "t2"])
+        env.bridge.configure()
+
+        env.queue.currentItem = env.items["t0"]
+        env.queue.currentItem = env.items["t1"]
+        env.queue.currentItem = env.items["t2"]
+
+        await waitUntil { env.bridge.lastPublishedTrackIDForTesting == "t2" }
+        #expect(env.bridge.lastPublishedTrackIDForTesting == "t2")
+    }
+
+    @Test
+    func pause_doesNotRepublishOrRefetch() async {
+        let env = makeBridge(trackIDs: ["t0"])
+        env.bridge.configure()
+
+        env.queue.currentItem = env.items["t0"]
+        await waitUntil { env.bridge.lastPublishedTrackIDForTesting == "t0" }
+        let requestsAfterPublish = env.artwork.fullSizeRequests.count
+
+        env.engine.playbackState = .paused
+        // Give any erroneous re-publish a chance to fire.
+        try? await Task.sleep(nanoseconds: 50_000_000)
+
+        #expect(env.bridge.lastPublishedTrackIDForTesting == "t0")
+        #expect(env.artwork.fullSizeRequests.count == requestsAfterPublish)
     }
 }
 

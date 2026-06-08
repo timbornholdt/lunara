@@ -29,6 +29,20 @@ final class ArtworkPipelineMock: ArtworkPipelineProtocol {
     private(set) var invalidatedOwners: [InvalidateOwnerRequest] = []
     private(set) var invalidateAllCallCount = 0
 
+    /// When set, a `fetchFullSize` for this ownerID records its request and then
+    /// suspends until `releaseFullSizeGate()` is called — used to model a slow /
+    /// never-returning artwork fetch so tests can prove a track change isn't
+    /// blocked behind it.
+    var gateFullSizeForOwnerID: String?
+    private var fullSizeGateContinuation: CheckedContinuation<Void, Never>?
+
+    func releaseFullSizeGate() {
+        let continuation = fullSizeGateContinuation
+        fullSizeGateContinuation = nil
+        gateFullSizeForOwnerID = nil
+        continuation?.resume()
+    }
+
     func fetchThumbnail(for ownerID: String, ownerKind: ArtworkOwnerKind, sourceURL: URL?) async throws -> URL? {
         if let fetchThumbnailError {
             throw fetchThumbnailError
@@ -48,6 +62,13 @@ final class ArtworkPipelineMock: ArtworkPipelineProtocol {
         fullSizeRequests.append(
             FetchRequest(ownerID: ownerID, ownerKind: ownerKind, sourceURL: sourceURL)
         )
+
+        if ownerID == gateFullSizeForOwnerID {
+            await withCheckedContinuation { continuation in
+                fullSizeGateContinuation = continuation
+            }
+        }
+
         return fullSizeResultByOwnerID[ownerID] ?? nil
     }
 

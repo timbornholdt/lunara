@@ -20,6 +20,17 @@ final class NowPlayingBridge {
     private var lastPublishHadArtwork = false
     private var observationTask: Task<Void, Never>?
     private var artworkRetryTask: Task<Void, Never>?
+    /// The in-flight per-track publish (metadata + artwork). Cancelled and replaced
+    /// when the current track changes, so a slow artwork fetch never blocks the next
+    /// track's publish (Lunara-wtj).
+    private var publishTask: Task<Void, Never>?
+
+    #if DEBUG
+    /// Test hook: the track ID the bridge has most recently published metadata for.
+    var lastPublishedTrackIDForTesting: String? { lastPublishedTrackID }
+    /// Test hook: whether the most recent publish applied artwork successfully.
+    var lastPublishHadArtworkForTesting: Bool { lastPublishHadArtwork }
+    #endif
 
     init(
         engine: PlaybackEngineProtocol,
@@ -36,6 +47,7 @@ final class NowPlayingBridge {
     deinit {
         observationTask?.cancel()
         artworkRetryTask?.cancel()
+        publishTask?.cancel()
     }
 
     // MARK: - Public
@@ -90,25 +102,25 @@ final class NowPlayingBridge {
         observationTask = Task { [weak self] in
             guard let self else { return }
             while !Task.isCancelled {
-                let trackID = self.engine.currentTrackID
+                // Identity comes from the QUEUE, which advances immediately on a
+                // skip/auto-advance — unlike engine.currentTrackID, which the engine
+                // only sets after resolving + loading the track (Lunara-wtj).
+                let trackID = self.queue.currentItem?.trackID
                 let state = self.engine.playbackState
                 let elapsed = self.engine.elapsed
                 let duration = self.engine.duration
-                let queueIndex = self.queue.currentIndex
 
-                await self.handleStateChange(
+                self.handleStateChange(
                     trackID: trackID,
                     state: state,
                     elapsed: elapsed,
-                    duration: duration,
-                    queueIndex: queueIndex
+                    duration: duration
                 )
 
                 await withCheckedContinuation { continuation in
                     withObservationTracking {
-                        _ = self.engine.currentTrackID
+                        _ = self.queue.currentItem
                         _ = self.engine.playbackState
-                        _ = self.queue.currentIndex
                     } onChange: {
                         continuation.resume()
                     }
@@ -117,43 +129,44 @@ final class NowPlayingBridge {
         }
     }
 
-    /// Tracks the queue index from the last publish so we detect skip-back-to-same-track.
-    private var lastPublishedQueueIndex: Int?
-
+    /// Synchronous: on a track change it spawns a cancellable `publishTask` and
+    /// returns immediately, so the observation loop re-arms without waiting on the
+    /// (possibly slow) artwork fetch. A non-track change just updates position.
     private func handleStateChange(
         trackID: String?,
         state: PlaybackState,
         elapsed: TimeInterval,
-        duration: TimeInterval,
-        queueIndex: Int?
-    ) async {
+        duration: TimeInterval
+    ) {
         guard let trackID else {
+            publishTask?.cancel()
+            artworkRetryTask?.cancel()
             clearNowPlayingInfo()
             return
         }
 
-        let isNewTrack = trackID != lastPublishedTrackID
-        let queueIndexChanged = queueIndex != lastPublishedQueueIndex
-
-        if isNewTrack || queueIndexChanged {
-            lastPublishedTrackID = trackID
-            lastPublishedQueueIndex = queueIndex
-            lastPublishHadArtwork = false
-            artworkRetryTask?.cancel()
-            await publishMetadata(trackID: trackID, state: state, elapsed: elapsed, duration: duration)
-        } else {
+        guard trackID != lastPublishedTrackID else {
             updatePlaybackPosition(state: state, elapsed: elapsed, duration: duration)
+            return
+        }
+
+        // Record the new track BEFORE spawning, so a rapid follow-up skip's publish
+        // guard (trackID == lastPublishedTrackID) rejects this now-superseded one.
+        lastPublishedTrackID = trackID
+        lastPublishHadArtwork = false
+        artworkRetryTask?.cancel()
+        publishTask?.cancel()
+        publishTask = Task { [weak self] in
+            await self?.publishMetadata(trackID: trackID, state: state)
         }
     }
 
     // MARK: - Now Playing Info
 
-    private func publishMetadata(
-        trackID: String,
-        state: PlaybackState,
-        elapsed: TimeInterval,
-        duration: TimeInterval
-    ) async {
+    /// Publishes the new track's text immediately, then resolves artwork. Runs
+    /// inside the cancellable `publishTask`; the post-await guards drop a publish
+    /// that a newer track change has already superseded (cancellation is cooperative).
+    private func publishMetadata(trackID: String, state: PlaybackState) async {
         let track: Track?
         do {
             track = try await library.track(id: trackID)
@@ -161,11 +174,7 @@ final class NowPlayingBridge {
             logger.error("Failed to look up track \(trackID, privacy: .public): \(error.localizedDescription, privacy: .public)")
             track = nil
         }
-
-        guard let track else {
-            updatePlaybackPosition(state: state, elapsed: elapsed, duration: duration)
-            return
-        }
+        guard !Task.isCancelled, trackID == lastPublishedTrackID, let track else { return }
 
         let album: Album?
         do {
@@ -174,12 +183,16 @@ final class NowPlayingBridge {
             logger.error("Failed to look up album \(track.albumID, privacy: .public): \(error.localizedDescription, privacy: .public)")
             album = nil
         }
+        guard !Task.isCancelled, trackID == lastPublishedTrackID else { return }
 
+        // Fresh track: start the scrubber at 0 against the track's own duration. The
+        // engine may not have started this track yet, so its elapsed/duration still
+        // describe the outgoing track; updatePlaybackPosition reconciles once it does.
         var info: [String: Any] = [
             MPMediaItemPropertyTitle: track.title,
             MPMediaItemPropertyArtist: track.artistName,
-            MPMediaItemPropertyPlaybackDuration: duration,
-            MPNowPlayingInfoPropertyElapsedPlaybackTime: elapsed,
+            MPMediaItemPropertyPlaybackDuration: track.duration,
+            MPNowPlayingInfoPropertyElapsedPlaybackTime: 0,
             MPNowPlayingInfoPropertyPlaybackRate: state == .playing ? 1.0 : 0.0
         ]
 
@@ -221,7 +234,7 @@ final class NowPlayingBridge {
     }
 
     private func applyArtwork(_ image: UIImage, forTrackID trackID: String) {
-        guard engine.currentTrackID == trackID,
+        guard trackID == lastPublishedTrackID,
               var current = MPNowPlayingInfoCenter.default().nowPlayingInfo else { return }
         let artworkItem = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
         current[MPMediaItemPropertyArtwork] = artworkItem
@@ -233,7 +246,7 @@ final class NowPlayingBridge {
         artworkRetryTask?.cancel()
         artworkRetryTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(Double(attempt) * 2))
-            guard let self, !Task.isCancelled, self.engine.currentTrackID == trackID else { return }
+            guard let self, !Task.isCancelled, self.lastPublishedTrackID == trackID else { return }
             await self.loadAndApplyArtwork(album: album, forTrackID: trackID)
             if !self.lastPublishHadArtwork {
                 self.scheduleArtworkRetry(album: album, forTrackID: trackID, attempt: attempt + 1)
@@ -251,7 +264,6 @@ final class NowPlayingBridge {
 
     private func clearNowPlayingInfo() {
         lastPublishedTrackID = nil
-        lastPublishedQueueIndex = nil
         lastPublishHadArtwork = false
         artworkRetryTask?.cancel()
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
