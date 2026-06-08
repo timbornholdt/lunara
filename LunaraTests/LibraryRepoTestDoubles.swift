@@ -142,6 +142,19 @@ final class LibraryRemoteMock: LibraryRemoteDataSource {
         return artworkURLByRawValue[rawValue]
     }
 
+    var thumbnailURLRequests: [String?] = []
+
+    func authenticatedThumbnailURL(for rawValue: String?) async throws -> URL? {
+        thumbnailURLRequests.append(rawValue)
+        if let artworkURLError {
+            throw artworkURLError
+        }
+        guard let rawValue else {
+            return nil
+        }
+        return artworkURLByRawValue[rawValue]
+    }
+
     var addToPlaylistRequests: [(String, String)] = []
     var removeFromPlaylistRequests: [(String, String)] = []
     var addToPlaylistError: LibraryError?

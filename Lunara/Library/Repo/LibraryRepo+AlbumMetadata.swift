@@ -150,7 +150,7 @@ extension LibraryRepo {
     func preloadThumbnailArtwork(for albums: [Album]) async {
         for album in albums {
             do {
-                let sourceURL = try await remote.authenticatedArtworkURL(for: album.thumbURL)
+                let sourceURL = try await remote.authenticatedThumbnailURL(for: album.thumbURL)
                 _ = try await artworkPipeline.fetchThumbnail(
                     for: album.plexID,
                     ownerKind: .album,
@@ -203,7 +203,7 @@ extension LibraryRepo {
                     thumbURL: album.thumbURL,
                     forceWarm: thumbnailChanged || previousAlbum == nil
                 ) {
-                    let sourceURL = try await remote.authenticatedArtworkURL(for: album.thumbURL)
+                    let sourceURL = try await remote.authenticatedThumbnailURL(for: album.thumbURL)
                     _ = try await artworkPipeline.fetchThumbnail(
                         for: album.plexID,
                         ownerKind: .album,

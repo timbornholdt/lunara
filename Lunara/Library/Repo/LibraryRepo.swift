@@ -30,6 +30,7 @@ protocol LibraryRemoteDataSource: AnyObject {
     func streamURL(forTrack track: Track) async throws -> URL
     func streamURL(forKey key: String) async throws -> URL
     func authenticatedArtworkURL(for rawValue: String?) async throws -> URL?
+    func authenticatedThumbnailURL(for rawValue: String?) async throws -> URL?
     func fetchLoudnessLevels(trackID: String, sampleCount: Int) async throws -> [Float]?
     func addToPlaylist(playlistID: String, ratingKey: String) async throws
     func removeFromPlaylist(playlistID: String, playlistItemID: String) async throws
@@ -240,6 +241,16 @@ final class LibraryRepo: LibraryRepoProtocol {
     func authenticatedArtworkURL(for rawValue: String?) async throws -> URL? {
         do {
             return try await remote.authenticatedArtworkURL(for: rawValue)
+        } catch let error as LibraryError {
+            throw error
+        } catch {
+            throw LibraryError.operationFailed(reason: "Artwork URL resolution failed: \(error.localizedDescription)")
+        }
+    }
+
+    func authenticatedThumbnailURL(for rawValue: String?) async throws -> URL? {
+        do {
+            return try await remote.authenticatedThumbnailURL(for: rawValue)
         } catch let error as LibraryError {
             throw error
         } catch {

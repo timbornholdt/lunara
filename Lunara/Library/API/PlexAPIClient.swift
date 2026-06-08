@@ -184,6 +184,71 @@ final class PlexAPIClient: PlexAuthAPIProtocol {
         return components.url
     }
 
+    /// Square pixel size requested for grid/list thumbnails. Covers the largest
+    /// thumbnail cell (220pt album cards @3x ≈ 660px); `upscale=0` avoids
+    /// enlarging smaller source art.
+    private static let thumbnailPixelSize = 600
+
+    /// Builds a Plex photo-transcode URL that returns a downscaled thumbnail
+    /// instead of the full-resolution original art. Without this, grid cells
+    /// download multi-MB originals that blow past the artwork cache cap and
+    /// thrash (Lunara-7lt).
+    func authenticatedThumbnailURL(for rawValue: String?) async throws -> URL? {
+        guard let rawValue, !rawValue.isEmpty else {
+            return nil
+        }
+
+        let token = try await authManager.validToken()
+
+        // The transcoder resolves the original art on this same server, so the
+        // `url` param must be a server-relative path. Passing an absolute URL
+        // would make Plex re-fetch it unauthenticated and fail.
+        guard let relativePath = serverRelativeArtworkPath(for: rawValue) else {
+            return nil
+        }
+
+        guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
+            return nil
+        }
+        components.path = "/photo/:/transcode"
+        // Set via URLQueryItem so URLComponents percent-encodes the `url` value
+        // exactly once; manual encoding here would double-encode and Plex 400s.
+        components.queryItems = [
+            URLQueryItem(name: "width", value: "\(Self.thumbnailPixelSize)"),
+            URLQueryItem(name: "height", value: "\(Self.thumbnailPixelSize)"),
+            URLQueryItem(name: "minSize", value: "1"),
+            URLQueryItem(name: "upscale", value: "0"),
+            URLQueryItem(name: "url", value: relativePath),
+            URLQueryItem(name: "X-Plex-Token", value: token)
+        ]
+        return components.url
+    }
+
+    /// Resolves a raw Plex art reference (absolute URL, "/"-prefixed, or bare
+    /// path) down to a server-relative path + query suitable for the transcoder's
+    /// `url` parameter.
+    private func serverRelativeArtworkPath(for rawValue: String) -> String? {
+        let initialURL: URL?
+        if let parsed = URL(string: rawValue), parsed.scheme != nil {
+            initialURL = parsed
+        } else if rawValue.hasPrefix("/") {
+            initialURL = URL(string: rawValue, relativeTo: baseURL)?.absoluteURL
+        } else {
+            initialURL = URL(string: "/\(rawValue)", relativeTo: baseURL)?.absoluteURL
+        }
+
+        guard let resolved = initialURL,
+              let components = URLComponents(url: resolved, resolvingAgainstBaseURL: false),
+              !components.path.isEmpty else {
+            return nil
+        }
+
+        if let query = components.query, !query.isEmpty {
+            return "\(components.path)?\(query)"
+        }
+        return components.path
+    }
+
     /// Request a new PIN for user authorization
     func requestPin() async throws -> PlexPinResponse {
         let url = URL(string: "https://plex.tv/api/v2/pins")!

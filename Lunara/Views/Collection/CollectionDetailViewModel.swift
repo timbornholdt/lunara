@@ -186,7 +186,7 @@ final class CollectionDetailViewModel {
             }
 
             do {
-                let sourceURL = try await library.authenticatedArtworkURL(for: album.thumbURL)
+                let sourceURL = try await library.authenticatedThumbnailURL(for: album.thumbURL)
                 if let resolvedURL = try await artworkPipeline.fetchThumbnail(
                     for: album.plexID,
                     ownerKind: .album,

@@ -123,7 +123,7 @@ final class CollectionsListViewModel {
             }
 
             do {
-                let sourceURL = try await library.authenticatedArtworkURL(for: collection.thumbURL)
+                let sourceURL = try await library.authenticatedThumbnailURL(for: collection.thumbURL)
                 if let resolvedURL = try await artworkPipeline.fetchThumbnail(
                     for: collection.plexID,
                     ownerKind: .collection,
