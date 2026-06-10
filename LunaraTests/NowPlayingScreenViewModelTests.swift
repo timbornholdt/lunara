@@ -71,7 +71,7 @@ struct NowPlayingScreenViewModelTests {
             queueManager: queue,
             engine: PlaybackEngineMock(),
             library: library,
-            artworkPipeline: ArtworkPipelineMock()
+            resolver: NowPlayingResolver(library: library, artwork: ArtworkPipelineMock())
         )
     }
 
@@ -152,7 +152,7 @@ struct NowPlayingScreenViewModelTests {
 
         let viewModel = NowPlayingScreenViewModel(
             queueManager: queue, engine: PlaybackEngineMock(),
-            library: library, artworkPipeline: artwork
+            library: library, resolver: NowPlayingResolver(library: library, artwork: artwork)
         )
 
         await waitUntil { viewModel.artworkImage != nil }
@@ -184,7 +184,7 @@ struct NowPlayingScreenViewModelTests {
 
         let viewModel = NowPlayingScreenViewModel(
             queueManager: queue, engine: PlaybackEngineMock(),
-            library: library, artworkPipeline: artwork
+            library: library, resolver: NowPlayingResolver(library: library, artwork: artwork)
         )
 
         // Artwork appears while loudness is still gated; the waveform is not yet set.
@@ -209,15 +209,17 @@ struct NowPlayingScreenViewModelTests {
 
         let engine = PlaybackEngineMock()
         let library = ConfigurableLibraryRepoMock()
+        library.tracksByID["next"] = makeTrack(id: "next", albumID: "al-next")
+        library.albumsByID["al-next"] = makeAlbum(id: "al-next")
         let artwork = ArtworkPipelineMock()
-        // track(id:) returns nil -> up-next loop keys the thumbnail by trackID.
-        artwork.thumbnailResultByOwnerID["next"] = bigArtwork
+        // Thumbnail is keyed by the resolved album owner ID.
+        artwork.thumbnailResultByOwnerID["al-next"] = bigArtwork
 
         let viewModel = NowPlayingScreenViewModel(
             queueManager: queue,
             engine: engine,
             library: library,
-            artworkPipeline: artwork
+            resolver: NowPlayingResolver(library: library, artwork: artwork)
         )
 
         // Poll until the up-next item resolves its artwork (async task in init).

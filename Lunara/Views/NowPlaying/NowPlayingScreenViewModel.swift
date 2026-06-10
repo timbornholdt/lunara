@@ -48,8 +48,9 @@ final class NowPlayingScreenViewModel {
 
     private let queueManager: QueueManagerProtocol
     private let engine: PlaybackEngineProtocol
+    /// Still used directly for artist + loudness, which the shared resolver does not own.
     private let library: LibraryRepoProtocol
-    private let artworkPipeline: ArtworkPipelineProtocol
+    private let resolver: NowPlayingResolver
 
     // MARK: - Private State
 
@@ -60,10 +61,6 @@ final class NowPlayingScreenViewModel {
     private var upNextTask: Task<Void, Never>?
     private var snapshotCache: [String: TrackSnapshot] = [:]
 
-    /// Max pixel dimension the hero artwork is downsampled to on decode. Bounds the
-    /// decode cost (the original Plex art is untranscoded/multi-MB) while staying
-    /// crisp at the near-full-width display size.
-    private static let fullArtMaxPixelSize = 1024
     /// Rendered size of an up-next row thumbnail; artwork is downsampled to this.
     private static let upNextThumbnailPointSize = CGSize(width: 40, height: 40)
     /// Fixed display scale used when downsampling (matches the target device; keeps decoding deterministic).
@@ -80,12 +77,12 @@ final class NowPlayingScreenViewModel {
         queueManager: QueueManagerProtocol,
         engine: PlaybackEngineProtocol,
         library: LibraryRepoProtocol,
-        artworkPipeline: ArtworkPipelineProtocol
+        resolver: NowPlayingResolver
     ) {
         self.queueManager = queueManager
         self.engine = engine
         self.library = library
-        self.artworkPipeline = artworkPipeline
+        self.resolver = resolver
 
         observeQueue()
         handleCurrentItemChange()
@@ -181,9 +178,9 @@ final class NowPlayingScreenViewModel {
         // track's artwork/palette/waveform, so the old album art is never shown
         // next to the new track's metadata while the (possibly networked) artwork
         // fetch is still in flight.
-        guard let track = try? await library.track(id: trackID) else { return }
+        guard let track = await resolver.track(id: trackID) else { return }
         guard !Task.isCancelled else { return }
-        let album = try? await library.album(id: track.albumID)
+        let album = await resolver.album(id: track.albumID)
         guard !Task.isCancelled else { return }
         applyTextClearingVisuals(track: track, album: album)
 
@@ -265,31 +262,13 @@ final class NowPlayingScreenViewModel {
 
     // MARK: - Resolution helpers (shared by the live apply path and prefetch)
 
-    /// Fetches the full-size album art and decodes it OFF the main actor. The decode
-    /// is DOWNSAMPLED to a display-bounded size (not a full-resolution decode of the
-    /// multi-MB original), which is the dominant cost the lock screen/bar already avoid.
+    /// Full-size album art + palette via the shared resolver, which fetches and
+    /// decodes (downsampled, off the main actor) once per album and shares the
+    /// result with the lock-screen bridge.
     private func resolveArtwork(track: Track, album: Album?) async -> (image: UIImage?, palette: ArtworkPaletteTheme) {
-        let sourceURL: URL?
-        if let album {
-            sourceURL = try? await library.authenticatedArtworkURL(for: album.thumbURL)
-        } else {
-            sourceURL = nil
-        }
-
-        let fileURL = try? await artworkPipeline.fetchFullSize(
-            for: track.albumID,
-            ownerKind: .album,
-            sourceURL: sourceURL
-        )
-
-        let maxPixelSize = Self.fullArtMaxPixelSize
-        return await Task.detached {
-            if let fileURL,
-               let img = DownsamplingImageLoader.load(contentsOf: fileURL, maxPixelSize: maxPixelSize) {
-                return (img, ArtworkPaletteExtractor.extract(from: img))
-            }
-            return (nil, .default)
-        }.value
+        guard let album else { return (nil, .default) }
+        let art = await resolver.fullArtwork(for: album)
+        return (art.image, art.palette)
     }
 
     private func resolveArtist(forName name: String) async -> Artist? {
@@ -368,8 +347,8 @@ final class NowPlayingScreenViewModel {
         prefetchingTrackID = nextTrackID
         prefetchTask = Task { [weak self] in
             guard let self else { return }
-            guard let track = try? await self.library.track(id: nextTrackID) else { return }
-            let album = try? await self.library.album(id: track.albumID)
+            guard let track = await self.resolver.track(id: nextTrackID) else { return }
+            let album = await self.resolver.album(id: track.albumID)
             guard let snapshot = await self.buildSnapshot(track: track, album: album) else { return }
             guard !Task.isCancelled else { return }
             self.snapshotCache[nextTrackID] = snapshot
@@ -415,19 +394,13 @@ final class NowPlayingScreenViewModel {
 
         for (queueIndex, item) in slice {
             guard !Task.isCancelled else { return }
-            let track = try? await library.track(id: item.trackID)
-            let albumID = track?.albumID ?? item.trackID
-            let sourceURL: URL?
-            if let track, let album = try? await library.album(id: track.albumID) {
-                sourceURL = try? await library.authenticatedThumbnailURL(for: album.thumbURL)
+            let track = await resolver.track(id: item.trackID)
+            let thumbURL: URL?
+            if let track, let album = await resolver.album(id: track.albumID) {
+                thumbURL = await resolver.thumbnailURL(for: album)
             } else {
-                sourceURL = nil
+                thumbURL = nil
             }
-            let thumbURL = try? await artworkPipeline.fetchThumbnail(
-                for: albumID,
-                ownerKind: .album,
-                sourceURL: sourceURL
-            )
             let thumbImage: UIImage?
             if let thumbURL {
                 let pointSize = Self.upNextThumbnailPointSize

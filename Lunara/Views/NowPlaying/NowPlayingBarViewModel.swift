@@ -26,8 +26,7 @@ final class NowPlayingBarViewModel {
 
     private let queueManager: QueueManagerProtocol
     private let engine: PlaybackEngineProtocol
-    private let library: LibraryRepoProtocol
-    private let artworkPipeline: ArtworkPipelineProtocol
+    private let resolver: NowPlayingResolver
 
     // MARK: - Private State
 
@@ -43,13 +42,11 @@ final class NowPlayingBarViewModel {
     init(
         queueManager: QueueManagerProtocol,
         engine: PlaybackEngineProtocol,
-        library: LibraryRepoProtocol,
-        artworkPipeline: ArtworkPipelineProtocol
+        resolver: NowPlayingResolver
     ) {
         self.queueManager = queueManager
         self.engine = engine
-        self.library = library
-        self.artworkPipeline = artworkPipeline
+        self.resolver = resolver
 
         observeQueue()
         observePlaybackState()
@@ -124,36 +121,25 @@ final class NowPlayingBarViewModel {
     }
 
     private func resolveMetadata(for trackID: String) async {
-        let track: Track?
-        do {
-            track = try await library.track(id: trackID)
-        } catch {
-            // Track lookup failed (e.g. database error). Reset so the next
-            // track change can retry rather than staying stuck on stale state.
+        guard let track = await resolver.track(id: trackID) else {
+            // Resolution failed (e.g. database error). Reset so the next track
+            // change can retry rather than staying stuck on stale state.
             resolvedTrackID = nil
             return
         }
-
-        guard let track else { return }
         guard !Task.isCancelled else { return }
 
         trackTitle = track.title
         artistName = track.artistName
 
-        // Resolve an authenticated artwork URL so the pipeline can fetch the
-        // thumbnail from the server if it isn't already cached locally.
-        let sourceURL: URL?
-        if let album = try? await library.album(id: track.albumID) {
-            sourceURL = try? await library.authenticatedThumbnailURL(for: album.thumbURL)
+        // The resolver fetches the thumbnail (server fetch if not cached) keyed on
+        // the album, sharing the lookup with the now-playing screen and bridge.
+        let fileURL: URL?
+        if let album = await resolver.album(id: track.albumID) {
+            fileURL = await resolver.thumbnailURL(for: album)
         } else {
-            sourceURL = nil
+            fileURL = nil
         }
-
-        let fileURL = try? await artworkPipeline.fetchThumbnail(
-            for: track.albumID,
-            ownerKind: .album,
-            sourceURL: sourceURL
-        )
         guard !Task.isCancelled else { return }
         artworkFileURL = fileURL
     }

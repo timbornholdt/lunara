@@ -38,7 +38,7 @@ struct NowPlayingAutoAdvanceTests {
             queueManager: queue,
             engine: engine,
             library: library,
-            artworkPipeline: ArtworkPipelineMock()
+            resolver: NowPlayingResolver(library: library, artwork: ArtworkPipelineMock())
         )
 
         queue.playNow([

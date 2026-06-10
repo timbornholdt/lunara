@@ -26,6 +26,11 @@ final class ConfigurableLibraryRepoMock: LibraryRepoProtocol {
     var streamURLToReturn = URL(fileURLWithPath: "/tmp/stream.m4a")
     /// Stream keys passed to `streamURL(forKey:)`, in call order.
     var streamURLForKeyRequests: [String] = []
+    /// Track IDs passed to `track(id:)`, in call order — lets a test assert a
+    /// single track change resolves a track exactly once across all consumers.
+    private(set) var trackRequests: [String] = []
+    /// Album IDs passed to `album(id:)`, in call order.
+    private(set) var albumRequests: [String] = []
 
     // Loudness (waveform) levels, with an optional gate so a test can hold the
     // fetch open and prove artwork is applied without waiting on it.
@@ -53,11 +58,17 @@ final class ConfigurableLibraryRepoMock: LibraryRepoProtocol {
         return Array(allAlbums[page.offset..<end])
     }
 
-    func album(id: String) async throws -> Album? { albumsByID[id] }
+    func album(id: String) async throws -> Album? {
+        albumRequests.append(id)
+        return albumsByID[id]
+    }
     func searchAlbums(query: String) async throws -> [Album] { allAlbums }
     func queryAlbums(filter: AlbumQueryFilter) async throws -> [Album] { allAlbums }
     func tracks(forAlbum albumID: String) async throws -> [Track] { tracksByAlbumID[albumID] ?? [] }
-    func track(id: String) async throws -> Track? { tracksByID[id] }
+    func track(id: String) async throws -> Track? {
+        trackRequests.append(id)
+        return tracksByID[id]
+    }
 
     func refreshAlbumDetail(albumID: String) async throws -> AlbumDetailRefreshOutcome {
         AlbumDetailRefreshOutcome(album: albumsByID[albumID], tracks: tracksByAlbumID[albumID] ?? [])
