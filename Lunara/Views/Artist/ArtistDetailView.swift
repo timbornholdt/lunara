@@ -211,15 +211,12 @@ struct ArtistDetailView: View {
     private func albumArtworkView(for album: Album) -> some View {
         let thumbnailURL = viewModel.albumThumbnailURL(for: album.plexID)
 
-        ZStack {
-            Color.lunara(.backgroundBase)
-
+        SquareArtworkView {
             if let thumbnailURL {
                 AsyncImage(url: thumbnailURL) { image in
                     image
                         .resizable()
                         .scaledToFill()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } placeholder: {
                     ProgressView()
                 }
@@ -229,9 +226,6 @@ struct ArtistDetailView: View {
                     .foregroundStyle(Color.lunara(.textSecondary))
             }
         }
-        .frame(maxWidth: .infinity)
-        .aspectRatio(1, contentMode: .fit)
-        .clipped()
         .task {
             viewModel.loadAlbumThumbnailIfNeeded(for: album)
         }

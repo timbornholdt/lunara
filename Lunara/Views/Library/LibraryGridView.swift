@@ -163,9 +163,7 @@ struct LibraryGridView: View {
     private func artworkView(for album: Album) -> some View {
         let thumbnailURL = viewModel.thumbnailURL(for: album.plexID)
 
-        ZStack {
-            Color.lunara(.backgroundBase)
-
+        SquareArtworkView {
             if let thumbnailURL {
                 // ~Half-screen-wide cell at 3x scale; bounds the decode well below
                 // the cached thumbnail's native resolution (Lunara-gxq).
@@ -176,9 +174,6 @@ struct LibraryGridView: View {
                     .foregroundStyle(Color.lunara(.textSecondary))
             }
         }
-        .frame(maxWidth: .infinity)
-        .aspectRatio(1, contentMode: .fit)
-        .clipped()
         .task {
             viewModel.loadThumbnailIfNeeded(for: album)
         }

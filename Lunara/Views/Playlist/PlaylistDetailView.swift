@@ -54,16 +54,12 @@ struct PlaylistDetailView: View {
 
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color.lunara(.backgroundBase))
-
+            SquareArtworkView {
                 if let artworkURL = viewModel.playlistArtworkURL {
                     AsyncImage(url: artworkURL) { image in
                         image
                             .resizable()
                             .scaledToFill()
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } placeholder: {
                         ProgressView()
                     }
@@ -73,8 +69,6 @@ struct PlaylistDetailView: View {
                         .foregroundStyle(Color.lunara(.textSecondary))
                 }
             }
-            .frame(maxWidth: .infinity)
-            .aspectRatio(1, contentMode: .fit)
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
             Text(viewModel.playlist.title)
