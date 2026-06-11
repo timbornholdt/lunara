@@ -82,6 +82,66 @@ struct ArtistDetailViewModelTests {
         #expect(subject.actions.playAlbumRequests == ["album-play"])
     }
 
+    // MARK: - MusicBrainz enrichment (Lunara-uww.6.2 / 6.3)
+
+    @Test
+    func loadEnrichment_exposesLinksAndMissingAlbums() async {
+        let subject = makeSubject()
+        subject.library.artistAlbumsByName[subject.artist.name] = [
+            makeAlbum(id: "a1", title: "Navy Blues")
+        ]
+        await subject.viewModel.loadIfNeeded()
+
+        let client = MusicBrainzClientMock()
+        client.enrichmentByArtistName["Test Artist"] = MusicBrainzArtistEnrichment(
+            artistID: "mbid-1",
+            wikipediaURL: URL(string: "https://en.wikipedia.org/wiki/Test_Artist"),
+            homepageURL: nil,
+            albums: [
+                ExternalReleaseGroup(id: "rg-1", title: "Navy Blues", firstReleaseYear: 1998),
+                ExternalReleaseGroup(id: "rg-2", title: "Action Pact", firstReleaseYear: 2003)
+            ]
+        )
+
+        await subject.viewModel.loadEnrichmentIfNeeded(using: client)
+
+        #expect(subject.viewModel.externalLinks?.wikipediaURL?.absoluteString == "https://en.wikipedia.org/wiki/Test_Artist")
+        #expect(subject.viewModel.externalLinks?.musicBrainzURL.absoluteString == "https://musicbrainz.org/artist/mbid-1")
+        // "Navy Blues" is in the library; only "Action Pact" is missing.
+        #expect(subject.viewModel.missingAlbums.map(\.id) == ["rg-2"])
+    }
+
+    @Test
+    func loadEnrichment_matchesTitlesIgnoringCaseAndPunctuation() async {
+        let subject = makeSubject()
+        subject.library.artistAlbumsByName[subject.artist.name] = [
+            makeAlbum(id: "a1", title: "One Chord To Another!")
+        ]
+        await subject.viewModel.loadIfNeeded()
+
+        let client = MusicBrainzClientMock()
+        client.enrichmentByArtistName["Test Artist"] = MusicBrainzArtistEnrichment(
+            artistID: "mbid-1", wikipediaURL: nil, homepageURL: nil,
+            albums: [ExternalReleaseGroup(id: "rg-1", title: "one chord to another", firstReleaseYear: 1996)]
+        )
+
+        await subject.viewModel.loadEnrichmentIfNeeded(using: client)
+
+        #expect(subject.viewModel.missingAlbums.isEmpty)
+    }
+
+    @Test
+    func loadEnrichment_fetchesOnce() async {
+        let subject = makeSubject()
+        await subject.viewModel.loadIfNeeded()
+        let client = MusicBrainzClientMock()
+
+        await subject.viewModel.loadEnrichmentIfNeeded(using: client)
+        await subject.viewModel.loadEnrichmentIfNeeded(using: client)
+
+        #expect(client.requests.count == 1)
+    }
+
     // MARK: - Last.fm bio fallback (Lunara-uww.6.1)
 
     @Test
@@ -244,4 +304,16 @@ private final class ArtistDetailActionsMock: ArtistsListActionRouting {
     func playTracksNow(_ tracks: [Track]) async throws { }
     func queueTrackNext(_ track: Track) async throws { }
     func queueTrackLater(_ track: Track) async throws { }
+}
+
+// MARK: - MusicBrainzClientMock
+
+final class MusicBrainzClientMock: MusicBrainzClientProtocol, @unchecked Sendable {
+    var enrichmentByArtistName: [String: MusicBrainzArtistEnrichment] = [:]
+    private(set) var requests: [String] = []
+
+    func artistEnrichment(name: String) async throws -> MusicBrainzArtistEnrichment? {
+        requests.append(name)
+        return enrichmentByArtistName[name]
+    }
 }
