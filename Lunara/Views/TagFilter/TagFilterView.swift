@@ -26,7 +26,6 @@ struct TagFilterView: View {
             }
             .padding(.horizontal, 16)
             .padding(.top, 12)
-            .padding(.bottom, 80)
         }
         .lunaraLinenBackground()
         .navigationBarTitleDisplayMode(.inline)

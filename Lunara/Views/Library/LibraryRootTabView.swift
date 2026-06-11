@@ -131,7 +131,11 @@ struct LibraryRootTabView: View {
             .environment(\.musicBrainzClient, coordinator.musicBrainzClient)
             .environment(\.ticketmasterClient, coordinator.ticketmasterClient)
             .tint(Color.lunara(tabBarTheme.selectedTintRole))
-            .safeAreaInset(edge: .bottom, spacing: 0) {
+            // The mini-player lives in iOS 26's bottom accessory slot so every
+            // tab's scroll content gets the inset automatically — a plain
+            // safeAreaInset outside the TabView never propagated past the
+            // floating tab bar, leaving the bar over the last row (Lunara-c5q).
+            .tabViewBottomAccessory {
                 NowPlayingBar(
                     viewModel: nowPlayingBarViewModel,
                     screenViewModel: nowPlayingScreenViewModel,
@@ -143,7 +147,6 @@ struct LibraryRootTabView: View {
                         artistFromNowPlaying = artist
                     }
                 )
-                .padding(.bottom, 52)
             }
         }
         .sheet(item: $albumFromNowPlaying) { album in
