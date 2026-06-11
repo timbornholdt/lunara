@@ -33,6 +33,8 @@ final class AppCoordinator {
     /// Shared Last.fm client; also injected into the view environment for
     /// read-only enrichment like artist bios (Lunara-uww.6.1).
     let lastFMClient: LastFMClientProtocol
+    /// MusicBrainz enrichment (artist links + external discography, Lunara-uww.6.2/6.3).
+    let musicBrainzClient: MusicBrainzClientProtocol = MusicBrainzClient()
     let gardenClient: GardenAPIClientProtocol?
     let playbackTelemetry: PlaybackTelemetry
     private let logger = Logger(subsystem: "holdings.chinlock.lunara", category: "AppCoordinator")

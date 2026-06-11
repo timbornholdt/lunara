@@ -14,3 +14,15 @@ extension EnvironmentValues {
         set { self[LastFMClientKey.self] = newValue }
     }
 }
+
+/// Same pattern for MusicBrainz enrichment (Lunara-uww.6.2 / 6.3).
+private struct MusicBrainzClientKey: EnvironmentKey {
+    static let defaultValue: MusicBrainzClientProtocol? = nil
+}
+
+extension EnvironmentValues {
+    var musicBrainzClient: MusicBrainzClientProtocol? {
+        get { self[MusicBrainzClientKey.self] }
+        set { self[MusicBrainzClientKey.self] = newValue }
+    }
+}

@@ -5,6 +5,7 @@ struct ArtistDetailView: View {
     @State private var viewModel: ArtistDetailViewModel
     @Environment(\.showNowPlaying) private var showNowPlaying
     @Environment(\.lastFMClient) private var lastFMClient
+    @Environment(\.musicBrainzClient) private var musicBrainzClient
     @State private var selectedAlbum: Album?
     @State private var isBioExpanded = false
 
@@ -44,6 +45,7 @@ struct ArtistDetailView: View {
         .task {
             await viewModel.loadIfNeeded()
             await viewModel.loadLastFMBioIfNeeded(using: lastFMClient)
+            await viewModel.loadEnrichmentIfNeeded(using: musicBrainzClient)
         }
     }
 
@@ -85,6 +87,8 @@ struct ArtistDetailView: View {
                 }
             }
 
+            externalLinksRow
+
             HStack(spacing: 12) {
                 Button("Play All") {
                     Task {
@@ -107,6 +111,24 @@ struct ArtistDetailView: View {
         .background {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(Color.lunara(.backgroundElevated))
+        }
+    }
+
+    /// Outbound links from MusicBrainz enrichment (Lunara-uww.6.2).
+    @ViewBuilder
+    private var externalLinksRow: some View {
+        if let links = viewModel.externalLinks {
+            HStack(spacing: 16) {
+                if let wikipediaURL = links.wikipediaURL {
+                    Link("Wikipedia", destination: wikipediaURL)
+                }
+                Link("MusicBrainz", destination: links.musicBrainzURL)
+                if let homepageURL = links.homepageURL {
+                    Link("Website", destination: homepageURL)
+                }
+            }
+            .font(subtitleFont())
+            .foregroundStyle(Color.lunara(.textPrimary))
         }
     }
 
@@ -162,6 +184,41 @@ struct ArtistDetailView: View {
                 LazyVGrid(columns: columns, spacing: 20) {
                     ForEach(viewModel.albums) { album in
                         albumCard(for: album)
+                    }
+                }
+                missingAlbumsSection
+            }
+        }
+    }
+
+    /// Studio albums MusicBrainz knows that aren't in the Plex library —
+    /// the rediscovery hook for releases you don't own yet (Lunara-uww.6.3).
+    @ViewBuilder
+    private var missingAlbumsSection: some View {
+        if !viewModel.missingAlbums.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Not in your library")
+                    .lunaraHeading(.section, weight: .semibold)
+                    .padding(.top, 12)
+
+                ForEach(viewModel.missingAlbums) { releaseGroup in
+                    Link(destination: releaseGroup.musicBrainzURL) {
+                        HStack {
+                            Text(releaseGroup.title)
+                                .font(subtitleFont())
+                                .foregroundStyle(Color.lunara(.textPrimary))
+                                .lineLimit(1)
+                            Spacer()
+                            if let year = releaseGroup.firstReleaseYear {
+                                Text(String(year))
+                                    .font(subtitleFont())
+                                    .foregroundStyle(Color.lunara(.textSecondary))
+                            }
+                            Image(systemName: "arrow.up.right")
+                                .font(.system(size: 11))
+                                .foregroundStyle(Color.lunara(.textSecondary))
+                        }
+                        .padding(.vertical, 6)
                     }
                 }
             }

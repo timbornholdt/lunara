@@ -34,8 +34,12 @@ final class ArtistDetailViewModel {
         return lastFMBio
     }
 
+    private(set) var externalLinks: MusicBrainzArtistEnrichment?
+    private(set) var missingAlbums: [ExternalReleaseGroup] = []
+
     private var pendingArtworkAlbumIDs: Set<String> = []
     private var hasRequestedLastFMBio = false
+    private var hasRequestedEnrichment = false
 
     init(
         artist: Artist,
@@ -71,6 +75,36 @@ final class ArtistDetailViewModel {
         guard displayBio == nil else { return }
         hasRequestedLastFMBio = true
         lastFMBio = try? await client.getArtistBio(artist: artist.name)
+    }
+
+    /// Fetches MusicBrainz links + studio discography once per VM, then derives
+    /// the release groups missing from the library by normalized-title match
+    /// (Lunara-uww.6.2 / 6.3). Call after `loadIfNeeded` so the loaded albums
+    /// are available to match against.
+    func loadEnrichmentIfNeeded(using client: MusicBrainzClientProtocol?) async {
+        guard let client, !hasRequestedEnrichment else { return }
+        hasRequestedEnrichment = true
+
+        guard let enrichment = ((try? await client.artistEnrichment(name: artist.name)) ?? nil) else {
+            return
+        }
+        externalLinks = enrichment
+
+        let libraryTitles = Set(albums.map { Self.normalizedTitle($0.title) })
+        missingAlbums = enrichment.albums.filter {
+            !libraryTitles.contains(Self.normalizedTitle($0.title))
+        }
+    }
+
+    /// Casefolded, diacritic-insensitive, alphanumerics-only — so "One Chord To
+    /// Another!" matches "one chord to another" across catalogs.
+    private static func normalizedTitle(_ title: String) -> String {
+        title
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil)
+            .unicodeScalars
+            .filter { CharacterSet.alphanumerics.contains($0) }
+            .map(String.init)
+            .joined()
     }
 
     func playAll() async {
