@@ -523,6 +523,22 @@ struct LibraryRepoTests {
         let actualDate = try await subject.repo.lastRefreshDate()
         #expect(actualDate == expectedDate)
     }
+    /// Lunara-ujm: every refresh must re-stamp collection membership in the
+    /// junction table — otherwise pruneRowsNotSeen wipes it each run, slowing
+    /// every collection open and enabling the 5dh mass-delete.
+    @Test
+    func refreshLibrary_stampsCollectionMembershipForTheRun() async throws {
+        let subject = makeSubject()
+        subject.remote.albums = [makeAlbum(id: "album-a", trackCount: 1)]
+        subject.remote.collections = [makeCollection(id: "col-1")]
+        subject.remote.collectionAlbumIDsByCollectionID["col-1"] = ["album-a"]
+
+        _ = try await subject.repo.refreshLibrary(reason: .userInitiated)
+
+        #expect(subject.remote.fetchCollectionAlbumIDsRequests.contains("col-1"))
+        #expect(subject.store.upsertedAlbumCollections["album-a"] == ["col-1"])
+    }
+
     // MARK: - Collection membership refresh (Lunara-wd4)
 
     /// The refresh path fetches membership from Plex AND writes it back to the
