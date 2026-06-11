@@ -15,6 +15,7 @@ struct CrossfadeEngineTests {
         var duration: TimeInterval = 200
         var elapsed: TimeInterval = 0
         var volume: Float = 1
+        var isReadyForPlayback = true
         var onPlaybackComplete: (() -> Void)?
 
         private(set) var stopCallCount = 0
@@ -106,6 +107,37 @@ struct CrossfadeEngineTests {
             transition: .crossfade(startTime: 180, duration: fadeDuration)
         )
         return (engine, outgoing, incoming)
+    }
+
+    // MARK: - Dead next-buffer health check (Lunara-uww.3.8)
+
+    /// A staged next track whose source died (file evicted, resolve race) must not
+    /// be faded into — that's a fade into silence. The engine discards it instead.
+    @Test
+    func beginCrossfade_withDeadNextBuffer_discardsInsteadOfFading() {
+        let (engine, _, incoming) = makeEngineWithPreparedNext()
+        incoming.isReadyForPlayback = false
+
+        engine.beginCrossfade()
+
+        #expect(engine.isCrossfading == false)
+        #expect(incoming.playCallCount == 0)
+        #expect(incoming.stopCallCount == 1) // staged buffer torn down
+    }
+
+    /// Same protection on the immediate-swap path: at EOF with a dead staged
+    /// buffer, the engine goes idle (letting the queue re-resolve fresh) instead
+    /// of playing the dead slot.
+    @Test
+    func trackEnded_withDeadNextBuffer_goesIdleInsteadOfSwapping() {
+        let (engine, outgoing, incoming) = makeEngineWithPreparedNext()
+        incoming.isReadyForPlayback = false
+
+        outgoing.onPlaybackComplete?() // simulate EOF before any fade began
+
+        #expect(engine.playbackState == .idle)
+        #expect(incoming.playCallCount == 0)
+        #expect(engine.currentTrackID == nil)
     }
 
     // MARK: - clearPreparedNext (Lunara-uww.3.6)
