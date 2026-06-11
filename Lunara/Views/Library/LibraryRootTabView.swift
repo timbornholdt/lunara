@@ -119,7 +119,10 @@ struct LibraryRootTabView: View {
                             playbackTelemetry: coordinator.playbackTelemetry,
                             artworkPipeline: coordinator.artworkPipeline,
                             albumActions: coordinator,
-                            gardenClient: coordinator.gardenClient
+                            gardenClient: coordinator.gardenClient,
+                            plexCredentialsProvider: { [weak coordinator] in
+                                await coordinator?.plexDiagnosticsCredentials()
+                            }
                         )
                     )
                     .toolbarBackground(Color.lunara(.backgroundBase), for: .tabBar)
