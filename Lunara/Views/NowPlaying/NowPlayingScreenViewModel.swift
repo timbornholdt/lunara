@@ -15,8 +15,16 @@ final class NowPlayingScreenViewModel {
     private(set) var artworkImage: UIImage?
     private(set) var palette: ArtworkPaletteTheme = .default
     var playbackState: PlaybackState { engine.playbackState }
-    var elapsed: TimeInterval { engine.elapsed }
-    var duration: TimeInterval { engine.duration }
+    /// While the engine is still resolving/loading the current queue item, its
+    /// elapsed/duration describe the OUTGOING track. Hold the scrubber at zero
+    /// against the new track's own duration until the engine confirms it, so a
+    /// queue replace never shows the prior track's time (Lunara-8x4).
+    var elapsed: TimeInterval { engineIsOnCurrentTrack ? engine.elapsed : 0 }
+    var duration: TimeInterval { engineIsOnCurrentTrack ? engine.duration : (currentTrackDuration ?? 0) }
+    private var engineIsOnCurrentTrack: Bool {
+        resolvedTrackID != nil && engine.currentTrackID == resolvedTrackID
+    }
+    private var currentTrackDuration: TimeInterval?
     private(set) var upNextItems: [UpNextItem] = []
     private(set) var currentAlbum: Album?
     private(set) var currentArtist: Artist?
@@ -37,6 +45,7 @@ final class NowPlayingScreenViewModel {
         let artistName: String
         let albumTitle: String?
         let albumID: String
+        let duration: TimeInterval
         let artworkImage: UIImage?
         let palette: ArtworkPaletteTheme
         let album: Album?
@@ -155,6 +164,7 @@ final class NowPlayingScreenViewModel {
                 currentAlbum = nil
                 currentArtist = nil
                 waveformLevels = nil
+                currentTrackDuration = nil
             }
             return
         }
@@ -204,6 +214,7 @@ final class NowPlayingScreenViewModel {
             artistName: track.artistName,
             albumTitle: album?.title,
             albumID: track.albumID,
+            duration: track.duration,
             artworkImage: image,
             palette: palette,
             album: album,
@@ -228,6 +239,7 @@ final class NowPlayingScreenViewModel {
             palette = .default
             currentArtist = nil
             waveformLevels = nil
+            currentTrackDuration = track.duration
         }
     }
 
@@ -242,6 +254,7 @@ final class NowPlayingScreenViewModel {
             currentAlbum = snapshot.album
             currentArtist = snapshot.artist
             waveformLevels = snapshot.waveformLevels
+            currentTrackDuration = snapshot.duration
         }
     }
 
@@ -297,6 +310,7 @@ final class NowPlayingScreenViewModel {
             artistName: track.artistName,
             albumTitle: album?.title,
             albumID: track.albumID,
+            duration: track.duration,
             artworkImage: image,
             palette: palette,
             album: album,
