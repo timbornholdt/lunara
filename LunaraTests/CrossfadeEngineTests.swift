@@ -109,6 +109,61 @@ struct CrossfadeEngineTests {
         return (engine, outgoing, incoming)
     }
 
+    // MARK: - Phantom resume (Lunara-epq)
+
+    /// An interruption that begins while the user has DELIBERATELY paused must
+    /// not convert that pause into an interruption-pause — otherwise the
+    /// interruption ending auto-resumes over the user's intent.
+    @Test
+    func interruptionCycleWhileUserPaused_doesNotAutoResume() {
+        let outgoing = MockPlayerSlot()
+        let incoming = MockPlayerSlot()
+        let slots: [MockPlayerSlot] = [outgoing, incoming]
+        var handed = 0
+        let session = AudioSessionStub()
+        let engine = CrossfadeEngine(
+            audioSession: session,
+            slotFactory: {
+                defer { handed += 1 }
+                return slots[handed]
+            }
+        )
+        engine.play(url: URL(string: "file:///track.mp3")!, trackID: "A")
+        engine.pause() // deliberate user pause
+
+        // Siri / phone call / another app takes and releases audio focus.
+        session.onInterruptionBegan?()
+        session.onInterruptionEnded?(true)
+
+        #expect(engine.playbackState == .paused)
+        #expect(outgoing.playCallCount == 1) // never re-played
+    }
+
+    /// The legitimate case still works: an interruption that pauses ACTIVE
+    /// playback resumes when the system says it should.
+    @Test
+    func interruptionDuringPlayback_stillAutoResumes() {
+        let outgoing = MockPlayerSlot()
+        let incoming = MockPlayerSlot()
+        let slots: [MockPlayerSlot] = [outgoing, incoming]
+        var handed = 0
+        let session = AudioSessionStub()
+        let engine = CrossfadeEngine(
+            audioSession: session,
+            slotFactory: {
+                defer { handed += 1 }
+                return slots[handed]
+            }
+        )
+        engine.play(url: URL(string: "file:///track.mp3")!, trackID: "A")
+
+        session.onInterruptionBegan?()
+        #expect(engine.playbackState == .paused)
+        session.onInterruptionEnded?(true)
+
+        #expect(engine.playbackState == .playing)
+    }
+
     // MARK: - Backgrounded elapsed timer (Lunara-n09)
 
     /// The 0.25s elapsed timer only feeds the in-app UI; while backgrounded it's

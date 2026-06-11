@@ -558,10 +558,17 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
     private func wireInterruptions() {
         audioSession.onInterruptionBegan = { [weak self] in
             guard let self else { return }
-            // Record that THIS pause is interruption-initiated before pausing, so
-            // it (and only it) is eligible for auto-resume when the interruption ends.
+            // Only ACTIVE playback can be interruption-paused. An interruption
+            // arriving while the user already paused (Siri, a call, another app
+            // taking focus) must not convert that deliberate pause into an
+            // auto-resumable one — that was the phantom-resume bug (Lunara-epq).
+            guard self.playbackState == .playing else {
+                self.recordInterruption(phase: "beganWhileNotPlaying", resumed: false)
+                return
+            }
             self.pausedByInterruption = true
             self.performPause()
+            self.recordInterruption(phase: "began", resumed: false)
         }
         audioSession.onInterruptionEnded = { [weak self] shouldResume in
             guard let self else { return }
@@ -569,10 +576,23 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
             self.pausedByInterruption = false
             // Auto-resume only an interruption-initiated pause the system says is
             // resumable — never a deliberate user pause (Lunara-gf5).
-            guard wasInterrupted, shouldResume, self.playbackState == .paused else { return }
+            guard wasInterrupted, shouldResume, self.playbackState == .paused else {
+                self.recordInterruption(phase: "ended", resumed: false)
+                return
+            }
             // Re-activate the audio session — the system may have deactivated it.
             try? self.audioSession.configureForPlayback()
             self.resume()
+            self.recordInterruption(phase: "ended", resumed: true)
         }
+    }
+
+    /// Interruption lifecycle in the telemetry log, so any remaining rogue
+    /// resume on device is attributable (Lunara-epq).
+    private func recordInterruption(phase: String, resumed: Bool) {
+        telemetry?.recordDetail(eventName: "interruption", info: [
+            "phase": phase,
+            "resumed": resumed ? "1" : "0"
+        ])
     }
 }
