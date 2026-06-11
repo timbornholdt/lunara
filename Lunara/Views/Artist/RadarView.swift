@@ -4,6 +4,7 @@ import SwiftUI
 /// album, soonest first. Rows link out to the MusicBrainz release group.
 struct RadarView: View {
     let service: RadarService
+    @State private var sort = RadarSort.load()
 
     var body: some View {
         ScrollView {
@@ -18,7 +19,7 @@ struct RadarView: View {
                         emptyState
                     }
                 } else {
-                    ForEach(service.entries) { entry in
+                    ForEach(sort.sorted(service.entries)) { entry in
                         radarRow(entry)
                     }
                 }
@@ -33,6 +34,27 @@ struct RadarView: View {
         }
         .navigationTitle("Release Radar")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    ForEach(RadarSort.allCases) { option in
+                        Button {
+                            sort = option
+                            option.save()
+                        } label: {
+                            if sort == option {
+                                Label(option.label, systemImage: "checkmark")
+                            } else {
+                                Text(option.label)
+                            }
+                        }
+                    }
+                } label: {
+                    Image(systemName: "arrow.up.arrow.down")
+                }
+                .accessibilityLabel("Sort radar")
+            }
+        }
         .toolbarBackground(Color.lunara(.backgroundBase), for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .lunaraLinenBackground()
