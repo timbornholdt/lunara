@@ -590,6 +590,40 @@ struct QueueManagerTests {
         #expect(subject.engine.seekCalls.contains(30))
     }
 
+    // MARK: - Cache failure is a play failure (Lunara-6jj)
+
+    /// AVAudioPlayer cannot stream a remote URL, so when the track-cache download
+    /// fails the engine must never be handed the remote URL as a "fallback" —
+    /// the failure surfaces as an error and the item stays current for retry.
+    @Test
+    func cacheDownloadFailure_surfacesErrorInsteadOfPlayingRemoteURL() async throws {
+        let engine = PlaybackEngineMock()
+        let persistence = QueueStatePersistenceMock()
+        let resolver = PlaybackURLResolvingMock()
+        // Unroutable address: the cache download fails fast.
+        resolver.resultsByTrackID["t0"] = [URL(string: "https://127.0.0.1:1/t0.mp3")!]
+        let cacheDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("qm-6jj-\(UUID().uuidString)", isDirectory: true)
+        let manager = QueueManager(
+            engine: engine,
+            persistence: persistence,
+            trackCache: TrackCache(cacheDirectory: cacheDir),
+            resolver: resolver
+        )
+
+        manager.playNow([QueueItem(trackID: "t0", streamKey: "/k/t0")])
+        // The failing download involves real (loopback) network I/O; yields alone
+        // don't pass wall-clock time, so poll with short sleeps.
+        for _ in 0..<300 where manager.lastError == nil {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        #expect(manager.lastError != nil)
+        // The engine never saw a URL it cannot play.
+        #expect(engine.playCalls.allSatisfy { $0.0.isFileURL })
+        #expect(manager.currentItem?.trackID == "t0") // retained for retry
+    }
+
     // MARK: - Playback telemetry spans (Lunara-lz4)
 
     /// One `playStart` detail record per play, with the tap→audio breakdown.
