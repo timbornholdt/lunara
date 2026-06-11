@@ -61,6 +61,22 @@ final class LibraryStore: LibraryStoreProtocol {
         }
     }
 
+    /// One IN-query for a multi-album queue build (Lunara-uuy), instead of one
+    /// round-trip per album. Tracks are ordered within each album; cross-album
+    /// ordering is the caller's job (it knows the requested album order).
+    func fetchTracks(forAlbums albumIDs: [String]) async throws -> [Track] {
+        guard !albumIDs.isEmpty else { return [] }
+        let targetAlbumIDs = albumIDs
+
+        return try await dbQueue.read { db in
+            let records = try TrackRecord
+                .filter(targetAlbumIDs.contains(Column("albumID")))
+                .order(Column("albumID").asc, Column("trackNumber").asc, Column("title").asc)
+                .fetchAll(db)
+            return records.map(\.model)
+        }
+    }
+
     func track(id: String) async throws -> Track? {
         try await dbQueue.read { db in
             try TrackRecord.fetchOne(db, key: id)?.model

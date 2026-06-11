@@ -41,6 +41,10 @@ protocol LibraryRepoProtocol: AnyObject {
     func queryAlbums(filter: AlbumQueryFilter, after: AlbumCursor?, limit: Int) async throws -> [Album]
 
     func tracks(forAlbum albumID: String) async throws -> [Track]
+    /// Batched multi-album fetch for queue builds (Lunara-uuy). Requirement so
+    /// LibraryRepo's single-query implementation dispatches dynamically; a
+    /// looping default below covers conformers that don't optimize it.
+    func tracks(forAlbums albumIDs: [String]) async throws -> [Track]
     func track(id: String) async throws -> Track?
     func refreshAlbumDetail(albumID: String) async throws -> AlbumDetailRefreshOutcome
     func collections() async throws -> [Collection]
@@ -96,6 +100,14 @@ protocol LibraryRepoProtocol: AnyObject {
 
 extension LibraryRepoProtocol {
     func fetchLoudnessLevels(trackID: String) async throws -> [Float]? { nil }
+
+    func tracks(forAlbums albumIDs: [String]) async throws -> [Track] {
+        var tracks: [Track] = []
+        for albumID in albumIDs {
+            tracks.append(contentsOf: try await self.tracks(forAlbum: albumID))
+        }
+        return tracks
+    }
 
     /// Convenience helper for callers that still need a full in-memory list.
     /// Fetches paginated data and preserves thrown errors from any page read.

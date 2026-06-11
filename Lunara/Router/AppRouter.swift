@@ -271,11 +271,9 @@ final class AppRouter {
     }
 
     private func allQueueItemsForAlbums(_ albums: [Album]) async throws -> [QueueItem] {
-        var allTracks: [Track] = []
-        for album in albums {
-            let tracks = try await library.tracks(forAlbum: album.plexID)
-            allTracks.append(contentsOf: tracks)
-        }
+        // One batched query instead of a serial round-trip per album — for a
+        // large collection this was the first chunk of tap→audio latency (Lunara-uuy).
+        let allTracks = try await library.tracks(forAlbums: albums.map(\.plexID))
         guard !allTracks.isEmpty else { return [] }
         return queueItems(forTracks: allTracks)
     }

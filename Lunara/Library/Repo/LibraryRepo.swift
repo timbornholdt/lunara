@@ -109,6 +109,29 @@ final class LibraryRepo: LibraryRepoProtocol {
         return remoteTracks
     }
 
+    /// Multi-album track fetch for queue builds: one batched store query, with
+    /// the same per-album remote fallback as `tracks(forAlbum:)` applied only to
+    /// albums the cache doesn't know yet (Lunara-uuy). Output preserves the
+    /// requested album order, tracks ordered within each album.
+    func tracks(forAlbums albumIDs: [String]) async throws -> [Track] {
+        guard !albumIDs.isEmpty else { return [] }
+        let cached = try await store.fetchTracks(forAlbums: albumIDs)
+        let cachedByAlbum = Dictionary(grouping: cached, by: \.albumID)
+
+        var result: [Track] = []
+        result.reserveCapacity(cached.count)
+        for albumID in albumIDs {
+            if let tracks = cachedByAlbum[albumID], !tracks.isEmpty {
+                result.append(contentsOf: tracks)
+            } else {
+                let remoteTracks = try await remote.fetchTracks(forAlbum: albumID)
+                try await store.replaceTracks(remoteTracks, forAlbum: albumID)
+                result.append(contentsOf: remoteTracks)
+            }
+        }
+        return result
+    }
+
     func track(id: String) async throws -> Track? {
         if let cachedTrack = try await store.track(id: id) {
             return cachedTrack

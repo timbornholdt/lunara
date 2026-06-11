@@ -256,6 +256,25 @@ struct AppRouterTests {
         #expect(allTrackIDs == Set(["track-s1", "track-s2"]))
     }
 
+    /// The multi-album queue build issues ONE batched track query, not one per
+    /// album (Lunara-uuy).
+    @Test
+    func shuffleCollection_buildsQueueWithSingleBatchedTrackQuery() async throws {
+        let subject = makeSubject()
+        let collection = makeCollection(id: "col-3")
+        let albumA = makeAlbum(id: "album-x")
+        let albumB = makeAlbum(id: "album-y")
+        subject.library.collectionAlbumsByCollectionID[collection.plexID] = [albumA, albumB]
+        subject.library.tracksByAlbumID[albumA.plexID] = [makeTrack(id: "tx", albumID: albumA.plexID)]
+        subject.library.tracksByAlbumID[albumB.plexID] = [makeTrack(id: "ty", albumID: albumB.plexID)]
+
+        try await subject.router.shuffleCollection(collection)
+
+        #expect(subject.library.batchedTracksRequests == [["album-x", "album-y"]])
+        #expect(subject.library.trackRequests.isEmpty) // no per-album fallback queries
+        #expect(Set(subject.queue.playNowCalls[0].map(\.trackID)) == Set(["tx", "ty"]))
+    }
+
     @Test
     func playArtist_fetchesAlbumsTracksAndQueuesInOrder() async throws {
         let subject = makeSubject()
@@ -448,6 +467,16 @@ private final class LibraryRepoMock: LibraryRepoProtocol {
             throw tracksError
         }
         return tracksByAlbumID[albumID] ?? []
+    }
+
+    private(set) var batchedTracksRequests: [[String]] = []
+
+    func tracks(forAlbums albumIDs: [String]) async throws -> [Track] {
+        batchedTracksRequests.append(albumIDs)
+        if let tracksError {
+            throw tracksError
+        }
+        return albumIDs.flatMap { tracksByAlbumID[$0] ?? [] }
     }
 
     func track(id: String) async throws -> Track? {
