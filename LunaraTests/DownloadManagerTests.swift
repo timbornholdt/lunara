@@ -221,6 +221,23 @@ struct DownloadManagerTests {
         #expect(remaining == ["source.mp3"])
     }
 
+    /// During album sync the loudness contour is prefetched per saved track, so
+    /// synced albums get contour-based crossfades offline (Lunara-ki3).
+    @Test
+    func downloadAlbum_prefetchesLoudnessForEachSavedTrack() async throws {
+        let subject = makeSubject()
+        let album = makeAlbum(id: "a1")
+        let track = makeTrack(id: "t1", albumID: "a1")
+        let source = subject.offlineDir.appendingPathComponent("src.mp3")
+        try Data("audio".utf8).write(to: source)
+        subject.library.streamURLByTrackID["t1"] = source
+
+        await subject.manager.downloadAlbum(album, tracks: [track])
+
+        #expect(subject.manager.downloadState(forAlbum: "a1") == .complete)
+        #expect(subject.library.loudnessRequests == ["t1"])
+    }
+
     /// Files in the offline directory with no store row (write interrupted before
     /// the metadata save — crash, cancellation) are swept; store-backed files stay.
     @Test
@@ -307,6 +324,12 @@ private final class DownloadManagerLibraryMock: LibraryRepoProtocol {
     var streamURLError: LibraryError?
     var tracksByAlbumID: [String: [Track]] = [:]
     var collectionAlbumsByID: [String: [Album]] = [:]
+    private(set) var loudnessRequests: [String] = []
+
+    func fetchLoudnessLevels(trackID: String) async throws -> [Float]? {
+        loudnessRequests.append(trackID)
+        return nil
+    }
 
     func streamURL(for track: Track) async throws -> URL {
         if let error = streamURLError { throw error }

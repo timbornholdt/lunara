@@ -262,8 +262,26 @@ final class LibraryRepo: LibraryRepoProtocol {
         if let cached = loudnessCache[trackID] {
             return cached
         }
+        // Store first: persisted contours make crossfade decisions offline-safe
+        // and keep the radio asleep on repeat plays (Lunara-ki3).
+        if let stored = try? await store.loudnessLevels(forTrack: trackID), stored != nil {
+            rememberLoudness(stored, forTrack: trackID)
+            return stored
+        }
         let levels = try await remote.fetchLoudnessLevels(trackID: trackID, sampleCount: 128)
-        loudnessCache[trackID] = levels
+        rememberLoudness(levels, forTrack: trackID)
+        if let levels {
+            try? await store.setLoudnessLevels(levels, forTrack: trackID)
+        }
         return levels
+    }
+
+    /// Bounded memoization in front of the store: contours are ~512B, but a
+    /// multi-thousand-track session shouldn't grow the dictionary forever.
+    private func rememberLoudness(_ levels: [Float]?, forTrack trackID: String) {
+        if loudnessCache.count >= 512 {
+            loudnessCache.removeAll(keepingCapacity: true)
+        }
+        loudnessCache[trackID] = levels
     }
 }

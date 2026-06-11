@@ -523,6 +523,34 @@ struct LibraryRepoTests {
         let actualDate = try await subject.repo.lastRefreshDate()
         #expect(actualDate == expectedDate)
     }
+    // MARK: - Loudness persistence (Lunara-ki3)
+
+    /// Levels already in the store are served without a network call.
+    @Test
+    func fetchLoudnessLevels_storeHitSkipsNetwork() async throws {
+        let subject = makeSubject()
+        subject.store.loudnessByTrackID["t1"] = [0.3, 0.6]
+
+        let levels = try await subject.repo.fetchLoudnessLevels(trackID: "t1")
+
+        #expect(levels == [0.3, 0.6])
+        #expect(subject.remote.loudnessRequests.isEmpty)
+    }
+
+    /// A network fetch writes through to the store so future sessions are offline-safe.
+    @Test
+    func fetchLoudnessLevels_networkFetchPersistsToStore() async throws {
+        let subject = makeSubject()
+        subject.remote.loudnessByTrackID["t1"] = [0.9, 0.1]
+
+        let levels = try await subject.repo.fetchLoudnessLevels(trackID: "t1")
+
+        #expect(levels == [0.9, 0.1])
+        #expect(subject.remote.loudnessRequests == ["t1"])
+        #expect(subject.store.loudnessByTrackID["t1"] == [0.9, 0.1])
+        #expect(subject.store.setLoudnessRequests == ["t1"])
+    }
+
     private func makeSubject(now: Date = Date(timeIntervalSince1970: 1000)) -> (
         repo: LibraryRepo,
         remote: LibraryRemoteMock,

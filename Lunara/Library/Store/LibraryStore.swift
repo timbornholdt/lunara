@@ -307,6 +307,35 @@ final class LibraryStore: LibraryStoreProtocol {
         }
     }
 
+    // MARK: - Loudness (Lunara-ki3)
+
+    func loudnessLevels(forTrack trackID: String) async throws -> [Float]? {
+        try await dbQueue.read { db in
+            guard let data = try Data.fetchOne(
+                db,
+                sql: "SELECT levels FROM track_loudness WHERE trackID = ?",
+                arguments: [trackID]
+            ) else {
+                return nil
+            }
+            return data.withUnsafeBytes { Array($0.bindMemory(to: Float.self)) }
+        }
+    }
+
+    func setLoudnessLevels(_ levels: [Float], forTrack trackID: String) async throws {
+        let blob = levels.withUnsafeBufferPointer { Data(buffer: $0) }
+        try await dbQueue.write { db in
+            try db.execute(
+                sql: """
+                INSERT INTO track_loudness (trackID, levels, fetchedAt)
+                VALUES (?, ?, ?)
+                ON CONFLICT(trackID) DO UPDATE SET levels = excluded.levels, fetchedAt = excluded.fetchedAt
+                """,
+                arguments: [trackID, blob, Date()]
+            )
+        }
+    }
+
     func deleteArtworkPath(for key: ArtworkKey) async throws {
         let ownerID = key.ownerID
         let ownerType = key.ownerType.rawValue
