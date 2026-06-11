@@ -90,10 +90,16 @@ final class NowPlayingResolver {
     /// The decoded full-size `UIImage`s are the only real memory cost, so this is
     /// the leg that's tightly bounded: prev + current + next + one prefetch.
     private let artMemo = CoalescingMemo<String, Art>(capacity: 4)
+    /// Decoded Up Next row thumbnails. Capacity matches the Up Next window (20) so a
+    /// fully-distinct-album window never self-evicts mid-build; at ~58KB per 120px
+    /// thumbnail the worst case is ~1.2MB.
+    private let thumbArtMemo = CoalescingMemo<String, UIImage?>(capacity: 20)
 
     /// Max pixel dimension the hero artwork is downsampled to on decode — bounds
     /// the decode cost while staying crisp at the near-full-width display size.
     private static let fullArtMaxPixelSize = 1024
+    /// Max pixel dimension for an Up Next row thumbnail (40pt row × scale 3 = 120px).
+    private static let thumbnailMaxPixelSize = 120
 
     init(library: LibraryRepoProtocol, artwork: ArtworkPipelineProtocol) {
         self.library = library
@@ -146,6 +152,29 @@ final class NowPlayingResolver {
                 ownerKind: .album,
                 sourceURL: sourceURL
             )
+        }
+    }
+
+    /// Decoded, downsampled thumbnail image for an Up Next row. Mirrors `fullArtwork`:
+    /// the decode runs off the main actor and the result is memoized per album, so the
+    /// same art is read+decoded once and reused across rows (many tracks from one album)
+    /// and across window rebuilds, instead of decoding per row.
+    func thumbnailArtwork(for album: Album) async -> UIImage? {
+        // A nil (failed/not-yet-downloaded) decode must NOT be memoized, so the next
+        // caller re-fetches rather than being served a cached miss — same rationale as
+        // the full-art and track/album legs.
+        await thumbArtMemo.value(for: album.plexID, shouldCache: { $0 != nil }) { [library, artwork] _ in
+            let sourceURL = try? await library.authenticatedThumbnailURL(for: album.thumbURL)
+            let fileURL = try? await artwork.fetchThumbnail(
+                for: album.plexID,
+                ownerKind: .album,
+                sourceURL: sourceURL
+            )
+            let maxPixelSize = Self.thumbnailMaxPixelSize
+            return await Task.detached {
+                guard let fileURL else { return nil }
+                return DownsamplingImageLoader.load(contentsOf: fileURL, maxPixelSize: maxPixelSize)
+            }.value
         }
     }
 }

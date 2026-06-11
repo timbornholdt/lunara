@@ -61,13 +61,9 @@ final class NowPlayingScreenViewModel {
     private var upNextTask: Task<Void, Never>?
     private var snapshotCache: [String: TrackSnapshot] = [:]
 
-    /// Rendered size of an up-next row thumbnail; artwork is downsampled to this.
-    private static let upNextThumbnailPointSize = CGSize(width: 40, height: 40)
     /// Number of up-next rows resolved + published eagerly before the long tail, so the
     /// visible top of Up Next paints without waiting on a full window rebuild.
     private static let upNextEagerCount = 5
-    /// Fixed display scale used when downsampling (matches the target device; keeps decoding deterministic).
-    private let displayScale: CGFloat = 3
 
     #if DEBUG
     /// Test hook: number of retained track snapshots (bounded to current + next).
@@ -435,24 +431,14 @@ final class NowPlayingScreenViewModel {
         upNextItems = resolved
     }
 
-    /// Fully resolves one up-next row: track + album text and a downsampled thumbnail
-    /// (decoded off the main actor). The track/album/thumbnail lookups are shared via
-    /// the resolver; only the per-row downsample decode is unique to Up Next.
+    /// Fully resolves one up-next row: track + album text and a downsampled thumbnail.
+    /// The track/album lookups and the decoded thumbnail are all shared via the resolver,
+    /// so an album with several queued tracks reads+decodes its art once, not per row.
     private func resolveUpNextRow(queueIndex: Int, item: QueueItem) async -> UpNextItem {
         let track = await resolver.track(id: item.trackID)
-        let thumbURL: URL?
-        if let track, let album = await resolver.album(id: track.albumID) {
-            thumbURL = await resolver.thumbnailURL(for: album)
-        } else {
-            thumbURL = nil
-        }
         let thumbImage: UIImage?
-        if let thumbURL {
-            let pointSize = Self.upNextThumbnailPointSize
-            let scale = displayScale
-            thumbImage = await Task.detached {
-                DownsamplingImageLoader.load(contentsOf: thumbURL, pointSize: pointSize, scale: scale)
-            }.value
+        if let track, let album = await resolver.album(id: track.albumID) {
+            thumbImage = await resolver.thumbnailArtwork(for: album)
         } else {
             thumbImage = nil
         }
