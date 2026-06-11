@@ -17,6 +17,15 @@ final class SettingsViewModel {
     let lastFMAuthManager: LastFMAuthManager?
     let scrobbleManager: ScrobbleManager?
     let playbackTelemetry: PlaybackTelemetry?
+    /// Artwork + navigation deps for the Downloads manager rows (Lunara-j0l);
+    /// nil in contexts that don't show it.
+    private let artworkPipeline: ArtworkPipelineProtocol?
+    private let albumActions: AlbumDetailActionRouting?
+    private let gardenClient: GardenAPIClientProtocol?
+
+    private(set) var artworkByAlbumID: [String: URL] = [:]
+    private var pendingArtworkAlbumIDs: Set<String> = []
+
     init(
         offlineStore: OfflineStoreProtocol,
         downloadManager: DownloadManager,
@@ -24,7 +33,10 @@ final class SettingsViewModel {
         signOutAction: @escaping () -> Void,
         lastFMAuthManager: LastFMAuthManager? = nil,
         scrobbleManager: ScrobbleManager? = nil,
-        playbackTelemetry: PlaybackTelemetry? = nil
+        playbackTelemetry: PlaybackTelemetry? = nil,
+        artworkPipeline: ArtworkPipelineProtocol? = nil,
+        albumActions: AlbumDetailActionRouting? = nil,
+        gardenClient: GardenAPIClientProtocol? = nil
     ) {
         self.offlineStore = offlineStore
         self.downloadManager = downloadManager
@@ -33,7 +45,57 @@ final class SettingsViewModel {
         self.lastFMAuthManager = lastFMAuthManager
         self.scrobbleManager = scrobbleManager
         self.playbackTelemetry = playbackTelemetry
+        self.artworkPipeline = artworkPipeline
+        self.albumActions = albumActions
+        self.gardenClient = gardenClient
         self.settings = OfflineSettings.load()
+    }
+
+    // MARK: - Downloads manager rows (Lunara-j0l)
+
+    func thumbnailURL(for albumID: String) -> URL? {
+        artworkByAlbumID[albumID]
+    }
+
+    func loadThumbnailIfNeeded(for album: Album) {
+        guard let artworkPipeline else { return }
+        guard thumbnailURL(for: album.plexID) == nil else { return }
+        guard pendingArtworkAlbumIDs.insert(album.plexID).inserted else { return }
+
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let sourceURL = try await library.authenticatedThumbnailURL(for: album.thumbURL)
+                if let resolvedURL = try await artworkPipeline.fetchThumbnail(
+                    for: album.plexID,
+                    ownerKind: .album,
+                    sourceURL: sourceURL
+                ) {
+                    self.artworkByAlbumID[album.plexID] = resolvedURL
+                }
+            } catch {
+                // Artwork is decorative here; leave the placeholder.
+            }
+            self.pendingArtworkAlbumIDs.remove(album.plexID)
+        }
+    }
+
+    /// Album page for a downloads row; nil when this Settings instance wasn't
+    /// wired with navigation dependencies.
+    func makeAlbumDetailViewModel(for album: Album) -> AlbumDetailViewModel? {
+        guard let artworkPipeline, let albumActions else { return nil }
+        return AlbumDetailViewModel(
+            album: album,
+            library: library,
+            artworkPipeline: artworkPipeline,
+            actions: albumActions,
+            downloadManager: downloadManager,
+            gardenClient: gardenClient,
+            review: album.review,
+            genres: album.genres.isEmpty ? nil : album.genres,
+            styles: album.styles,
+            moods: album.moods
+        )
     }
 
     func load() async {
