@@ -233,6 +233,12 @@ struct ArtistDetailView: View {
                     .font(subtitleFont())
                     .foregroundStyle(Color.lunara(.textSecondary))
             } else {
+                // Header matches the page's other sections; pairs with
+                // "Not in your library" below (Lunara-2ay).
+                Text("In your library")
+                    .lunaraHeading(.section, weight: .semibold)
+                    .padding(.top, 12)
+
                 LazyVGrid(columns: columns, spacing: 20) {
                     ForEach(viewModel.albums) { album in
                         albumCard(for: album)
