@@ -28,10 +28,13 @@ final class LibraryGridViewModel {
     private var searchRequestID = 0
     private var searchTask: Task<Void, Never>?
 
-    /// Recency order for `artworkByAlbumID` keys, most recently used last.
-    /// Bookkeeping only — views never read it — so it's excluded from observation
-    /// (the dictionary itself stays observable and drives re-renders).
-    @ObservationIgnored private var artworkLRU: [String] = []
+    /// Recency bookkeeping for `artworkByAlbumID`: monotonic use-tick per key.
+    /// touchArtwork runs inside every visible cell's body via thumbnailURL(for:),
+    /// so it must be O(1) — the old array removeAll scan was a per-render
+    /// CPU tax across all visible cells (Lunara-inq). Views never read these,
+    /// so they're excluded from observation.
+    @ObservationIgnored private var artworkUseTick: [String: Int] = [:]
+    @ObservationIgnored private var artworkTick = 0
     private let artworkCacheCapacity: Int
 
     // Keyset pagination state.
@@ -189,15 +192,20 @@ final class LibraryGridViewModel {
     private func storeArtwork(_ url: URL, for albumID: String) {
         artworkByAlbumID[albumID] = url
         touchArtwork(albumID)
-        while artworkByAlbumID.count > artworkCacheCapacity, let oldest = artworkLRU.first {
-            artworkLRU.removeFirst()
+        while artworkByAlbumID.count > artworkCacheCapacity {
+            guard let oldest = artworkUseTick
+                .filter({ artworkByAlbumID[$0.key] != nil })
+                .min(by: { $0.value < $1.value })?.key else {
+                break
+            }
+            artworkUseTick.removeValue(forKey: oldest)
             artworkByAlbumID.removeValue(forKey: oldest)
         }
     }
 
     private func touchArtwork(_ albumID: String) {
-        artworkLRU.removeAll { $0 == albumID }
-        artworkLRU.append(albumID)
+        artworkTick += 1
+        artworkUseTick[albumID] = artworkTick
     }
 
     func userFacingMessage(for error: Error) -> String {
