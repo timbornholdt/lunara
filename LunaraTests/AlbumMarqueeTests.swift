@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Testing
 @testable import Lunara
 
@@ -36,6 +37,27 @@ struct AlbumMarqueeTests {
         #expect(padded.count == 8)
         #expect(padded[0] == url)
         #expect(padded[2] == url) // repeats wrap around the input
+    }
+
+    /// Lunara-910: the duplicated tile strip must NOT report its full width as
+    /// the marquee's ideal size — that leaked ~1300pt into the ScrollView and
+    /// pushed the whole collection page offscreen. ImageRenderer renders at the
+    /// view's ideal size, so it's a direct probe.
+    @Test
+    @MainActor
+    func marquee_idealWidthStaysNearScreenWidth() {
+        // No outer frame: ImageRenderer sizes to the view's IDEAL size, which is
+        // exactly what leaked (the strip's ~1300pt) in the broken layout.
+        let marquee = AlbumMarquee(
+            thumbnailURLs: Array(repeating: nil, count: 12),
+            height: 150
+        )
+
+        let renderer = ImageRenderer(content: marquee)
+        let size = renderer.uiImage?.size ?? .zero
+
+        #expect(size.width <= 400)
+        #expect(size.height <= 160)
     }
 
     @Test
