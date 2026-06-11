@@ -26,3 +26,15 @@ extension EnvironmentValues {
         set { self[MusicBrainzClientKey.self] = newValue }
     }
 }
+
+/// Same pattern for upcoming concerts (Lunara-uww.6.4).
+private struct TicketmasterClientKey: EnvironmentKey {
+    static let defaultValue: TicketmasterClientProtocol? = nil
+}
+
+extension EnvironmentValues {
+    var ticketmasterClient: TicketmasterClientProtocol? {
+        get { self[TicketmasterClientKey.self] }
+        set { self[TicketmasterClientKey.self] = newValue }
+    }
+}

@@ -125,6 +125,7 @@ struct LibraryRootTabView: View {
             .environment(\.showNowPlaying, $showNowPlayingSheet)
             .environment(\.lastFMClient, coordinator.lastFMClient)
             .environment(\.musicBrainzClient, coordinator.musicBrainzClient)
+            .environment(\.ticketmasterClient, coordinator.ticketmasterClient)
             .tint(Color.lunara(tabBarTheme.selectedTintRole))
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 NowPlayingBar(
