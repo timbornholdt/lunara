@@ -7,8 +7,7 @@ extension LibraryGridViewModel: BackgroundRefreshApplying {
 
     func reloadForBackgroundUpdate() async {
         do {
-            // Preserve the user's loaded scroll depth instead of collapsing to one page.
-            try await replaceCatalog(limit: reloadLimit)
+            try await replaceCatalog()
             await refreshSearchResultsIfNeeded()
             loadingState = .loaded
         } catch {
