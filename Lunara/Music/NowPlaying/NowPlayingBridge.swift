@@ -10,6 +10,9 @@ final class NowPlayingBridge {
     private let engine: PlaybackEngineProtocol
     private let queue: QueueManagerProtocol
     private let resolver: NowPlayingResolver
+    /// Base delay between artwork retry attempts (attempt N waits N × base).
+    /// Injectable so tests can drive the retry loop without real sleeps.
+    private let artworkRetryBaseDelay: Duration
 
     /// Track ID for which we last published metadata, to avoid redundant lookups.
     private var lastPublishedTrackID: String?
@@ -32,11 +35,13 @@ final class NowPlayingBridge {
     init(
         engine: PlaybackEngineProtocol,
         queue: QueueManagerProtocol,
-        resolver: NowPlayingResolver
+        resolver: NowPlayingResolver,
+        artworkRetryBaseDelay: Duration = .seconds(1)
     ) {
         self.engine = engine
         self.queue = queue
         self.resolver = resolver
+        self.artworkRetryBaseDelay = artworkRetryBaseDelay
     }
 
     deinit {
@@ -188,19 +193,23 @@ final class NowPlayingBridge {
         // Fetch artwork — may not be cached yet
         if let album {
             await loadAndApplyArtwork(album: album, forTrackID: trackID)
+            if !lastPublishHadArtwork {
+                scheduleArtworkRetry(album: album, forTrackID: trackID)
+            }
         }
     }
 
     private func loadAndApplyArtwork(album: Album, forTrackID trackID: String) async {
         // The resolver fetches the full-size art and decodes it (downsampled, off the
         // main actor), sharing one decode with the now-playing screen. A failed decode
-        // returns a nil image and is NOT memoized, so the retry below re-fetches.
+        // returns a nil image and is NOT memoized, so the retry path re-fetches.
+        // Retry scheduling is owned by the CALLER — scheduling it here as well made
+        // attempt counting depend on a cancellation race (every failed attempt re-armed
+        // attempt 1, which the caller then had to cancel before its sleep elapsed).
         let image = await resolver.fullArtwork(for: album).image
         if let image {
             applyArtwork(image, forTrackID: trackID)
             lastPublishHadArtwork = true
-        } else {
-            scheduleArtworkRetry(album: album, forTrackID: trackID)
         }
     }
 
@@ -212,11 +221,13 @@ final class NowPlayingBridge {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = current
     }
 
+    /// Retries are few and fast (1s, 2s) — Lunara-uww.7.5: the old 2s/4s/6s ladder
+    /// could hold a blank lock-screen image for 12s+ on a flaky fetch.
     private func scheduleArtworkRetry(album: Album, forTrackID trackID: String, attempt: Int = 1) {
-        guard attempt <= 3 else { return }
+        guard attempt <= 2 else { return }
         artworkRetryTask?.cancel()
-        artworkRetryTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(Double(attempt) * 2))
+        artworkRetryTask = Task { [weak self, artworkRetryBaseDelay] in
+            try? await Task.sleep(for: artworkRetryBaseDelay * attempt)
             guard let self, !Task.isCancelled, self.lastPublishedTrackID == trackID else { return }
             await self.loadAndApplyArtwork(album: album, forTrackID: trackID)
             if !self.lastPublishHadArtwork {

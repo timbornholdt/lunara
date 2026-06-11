@@ -402,33 +402,49 @@ final class NowPlayingScreenViewModel {
         // Resolve and publish the first (visible) rows eagerly, then fill the long tail,
         // so a full replace/shuffle paints the top of Up Next without waiting on all 20.
         let eagerBound = min(Self.upNextEagerCount, slice.count)
-        var resolved: [UpNextItem] = []
-        resolved.reserveCapacity(slice.count)
+        let eager = await resolveRows(slice[..<eagerBound], reusing: existingByID)
+        guard !Task.isCancelled else { return }
+        upNextItems = eager
 
-        for (offset, (queueIndex, item)) in slice.enumerated() {
-            guard !Task.isCancelled else { return }
-            if let reused = existingByID[item.trackID] {
-                // Carried over: keep the resolved text + decoded image, refresh position.
-                resolved.append(UpNextItem(
-                    id: reused.id,
-                    queueIndex: queueIndex,
-                    trackTitle: reused.trackTitle,
-                    artistName: reused.artistName,
-                    artworkImage: reused.artworkImage
-                ))
-            } else {
-                resolved.append(await resolveUpNextRow(queueIndex: queueIndex, item: item))
+        guard eagerBound < slice.count else { return }
+        let tail = await resolveRows(slice[eagerBound...], reusing: existingByID)
+        guard !Task.isCancelled else { return }
+        upNextItems = eager + tail
+    }
+
+    /// Resolves one chunk of up-next rows CONCURRENTLY, preserving row order.
+    /// Carried-over rows are reused inline; new rows fan out in a task group so a
+    /// fresh window isn't gated on one slow fetch per row (Lunara-uww.7.4). Rows
+    /// from the same album coalesce inside the resolver, so the fan-out never
+    /// duplicates a fetch or decode.
+    private func resolveRows(
+        _ rows: ArraySlice<(Int, QueueItem)>,
+        reusing existingByID: [String: UpNextItem]
+    ) async -> [UpNextItem] {
+        var resolved = [UpNextItem?](repeating: nil, count: rows.count)
+        let base = rows.startIndex
+        await withTaskGroup(of: (Int, UpNextItem).self) { group in
+            for (i, (queueIndex, item)) in zip(rows.indices, rows) {
+                if let reused = existingByID[item.trackID] {
+                    // Carried over: keep the resolved text + decoded image, refresh position.
+                    resolved[i - base] = UpNextItem(
+                        id: reused.id,
+                        queueIndex: queueIndex,
+                        trackTitle: reused.trackTitle,
+                        artistName: reused.artistName,
+                        artworkImage: reused.artworkImage
+                    )
+                } else {
+                    group.addTask {
+                        (i - base, await self.resolveUpNextRow(queueIndex: queueIndex, item: item))
+                    }
+                }
             }
-
-            // Publish the eager window the moment it's complete; the tail follows below.
-            if offset == eagerBound - 1 {
-                guard !Task.isCancelled else { return }
-                upNextItems = resolved
+            for await (offset, row) in group {
+                resolved[offset] = row
             }
         }
-
-        guard !Task.isCancelled else { return }
-        upNextItems = resolved
+        return resolved.compactMap { $0 }
     }
 
     /// Fully resolves one up-next row: track + album text and a downsampled thumbnail.

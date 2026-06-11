@@ -65,8 +65,32 @@ final class ConfigurableLibraryRepoMock: LibraryRepoProtocol {
     func searchAlbums(query: String) async throws -> [Album] { allAlbums }
     func queryAlbums(filter: AlbumQueryFilter) async throws -> [Album] { allAlbums }
     func tracks(forAlbum albumID: String) async throws -> [Track] { tracksByAlbumID[albumID] ?? [] }
+
+    // Concurrency barrier: `track(id:)` calls for IDs in `trackBarrierIDs` suspend
+    // until `trackBarrierCount` of them are in flight AT ONCE, then all proceed.
+    // Lets a test prove lookups run concurrently — a serial caller never reaches
+    // the count and stalls (Lunara-uww.7.4).
+    var trackBarrierIDs: Set<String> = []
+    var trackBarrierCount: Int = 0
+    private var trackBarrierContinuations: [CheckedContinuation<Void, Never>] = []
+
+    func releaseTrackBarrier() {
+        let continuations = trackBarrierContinuations
+        trackBarrierContinuations = []
+        trackBarrierIDs = []
+        continuations.forEach { $0.resume() }
+    }
+
     func track(id: String) async throws -> Track? {
         trackRequests.append(id)
+        if trackBarrierIDs.contains(id) {
+            if trackBarrierContinuations.count + 1 >= trackBarrierCount {
+                // This caller completes the barrier: release everyone and pass through.
+                releaseTrackBarrier()
+            } else {
+                await withCheckedContinuation { trackBarrierContinuations.append($0) }
+            }
+        }
         return tracksByID[id]
     }
 

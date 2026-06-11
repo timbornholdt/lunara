@@ -153,6 +153,39 @@ struct NowPlayingBridgeTests {
         #expect(env.bridge.lastPublishedTrackIDForTesting == "t2")
     }
 
+    // Lunara-uww.7.5: artwork retries are capped at 2 (down from 3), so a track whose
+    // art keeps failing settles after initial fetch + 2 retries instead of holding the
+    // lock screen in a long retry tail.
+    @Test
+    func artworkRetry_stopsAfterTwoAttempts() async {
+        let engine = PlaybackEngineMock()
+        let queue = NowPlayingQueueMock()
+        let library = NowPlayingLibraryMock()
+        let artwork = ArtworkPipelineMock()
+        library.trackByID["t0"] = Track(
+            plexID: "t0", albumID: "al-t0", title: "Track t0", trackNumber: 1,
+            duration: 180, artistName: "Artist", key: "/library/metadata/t0", thumbURL: nil
+        )
+        library.albumByID["al-t0"] = Album(
+            plexID: "al-t0", title: "Album al-t0", artistName: "Artist", year: nil,
+            thumbURL: nil, genre: nil, rating: nil, addedAt: nil, trackCount: 1, duration: 180
+        )
+        // No fullSizeResultByOwnerID seeded: every artwork fetch resolves to nil (failure).
+        let bridge = NowPlayingBridge(
+            engine: engine, queue: queue,
+            resolver: NowPlayingResolver(library: library, artwork: artwork),
+            artworkRetryBaseDelay: .zero
+        )
+        bridge.configure()
+
+        queue.currentItem = QueueItem(trackID: "t0", streamKey: "/library/metadata/t0", albumID: "al-t0")
+
+        // Initial fetch + 2 retries, then the bridge gives up.
+        await waitUntil { artwork.fullSizeRequests.filter { $0.ownerID == "al-t0" }.count == 3 }
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        #expect(artwork.fullSizeRequests.filter { $0.ownerID == "al-t0" }.count == 3)
+    }
+
     @Test
     func pause_doesNotRepublishOrRefetch() async {
         let env = makeBridge(trackIDs: ["t0"])
@@ -207,13 +240,21 @@ final class NowPlayingQueueMock: QueueManagerProtocol {
 final class NowPlayingLibraryMock: LibraryRepoProtocol {
     var trackByID: [String: Track] = [:]
     var albumByID: [String: Album] = [:]
+    private(set) var trackCallCount = 0
+    private(set) var albumCallCount = 0
 
     func albums(page: LibraryPage) async throws -> [Album] { [] }
-    func album(id: String) async throws -> Album? { albumByID[id] }
+    func album(id: String) async throws -> Album? {
+        albumCallCount += 1
+        return albumByID[id]
+    }
     func searchAlbums(query: String) async throws -> [Album] { [] }
     func queryAlbums(filter: AlbumQueryFilter) async throws -> [Album] { [] }
     func tracks(forAlbum albumID: String) async throws -> [Track] { [] }
-    func track(id: String) async throws -> Track? { trackByID[id] }
+    func track(id: String) async throws -> Track? {
+        trackCallCount += 1
+        return trackByID[id]
+    }
     func refreshAlbumDetail(albumID: String) async throws -> AlbumDetailRefreshOutcome {
         AlbumDetailRefreshOutcome(album: nil, tracks: [])
     }

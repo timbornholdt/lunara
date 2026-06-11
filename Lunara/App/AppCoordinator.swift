@@ -160,7 +160,7 @@ final class AppCoordinator {
         let scrobbleManager = ScrobbleManager(
             engine: playbackEngine,
             queue: queueManager,
-            library: libraryRepo,
+            resolver: nowPlayingResolver,
             client: lastFMClient,
             authManager: lastFMAuthManager
         )

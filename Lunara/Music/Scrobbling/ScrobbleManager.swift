@@ -16,7 +16,9 @@ final class ScrobbleManager {
 
     private let engine: PlaybackEngineProtocol
     private let queue: QueueManagerProtocol
-    private let library: LibraryRepoProtocol
+    /// Shared with the now-playing screen/bar/bridge, so scrobble lookups reuse
+    /// the track/album already resolved for the UI instead of re-querying (Lunara-0hp).
+    private let resolver: NowPlayingResolver
     private let client: LastFMClientProtocol
     private let authManager: LastFMAuthManager
     private let scrobbleQueue: ScrobbleQueue
@@ -37,14 +39,14 @@ final class ScrobbleManager {
     init(
         engine: PlaybackEngineProtocol,
         queue: QueueManagerProtocol,
-        library: LibraryRepoProtocol,
+        resolver: NowPlayingResolver,
         client: LastFMClientProtocol,
         authManager: LastFMAuthManager,
         scrobbleQueue: ScrobbleQueue = ScrobbleQueue()
     ) {
         self.engine = engine
         self.queue = queue
-        self.library = library
+        self.resolver = resolver
         self.client = client
         self.authManager = authManager
         self.scrobbleQueue = scrobbleQueue
@@ -177,10 +179,10 @@ final class ScrobbleManager {
     private func sendNowPlaying(trackID: String) async {
         guard let sessionKey = authManager.sessionKey else { return }
 
-        do {
-            guard let track = try await library.track(id: trackID) else { return }
-            let album = try? await library.album(id: track.albumID)
+        guard let track = await resolver.track(id: trackID) else { return }
+        let album = await resolver.album(id: track.albumID)
 
+        do {
             try await client.updateNowPlaying(
                 artist: track.artistName,
                 track: track.title,
@@ -197,33 +199,32 @@ final class ScrobbleManager {
     private func submitScrobble(trackID: String, duration: TimeInterval) async {
         guard let timestamp = trackStartedAt.map({ Int($0.timeIntervalSince1970) }) else { return }
 
+        guard let track = await resolver.track(id: trackID) else {
+            logger.error("Failed to look up track for scrobble: \(trackID, privacy: .public)")
+            return
+        }
+        let album = await resolver.album(id: track.albumID)
+
+        let entry = ScrobbleEntry(
+            artist: track.artistName,
+            track: track.title,
+            album: album?.title,
+            timestamp: timestamp,
+            duration: Int(track.duration)
+        )
+
+        guard let sessionKey = authManager.sessionKey else {
+            await scrobbleQueue.enqueue(entry)
+            return
+        }
+
         do {
-            guard let track = try await library.track(id: trackID) else { return }
-            let album = try? await library.album(id: track.albumID)
-
-            let entry = ScrobbleEntry(
-                artist: track.artistName,
-                track: track.title,
-                album: album?.title,
-                timestamp: timestamp,
-                duration: Int(track.duration)
-            )
-
-            guard let sessionKey = authManager.sessionKey else {
-                await scrobbleQueue.enqueue(entry)
-                return
-            }
-
-            do {
-                try await client.scrobble(entries: [entry], sessionKey: sessionKey)
-                logger.info("Scrobbled: \(track.title, privacy: .public) by \(track.artistName, privacy: .public)")
-                await flushQueue()
-            } catch {
-                logger.error("Scrobble failed, queuing: \(error.localizedDescription, privacy: .public)")
-                await scrobbleQueue.enqueue(entry)
-            }
+            try await client.scrobble(entries: [entry], sessionKey: sessionKey)
+            logger.info("Scrobbled: \(track.title, privacy: .public) by \(track.artistName, privacy: .public)")
+            await flushQueue()
         } catch {
-            logger.error("Failed to look up track for scrobble: \(error.localizedDescription, privacy: .public)")
+            logger.error("Scrobble failed, queuing: \(error.localizedDescription, privacy: .public)")
+            await scrobbleQueue.enqueue(entry)
         }
     }
 
