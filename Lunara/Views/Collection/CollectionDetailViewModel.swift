@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Observation
 import os
 
@@ -202,12 +203,42 @@ final class CollectionDetailViewModel {
         }
     }
 
+    /// Cached-first (Lunara-wd4): render local membership instantly, then
+    /// reconcile with Plex in the background and reflow in place. An empty
+    /// cache falls through to the refresh path, which persists membership so
+    /// the NEXT open is instant.
     private func loadAlbums() async {
         do {
-            albums = try await library.collectionAlbums(collectionID: collection.plexID)
+            let cached = try await library.collectionAlbums(collectionID: collection.plexID)
+            if !cached.isEmpty {
+                albums = cached
+                loadingState = .loaded
+                reconcileWithRemote()
+                return
+            }
+            albums = try await library.refreshCollectionAlbums(collectionID: collection.plexID)
             loadingState = .loaded
         } catch {
             loadingState = .error(userFacingMessage(for: error))
+        }
+    }
+
+    private var reconcileTask: Task<Void, Never>?
+
+    /// One background membership check per page visit. A flaky/empty remote
+    /// response never blanks a populated page (same fail-safe stance as
+    /// Lunara-5dh); a real change animates into the grid in place.
+    private func reconcileWithRemote() {
+        reconcileTask?.cancel()
+        reconcileTask = Task { [weak self] in
+            guard let self else { return }
+            guard let fresh = try? await library.refreshCollectionAlbums(collectionID: collection.plexID) else {
+                return
+            }
+            guard !Task.isCancelled, !fresh.isEmpty, fresh != self.albums else { return }
+            withAnimation(.easeInOut(duration: 0.3)) {
+                self.albums = fresh
+            }
         }
     }
 

@@ -52,6 +52,30 @@ struct LibraryStoreTests {
         )
     }
 
+    // MARK: - Collection membership writeback (Lunara-wd4)
+
+    @Test
+    func replaceAlbumIDsForCollection_persistsAndSupersedes() async throws {
+        let store = try LibraryStore.inMemory()
+        let snapshot = LibrarySnapshot(
+            albums: [
+                makeAlbum(id: "al-1", title: "One", artist: "A"),
+                makeAlbum(id: "al-2", title: "Two", artist: "B"),
+                makeAlbum(id: "al-3", title: "Three", artist: "C")
+            ],
+            tracks: [], artists: [],
+            collections: [Collection(plexID: "col-1", title: "C1", thumbURL: nil, summary: nil, albumCount: 0, updatedAt: nil)]
+        )
+        try await store.replaceLibrary(with: snapshot, refreshedAt: Date())
+
+        // An ID the catalog doesn't know ("al-ghost") is skipped, not fatal.
+        try await store.replaceAlbumIDs(["al-1", "al-ghost", "al-2"], forCollectionID: "col-1")
+        #expect(try await store.fetchAlbumIDs(forCollectionID: "col-1") == ["al-1", "al-2"])
+
+        try await store.replaceAlbumIDs(["al-3"], forCollectionID: "col-1")
+        #expect(try await store.fetchAlbumIDs(forCollectionID: "col-1") == ["al-3"])
+    }
+
     // MARK: - Batched track fetch (Lunara-uuy)
 
     @Test

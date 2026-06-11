@@ -189,6 +189,24 @@ final class LibraryRepo: LibraryRepoProtocol {
         return dedupeLibrary(albums: albums, tracks: []).albums
     }
 
+    /// Forces a remote membership fetch AND persists it to the local junction,
+    /// so subsequent opens render instantly from cache (Lunara-wd4).
+    func refreshCollectionAlbums(collectionID: String) async throws -> [Album] {
+        let albumIDs = try await remote.fetchCollectionAlbumIDs(collectionID: collectionID)
+        guard !albumIDs.isEmpty else { return [] }
+        try? await store.replaceAlbumIDs(albumIDs, forCollectionID: collectionID)
+
+        var seen = Set<String>()
+        var albums: [Album] = []
+        for albumID in albumIDs {
+            guard seen.insert(albumID).inserted else { continue }
+            if let album = try await store.fetchAlbum(id: albumID) {
+                albums.append(album)
+            }
+        }
+        return dedupeLibrary(albums: albums, tracks: []).albums
+    }
+
     func searchCollections(query: String) async throws -> [Collection] {
         try await store.searchCollections(query: query)
     }

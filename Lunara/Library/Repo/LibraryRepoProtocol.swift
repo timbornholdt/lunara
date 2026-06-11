@@ -51,6 +51,9 @@ protocol LibraryRepoProtocol: AnyObject {
     func collection(id: String) async throws -> Collection?
     /// Fetches albums belonging to a collection, querying the remote API for membership.
     func collectionAlbums(collectionID: String) async throws -> [Album]
+    /// Remote-first membership fetch with local writeback (Lunara-wd4).
+    /// Requirement for dynamic dispatch; default falls back to collectionAlbums.
+    func refreshCollectionAlbums(collectionID: String) async throws -> [Album]
     /// Queries cached artists by name and sort name.
     /// - Sorting guarantee: results are fully sorted by source ordering (`sortName`, then `name`).
     func searchArtists(query: String) async throws -> [Artist]
@@ -100,6 +103,10 @@ protocol LibraryRepoProtocol: AnyObject {
 
 extension LibraryRepoProtocol {
     func fetchLoudnessLevels(trackID: String) async throws -> [Float]? { nil }
+
+    func refreshCollectionAlbums(collectionID: String) async throws -> [Album] {
+        try await collectionAlbums(collectionID: collectionID)
+    }
 
     func tracks(forAlbums albumIDs: [String]) async throws -> [Track] {
         var tracks: [Track] = []
