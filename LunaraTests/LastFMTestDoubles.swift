@@ -14,6 +14,9 @@ final class LastFMClientMock: LastFMClientProtocol, @unchecked Sendable {
     private(set) var nowPlayingCalls: [(artist: String, track: String, album: String?, duration: Int?, sessionKey: String)] = []
     private(set) var scrobbleCalls: [(entries: [ScrobbleEntry], sessionKey: String)] = []
 
+    var artistBioByName: [String: String] = [:]
+    private(set) var artistBioRequests: [String] = []
+
     func getToken() async throws -> String {
         getTokenCallCount += 1
         return try getTokenResult.get()
@@ -32,6 +35,11 @@ final class LastFMClientMock: LastFMClientProtocol, @unchecked Sendable {
     func scrobble(entries: [ScrobbleEntry], sessionKey: String) async throws {
         scrobbleCalls.append((entries, sessionKey))
         if let error = scrobbleError { throw error }
+    }
+
+    func getArtistBio(artist: String) async throws -> String? {
+        artistBioRequests.append(artist)
+        return artistBioByName[artist]
     }
 }
 

@@ -9,6 +9,9 @@ protocol LastFMClientProtocol: Sendable {
     func getSession(token: String) async throws -> (sessionKey: String, username: String)
     func updateNowPlaying(artist: String, track: String, album: String?, duration: Int?, sessionKey: String) async throws
     func scrobble(entries: [ScrobbleEntry], sessionKey: String) async throws
+    /// Cleaned plain-text artist bio (no HTML, no "Read more" boilerplate), or
+    /// nil when Last.fm has none (Lunara-uww.6.1).
+    func getArtistBio(artist: String) async throws -> String?
 }
 
 struct ScrobbleEntry: Codable, Equatable, Sendable {
@@ -117,6 +120,52 @@ final class LastFMClient: LastFMClientProtocol, @unchecked Sendable {
         let signed = signedParams(params)
         let data = try await performPOST(params: signed)
         try checkForError(data)
+    }
+
+    // MARK: - Artist Info
+
+    func getArtistBio(artist: String) async throws -> String? {
+        // Unsigned read method: only the API key is required, no session.
+        let params: [String: String] = [
+            "method": "artist.getInfo",
+            "artist": artist,
+            "autocorrect": "1",
+            "api_key": apiKey,
+            "format": "json"
+        ]
+        let data = try await performGET(params: params)
+        return try Self.parseArtistBio(data)
+    }
+
+    /// Extracts `artist.bio.summary` and cleans it for display: drops the
+    /// trailing "Read more on Last.fm" anchor, strips remaining tags, decodes
+    /// common entities. Internal (not private) so parsing is unit-testable
+    /// without networking.
+    static func parseArtistBio(_ data: Data) throws -> String? {
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let errorCode = json["error"] as? Int,
+           let message = json["message"] as? String {
+            throw LastFMError.apiError(code: errorCode, message: message)
+        }
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let artist = json["artist"] as? [String: Any],
+              let bio = artist["bio"] as? [String: Any],
+              let summary = bio["summary"] as? String else {
+            return nil
+        }
+
+        var text = summary
+        // Last.fm appends '<a href="...">Read more on Last.fm</a>'; cut from the anchor on.
+        if let anchorRange = text.range(of: "<a href", options: .caseInsensitive) {
+            text = String(text[..<anchorRange.lowerBound])
+        }
+        text = text.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+        let entities = ["&amp;": "&", "&quot;": "\"", "&#39;": "'", "&apos;": "'", "&lt;": "<", "&gt;": ">", "&ouml;": "ö"]
+        for (entity, character) in entities {
+            text = text.replacingOccurrences(of: entity, with: character)
+        }
+        text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty ? nil : text
     }
 
     // MARK: - Request Signing
