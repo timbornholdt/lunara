@@ -523,6 +523,27 @@ struct LibraryRepoTests {
         let actualDate = try await subject.repo.lastRefreshDate()
         #expect(actualDate == expectedDate)
     }
+    // MARK: - Batched queue-build tracks (Lunara-uuy)
+
+    /// Cached albums resolve through ONE batched store query, with per-album
+    /// remote fallback only for cache misses.
+    @Test
+    func tracksForAlbums_batchesStoreReads_andFallsBackPerMissingAlbum() async throws {
+        let subject = makeSubject()
+        let cached1 = makeTrack(id: "t1", albumID: "al-1", number: 1)
+        let cached2 = makeTrack(id: "t2", albumID: "al-2", number: 1)
+        subject.store.tracksByAlbumsResult = [cached1, cached2]
+        let remote3 = makeTrack(id: "t3", albumID: "al-3", number: 1)
+        subject.remote.tracksByAlbumID["al-3"] = [remote3]
+
+        let tracks = try await subject.repo.tracks(forAlbums: ["al-1", "al-2", "al-3"])
+
+        #expect(tracks.map(\.plexID) == ["t1", "t2", "t3"])
+        #expect(subject.store.fetchTracksForAlbumsRequests == [["al-1", "al-2", "al-3"]])
+        // Only the missing album hit the network.
+        #expect(subject.remote.fetchTracksRequests == ["al-3"])
+    }
+
     // MARK: - Loudness persistence (Lunara-ki3)
 
     /// Levels already in the store are served without a network call.

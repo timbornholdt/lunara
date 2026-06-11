@@ -282,9 +282,22 @@ protocol LibraryStoreProtocol: AnyObject {
     /// supplies a no-op default for doubles that don't care.
     func loudnessLevels(forTrack trackID: String) async throws -> [Float]?
     func setLoudnessLevels(_ levels: [Float], forTrack trackID: String) async throws
+
+    /// Batched track fetch for multi-album queue builds (Lunara-uuy). Requirement
+    /// (not just an extension member) so LibraryStore's single-query version
+    /// dispatches dynamically; the default below loops for doubles.
+    func fetchTracks(forAlbums albumIDs: [String]) async throws -> [Track]
 }
 
 extension LibraryStoreProtocol {
     func loudnessLevels(forTrack trackID: String) async throws -> [Float]? { nil }
     func setLoudnessLevels(_ levels: [Float], forTrack trackID: String) async throws { }
+
+    func fetchTracks(forAlbums albumIDs: [String]) async throws -> [Track] {
+        var tracks: [Track] = []
+        for albumID in albumIDs {
+            tracks.append(contentsOf: try await fetchTracks(forAlbum: albumID))
+        }
+        return tracks
+    }
 }

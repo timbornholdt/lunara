@@ -3,6 +3,37 @@ import Testing
 @testable import Lunara
 
 struct LibraryStoreTests {
+    // MARK: - Batched track fetch (Lunara-uuy)
+
+    @Test
+    func fetchTracksForAlbums_returnsAllInOneQueryOrderedWithinAlbums() async throws {
+        let store = try LibraryStore.inMemory()
+        let snapshot = LibrarySnapshot(
+            albums: [
+                makeAlbum(id: "al-1", title: "One", artist: "A"),
+                makeAlbum(id: "al-2", title: "Two", artist: "B"),
+                makeAlbum(id: "al-3", title: "Three", artist: "C")
+            ],
+            tracks: [
+                makeTrack(id: "t-1b", albumID: "al-1", trackNumber: 2),
+                makeTrack(id: "t-2a", albumID: "al-2", trackNumber: 1),
+                makeTrack(id: "t-1a", albumID: "al-1", trackNumber: 1),
+                makeTrack(id: "t-3a", albumID: "al-3", trackNumber: 1)
+            ],
+            artists: [],
+            collections: []
+        )
+        try await store.replaceLibrary(with: snapshot, refreshedAt: Date())
+
+        let tracks = try await store.fetchTracks(forAlbums: ["al-1", "al-2"])
+
+        // Only the requested albums, each ordered by track number.
+        let byAlbum = Dictionary(grouping: tracks, by: \.albumID)
+        #expect(Set(byAlbum.keys) == ["al-1", "al-2"])
+        #expect(byAlbum["al-1"]?.map(\.plexID) == ["t-1a", "t-1b"])
+        #expect(byAlbum["al-2"]?.map(\.plexID) == ["t-2a"])
+    }
+
     // MARK: - Loudness persistence (Lunara-ki3)
 
     @Test

@@ -182,6 +182,14 @@ final class LibraryRemoteMock: LibraryRemoteDataSource {
 
 @MainActor
 final class LibraryStoreMock: LibraryStoreProtocol {
+    var tracksByAlbumsResult: [Track] = []
+    private(set) var fetchTracksForAlbumsRequests: [[String]] = []
+
+    func fetchTracks(forAlbums albumIDs: [String]) async throws -> [Track] {
+        fetchTracksForAlbumsRequests.append(albumIDs)
+        return tracksByAlbumsResult
+    }
+
     var loudnessByTrackID: [String: [Float]] = [:]
     private(set) var setLoudnessRequests: [String] = []
 
