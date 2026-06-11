@@ -26,14 +26,13 @@ struct LibraryRootTabView: View {
         self.nowPlayingBarViewModel = NowPlayingBarViewModel(
             queueManager: coordinator.queueManager,
             engine: coordinator.playbackEngine,
-            library: coordinator.libraryRepo,
-            artworkPipeline: coordinator.artworkPipeline
+            resolver: coordinator.nowPlayingResolver
         )
         self.nowPlayingScreenViewModel = NowPlayingScreenViewModel(
             queueManager: coordinator.queueManager,
             engine: coordinator.playbackEngine,
             library: coordinator.libraryRepo,
-            artworkPipeline: coordinator.artworkPipeline
+            resolver: coordinator.nowPlayingResolver
         )
     }
 

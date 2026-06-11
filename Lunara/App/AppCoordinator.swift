@@ -23,6 +23,10 @@ final class AppCoordinator {
     let appRouter: AppRouter
     let offlineStore: OfflineStoreProtocol
     let downloadManager: DownloadManager
+    /// Shared metadata/artwork resolver for the now-playing screen, bar, and
+    /// lock-screen bridge, so one track change resolves track/album/artwork once
+    /// instead of three times (Lunara-uww.7.1).
+    let nowPlayingResolver: NowPlayingResolver
     private let nowPlayingBridge: NowPlayingBridge
     let lastFMAuthManager: LastFMAuthManager
     let scrobbleManager: ScrobbleManager
@@ -51,6 +55,7 @@ final class AppCoordinator {
         appRouter: AppRouter,
         offlineStore: OfflineStoreProtocol,
         downloadManager: DownloadManager,
+        nowPlayingResolver: NowPlayingResolver,
         nowPlayingBridge: NowPlayingBridge,
         lastFMAuthManager: LastFMAuthManager,
         scrobbleManager: ScrobbleManager,
@@ -66,6 +71,7 @@ final class AppCoordinator {
         self.appRouter = appRouter
         self.offlineStore = offlineStore
         self.downloadManager = downloadManager
+        self.nowPlayingResolver = nowPlayingResolver
         self.nowPlayingBridge = nowPlayingBridge
         self.lastFMAuthManager = lastFMAuthManager
         self.scrobbleManager = scrobbleManager
@@ -142,11 +148,11 @@ final class AppCoordinator {
             queueManager?.offlineAvailabilityDidChange(forAlbums: changedAlbumIDs)
         }
 
+        let nowPlayingResolver = NowPlayingResolver(library: libraryRepo, artwork: artworkPipeline)
         let nowPlayingBridge = NowPlayingBridge(
             engine: playbackEngine,
             queue: queueManager,
-            library: libraryRepo,
-            artwork: artworkPipeline
+            resolver: nowPlayingResolver
         )
 
         let lastFMClient = LastFMClient()
@@ -171,6 +177,7 @@ final class AppCoordinator {
             appRouter: appRouter,
             offlineStore: offlineStore,
             downloadManager: downloadManager,
+            nowPlayingResolver: nowPlayingResolver,
             nowPlayingBridge: nowPlayingBridge,
             lastFMAuthManager: lastFMAuthManager,
             scrobbleManager: scrobbleManager,

@@ -217,7 +217,8 @@ struct AppCoordinatorTests {
             appRouter: AppRouter(library: repo, queue: queue),
             offlineStore: MockOfflineStore(),
             downloadManager: DownloadManager(offlineStore: MockOfflineStore(), library: repo, offlineDirectory: FileManager.default.temporaryDirectory),
-            nowPlayingBridge: NowPlayingBridge(engine: engine, queue: queue, library: repo, artwork: artworkPipeline),
+            nowPlayingResolver: NowPlayingResolver(library: repo, artwork: artworkPipeline),
+            nowPlayingBridge: NowPlayingBridge(engine: engine, queue: queue, resolver: NowPlayingResolver(library: repo, artwork: artworkPipeline)),
             lastFMAuthManager: makeLastFMAuthManager(keychain: keychain),
             scrobbleManager: makeScrobbleManager(engine: engine, queue: queue, library: repo, keychain: keychain)
         )
@@ -275,7 +276,8 @@ struct AppCoordinatorTests {
             appRouter: appRouter,
             offlineStore: MockOfflineStore(),
             downloadManager: DownloadManager(offlineStore: MockOfflineStore(), library: library, offlineDirectory: FileManager.default.temporaryDirectory),
-            nowPlayingBridge: NowPlayingBridge(engine: playbackEngine, queue: queue, library: library, artwork: artworkPipeline),
+            nowPlayingResolver: NowPlayingResolver(library: library, artwork: artworkPipeline),
+            nowPlayingBridge: NowPlayingBridge(engine: playbackEngine, queue: queue, resolver: NowPlayingResolver(library: library, artwork: artworkPipeline)),
             lastFMAuthManager: makeLastFMAuthManager(keychain: keychain),
             scrobbleManager: makeScrobbleManager(engine: playbackEngine, queue: queue, library: library, keychain: keychain)
         )

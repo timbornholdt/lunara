@@ -48,8 +48,9 @@ final class NowPlayingScreenViewModel {
 
     private let queueManager: QueueManagerProtocol
     private let engine: PlaybackEngineProtocol
+    /// Still used directly for artist + loudness, which the shared resolver does not own.
     private let library: LibraryRepoProtocol
-    private let artworkPipeline: ArtworkPipelineProtocol
+    private let resolver: NowPlayingResolver
 
     // MARK: - Private State
 
@@ -60,14 +61,9 @@ final class NowPlayingScreenViewModel {
     private var upNextTask: Task<Void, Never>?
     private var snapshotCache: [String: TrackSnapshot] = [:]
 
-    /// Max pixel dimension the hero artwork is downsampled to on decode. Bounds the
-    /// decode cost (the original Plex art is untranscoded/multi-MB) while staying
-    /// crisp at the near-full-width display size.
-    private static let fullArtMaxPixelSize = 1024
-    /// Rendered size of an up-next row thumbnail; artwork is downsampled to this.
-    private static let upNextThumbnailPointSize = CGSize(width: 40, height: 40)
-    /// Fixed display scale used when downsampling (matches the target device; keeps decoding deterministic).
-    private let displayScale: CGFloat = 3
+    /// Number of up-next rows resolved + published eagerly before the long tail, so the
+    /// visible top of Up Next paints without waiting on a full window rebuild.
+    private static let upNextEagerCount = 5
 
     #if DEBUG
     /// Test hook: number of retained track snapshots (bounded to current + next).
@@ -80,12 +76,12 @@ final class NowPlayingScreenViewModel {
         queueManager: QueueManagerProtocol,
         engine: PlaybackEngineProtocol,
         library: LibraryRepoProtocol,
-        artworkPipeline: ArtworkPipelineProtocol
+        resolver: NowPlayingResolver
     ) {
         self.queueManager = queueManager
         self.engine = engine
         self.library = library
-        self.artworkPipeline = artworkPipeline
+        self.resolver = resolver
 
         observeQueue()
         handleCurrentItemChange()
@@ -181,9 +177,9 @@ final class NowPlayingScreenViewModel {
         // track's artwork/palette/waveform, so the old album art is never shown
         // next to the new track's metadata while the (possibly networked) artwork
         // fetch is still in flight.
-        guard let track = try? await library.track(id: trackID) else { return }
+        guard let track = await resolver.track(id: trackID) else { return }
         guard !Task.isCancelled else { return }
-        let album = try? await library.album(id: track.albumID)
+        let album = await resolver.album(id: track.albumID)
         guard !Task.isCancelled else { return }
         applyTextClearingVisuals(track: track, album: album)
 
@@ -265,31 +261,13 @@ final class NowPlayingScreenViewModel {
 
     // MARK: - Resolution helpers (shared by the live apply path and prefetch)
 
-    /// Fetches the full-size album art and decodes it OFF the main actor. The decode
-    /// is DOWNSAMPLED to a display-bounded size (not a full-resolution decode of the
-    /// multi-MB original), which is the dominant cost the lock screen/bar already avoid.
+    /// Full-size album art + palette via the shared resolver, which fetches and
+    /// decodes (downsampled, off the main actor) once per album and shares the
+    /// result with the lock-screen bridge.
     private func resolveArtwork(track: Track, album: Album?) async -> (image: UIImage?, palette: ArtworkPaletteTheme) {
-        let sourceURL: URL?
-        if let album {
-            sourceURL = try? await library.authenticatedArtworkURL(for: album.thumbURL)
-        } else {
-            sourceURL = nil
-        }
-
-        let fileURL = try? await artworkPipeline.fetchFullSize(
-            for: track.albumID,
-            ownerKind: .album,
-            sourceURL: sourceURL
-        )
-
-        let maxPixelSize = Self.fullArtMaxPixelSize
-        return await Task.detached {
-            if let fileURL,
-               let img = DownsamplingImageLoader.load(contentsOf: fileURL, maxPixelSize: maxPixelSize) {
-                return (img, ArtworkPaletteExtractor.extract(from: img))
-            }
-            return (nil, .default)
-        }.value
+        guard let album else { return (nil, .default) }
+        let art = await resolver.fullArtwork(for: album)
+        return (art.image, art.palette)
     }
 
     private func resolveArtist(forName name: String) async -> Artist? {
@@ -368,8 +346,8 @@ final class NowPlayingScreenViewModel {
         prefetchingTrackID = nextTrackID
         prefetchTask = Task { [weak self] in
             guard let self else { return }
-            guard let track = try? await self.library.track(id: nextTrackID) else { return }
-            let album = try? await self.library.album(id: track.albumID)
+            guard let track = await self.resolver.track(id: nextTrackID) else { return }
+            let album = await self.resolver.album(id: track.albumID)
             guard let snapshot = await self.buildSnapshot(track: track, album: album) else { return }
             guard !Task.isCancelled else { return }
             self.snapshotCache[nextTrackID] = snapshot
@@ -411,44 +389,65 @@ final class NowPlayingScreenViewModel {
         }
 
         let slice = Array(zip(startIndex..<endIndex, items[startIndex..<endIndex]))
-        var resolved: [UpNextItem] = []
 
-        for (queueIndex, item) in slice {
+        // Reuse rows already resolved for the same track (text + decoded thumbnail) so
+        // an advance or a same-window re-trigger doesn't re-fetch/re-decode them. A row
+        // that transiently failed last time stays as-is until its track leaves the
+        // window — an accepted trade for avoiding a full 20-row rebuild every change.
+        let existingByID = Dictionary(
+            upNextItems.map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+
+        // Resolve and publish the first (visible) rows eagerly, then fill the long tail,
+        // so a full replace/shuffle paints the top of Up Next without waiting on all 20.
+        let eagerBound = min(Self.upNextEagerCount, slice.count)
+        var resolved: [UpNextItem] = []
+        resolved.reserveCapacity(slice.count)
+
+        for (offset, (queueIndex, item)) in slice.enumerated() {
             guard !Task.isCancelled else { return }
-            let track = try? await library.track(id: item.trackID)
-            let albumID = track?.albumID ?? item.trackID
-            let sourceURL: URL?
-            if let track, let album = try? await library.album(id: track.albumID) {
-                sourceURL = try? await library.authenticatedThumbnailURL(for: album.thumbURL)
+            if let reused = existingByID[item.trackID] {
+                // Carried over: keep the resolved text + decoded image, refresh position.
+                resolved.append(UpNextItem(
+                    id: reused.id,
+                    queueIndex: queueIndex,
+                    trackTitle: reused.trackTitle,
+                    artistName: reused.artistName,
+                    artworkImage: reused.artworkImage
+                ))
             } else {
-                sourceURL = nil
+                resolved.append(await resolveUpNextRow(queueIndex: queueIndex, item: item))
             }
-            let thumbURL = try? await artworkPipeline.fetchThumbnail(
-                for: albumID,
-                ownerKind: .album,
-                sourceURL: sourceURL
-            )
-            let thumbImage: UIImage?
-            if let thumbURL {
-                let pointSize = Self.upNextThumbnailPointSize
-                let scale = displayScale
-                // Downsample off the main actor (CPU-heavy, runs up to 20× per refresh).
-                thumbImage = await Task.detached {
-                    DownsamplingImageLoader.load(contentsOf: thumbURL, pointSize: pointSize, scale: scale)
-                }.value
-            } else {
-                thumbImage = nil
+
+            // Publish the eager window the moment it's complete; the tail follows below.
+            if offset == eagerBound - 1 {
+                guard !Task.isCancelled else { return }
+                upNextItems = resolved
             }
-            resolved.append(UpNextItem(
-                id: item.trackID,
-                queueIndex: queueIndex,
-                trackTitle: track?.title ?? "Unknown Track",
-                artistName: track?.artistName ?? "Unknown Artist",
-                artworkImage: thumbImage
-            ))
         }
 
         guard !Task.isCancelled else { return }
         upNextItems = resolved
+    }
+
+    /// Fully resolves one up-next row: track + album text and a downsampled thumbnail.
+    /// The track/album lookups and the decoded thumbnail are all shared via the resolver,
+    /// so an album with several queued tracks reads+decodes its art once, not per row.
+    private func resolveUpNextRow(queueIndex: Int, item: QueueItem) async -> UpNextItem {
+        let track = await resolver.track(id: item.trackID)
+        let thumbImage: UIImage?
+        if let track, let album = await resolver.album(id: track.albumID) {
+            thumbImage = await resolver.thumbnailArtwork(for: album)
+        } else {
+            thumbImage = nil
+        }
+        return UpNextItem(
+            id: item.trackID,
+            queueIndex: queueIndex,
+            trackTitle: track?.title ?? "Unknown Track",
+            artistName: track?.artistName ?? "Unknown Artist",
+            artworkImage: thumbImage
+        )
     }
 }

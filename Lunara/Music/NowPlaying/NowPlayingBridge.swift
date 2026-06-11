@@ -1,6 +1,5 @@
 import Foundation
 import MediaPlayer
-import os
 import UIKit
 
 /// Bridges playback state to the iOS lock screen and Control Center via
@@ -10,9 +9,7 @@ final class NowPlayingBridge {
 
     private let engine: PlaybackEngineProtocol
     private let queue: QueueManagerProtocol
-    private let library: LibraryRepoProtocol
-    private let artwork: ArtworkPipelineProtocol
-    private let logger = Logger(subsystem: "holdings.chinlock.lunara", category: "NowPlayingBridge")
+    private let resolver: NowPlayingResolver
 
     /// Track ID for which we last published metadata, to avoid redundant lookups.
     private var lastPublishedTrackID: String?
@@ -35,13 +32,11 @@ final class NowPlayingBridge {
     init(
         engine: PlaybackEngineProtocol,
         queue: QueueManagerProtocol,
-        library: LibraryRepoProtocol,
-        artwork: ArtworkPipelineProtocol
+        resolver: NowPlayingResolver
     ) {
         self.engine = engine
         self.queue = queue
-        self.library = library
-        self.artwork = artwork
+        self.resolver = resolver
     }
 
     deinit {
@@ -167,22 +162,10 @@ final class NowPlayingBridge {
     /// inside the cancellable `publishTask`; the post-await guards drop a publish
     /// that a newer track change has already superseded (cancellation is cooperative).
     private func publishMetadata(trackID: String, state: PlaybackState) async {
-        let track: Track?
-        do {
-            track = try await library.track(id: trackID)
-        } catch {
-            logger.error("Failed to look up track \(trackID, privacy: .public): \(error.localizedDescription, privacy: .public)")
-            track = nil
-        }
+        let track = await resolver.track(id: trackID)
         guard !Task.isCancelled, trackID == lastPublishedTrackID, let track else { return }
 
-        let album: Album?
-        do {
-            album = try await library.album(id: track.albumID)
-        } catch {
-            logger.error("Failed to look up album \(track.albumID, privacy: .public): \(error.localizedDescription, privacy: .public)")
-            album = nil
-        }
+        let album = await resolver.album(id: track.albumID)
         guard !Task.isCancelled, trackID == lastPublishedTrackID else { return }
 
         // Fresh track: start the scrubber at 0 against the track's own duration. The
@@ -209,22 +192,10 @@ final class NowPlayingBridge {
     }
 
     private func loadAndApplyArtwork(album: Album, forTrackID trackID: String) async {
-        let artworkURL: URL?
-        do {
-            artworkURL = try await artwork.fetchFullSize(
-                for: album.plexID,
-                ownerKind: .album,
-                sourceURL: album.thumbURL.flatMap { URL(string: $0) }
-            )
-        } catch {
-            logger.error("Failed to fetch artwork for album \(album.plexID, privacy: .public): \(error.localizedDescription, privacy: .public)")
-            artworkURL = nil
-        }
-
-        // Decode off the main actor; the lock screen wants a reasonably-sized image, not a thumbnail.
-        let image = await Task.detached {
-            artworkURL.flatMap { DownsamplingImageLoader.load(contentsOf: $0, maxPixelSize: 1024) }
-        }.value
+        // The resolver fetches the full-size art and decodes it (downsampled, off the
+        // main actor), sharing one decode with the now-playing screen. A failed decode
+        // returns a nil image and is NOT memoized, so the retry below re-fetches.
+        let image = await resolver.fullArtwork(for: album).image
         if let image {
             applyArtwork(image, forTrackID: trackID)
             lastPublishHadArtwork = true

@@ -17,8 +17,7 @@ struct NowPlayingBridgeTests {
         let bridge = NowPlayingBridge(
             engine: engine,
             queue: queue,
-            library: library,
-            artwork: artwork
+            resolver: NowPlayingResolver(library: library, artwork: artwork)
         )
         bridge.configure()
     }
@@ -32,8 +31,7 @@ struct NowPlayingBridgeTests {
         let bridge = NowPlayingBridge(
             engine: engine,
             queue: queue,
-            library: library,
-            artwork: artwork
+            resolver: NowPlayingResolver(library: library, artwork: artwork)
         )
         #expect(bridge != nil)
     }
@@ -71,7 +69,10 @@ struct NowPlayingBridgeTests {
             )
             items[id] = QueueItem(trackID: id, streamKey: "/library/metadata/\(id)", albumID: albumID)
         }
-        let bridge = NowPlayingBridge(engine: engine, queue: queue, library: library, artwork: artwork)
+        let bridge = NowPlayingBridge(
+            engine: engine, queue: queue,
+            resolver: NowPlayingResolver(library: library, artwork: artwork)
+        )
         return (bridge, engine, queue, library, artwork, items)
     }
 

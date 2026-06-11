@@ -71,7 +71,7 @@ struct NowPlayingScreenViewModelTests {
             queueManager: queue,
             engine: PlaybackEngineMock(),
             library: library,
-            artworkPipeline: ArtworkPipelineMock()
+            resolver: NowPlayingResolver(library: library, artwork: ArtworkPipelineMock())
         )
     }
 
@@ -152,7 +152,7 @@ struct NowPlayingScreenViewModelTests {
 
         let viewModel = NowPlayingScreenViewModel(
             queueManager: queue, engine: PlaybackEngineMock(),
-            library: library, artworkPipeline: artwork
+            library: library, resolver: NowPlayingResolver(library: library, artwork: artwork)
         )
 
         await waitUntil { viewModel.artworkImage != nil }
@@ -184,7 +184,7 @@ struct NowPlayingScreenViewModelTests {
 
         let viewModel = NowPlayingScreenViewModel(
             queueManager: queue, engine: PlaybackEngineMock(),
-            library: library, artworkPipeline: artwork
+            library: library, resolver: NowPlayingResolver(library: library, artwork: artwork)
         )
 
         // Artwork appears while loudness is still gated; the waveform is not yet set.
@@ -209,15 +209,17 @@ struct NowPlayingScreenViewModelTests {
 
         let engine = PlaybackEngineMock()
         let library = ConfigurableLibraryRepoMock()
+        library.tracksByID["next"] = makeTrack(id: "next", albumID: "al-next")
+        library.albumsByID["al-next"] = makeAlbum(id: "al-next")
         let artwork = ArtworkPipelineMock()
-        // track(id:) returns nil -> up-next loop keys the thumbnail by trackID.
-        artwork.thumbnailResultByOwnerID["next"] = bigArtwork
+        // Thumbnail is keyed by the resolved album owner ID.
+        artwork.thumbnailResultByOwnerID["al-next"] = bigArtwork
 
         let viewModel = NowPlayingScreenViewModel(
             queueManager: queue,
             engine: engine,
             library: library,
-            artworkPipeline: artwork
+            resolver: NowPlayingResolver(library: library, artwork: artwork)
         )
 
         // Poll until the up-next item resolves its artwork (async task in init).
@@ -234,5 +236,62 @@ struct NowPlayingScreenViewModelTests {
         let cg = try #require(image.cgImage)
         // 40pt row * scale 3 = 120px; far below the 1024px source.
         #expect(max(cg.width, cg.height) <= 130)
+    }
+
+    /// Lunara-uww.7.2: when the queue advances, up-next rows that carry over to the new
+    /// window must be REUSED, not re-resolved/re-decoded. Reuse keeps the exact decoded
+    /// UIImage instance; a full rebuild would decode a fresh (non-identical) image.
+    @Test
+    func upNextReusesDecodedThumbnailsForCarriedOverRowsOnAdvance() async throws {
+        let art = try makeImageFile(pixelSize: 64)
+        defer { try? FileManager.default.removeItem(at: art) }
+
+        // t0 current; up next t1...t5, each a distinct album with a thumbnail.
+        let ids = (0...5).map { "t\($0)" }
+        let queue = NowPlayingQueueMock()
+        queue.items = ids.map { makeQueueItem(trackID: $0) }
+        queue.currentIndex = 0
+        queue.currentItem = queue.items[0]
+
+        let library = ConfigurableLibraryRepoMock()
+        let artwork = ArtworkPipelineMock()
+        for id in ids {
+            let albumID = "al-\(id)"
+            library.tracksByID[id] = makeTrack(id: id, albumID: albumID)
+            library.albumsByID[albumID] = makeAlbum(id: albumID)
+            artwork.thumbnailResultByOwnerID[albumID] = art
+        }
+
+        let viewModel = NowPlayingScreenViewModel(
+            queueManager: queue,
+            engine: PlaybackEngineMock(),
+            library: library,
+            resolver: NowPlayingResolver(library: library, artwork: artwork)
+        )
+
+        // Up next resolves to t1...t5, each with a decoded thumbnail.
+        await waitUntil {
+            viewModel.upNextItems.map(\.id) == ["t1", "t2", "t3", "t4", "t5"]
+                && viewModel.upNextItems.allSatisfy { $0.artworkImage != nil }
+        }
+        let imageByIDBefore = Dictionary(
+            uniqueKeysWithValues: viewModel.upNextItems.map { ($0.id, $0.artworkImage) }
+        )
+
+        // Advance one track: current is now t1, window becomes t2...t5 — all carried over.
+        queue.currentIndex = 1
+        queue.currentItem = queue.items[1]
+        await waitUntil { viewModel.upNextItems.map(\.id) == ["t2", "t3", "t4", "t5"] }
+        // Settle so any (incorrect) re-decode would have replaced the images.
+        try await Task.sleep(nanoseconds: 150_000_000)
+
+        for row in viewModel.upNextItems {
+            let before = try #require(imageByIDBefore[row.id] ?? nil)
+            let after = try #require(row.artworkImage)
+            // Same UIImage instance ⇒ the row was reused, not re-decoded.
+            #expect(after === before, "row \(row.id) was re-decoded instead of reused")
+            // The queue index must still be refreshed to the new window position.
+            #expect(row.queueIndex == queue.items.firstIndex { $0.trackID == row.id })
+        }
     }
 }
