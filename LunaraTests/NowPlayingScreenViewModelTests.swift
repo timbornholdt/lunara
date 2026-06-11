@@ -238,6 +238,55 @@ struct NowPlayingScreenViewModelTests {
         #expect(max(cg.width, cg.height) <= 130)
     }
 
+    /// Lunara-8x4: on a queue replace (shuffle from artist page), the scrubber must
+    /// not keep showing the PREVIOUS track's elapsed/duration while the engine is
+    /// still resolving the new track. It holds at 0 / new-track duration until the
+    /// engine confirms the new track, then follows the engine again.
+    @Test
+    func elapsedAndDuration_holdAtZeroUntilEngineConfirmsNewTrack() async throws {
+        let queue = NowPlayingQueueMock()
+        queue.items = [makeQueueItem(trackID: "t-old")]
+        queue.currentIndex = 0
+        queue.currentItem = queue.items[0]
+
+        let engine = PlaybackEngineMock()
+        engine.currentTrackID = "t-old"
+        engine.playbackState = .playing
+        engine.elapsed = 42
+        engine.duration = 99
+
+        let library = ConfigurableLibraryRepoMock()
+        for id in ["t-old", "t-new"] {
+            library.tracksByID[id] = makeTrack(id: id, albumID: "al-\(id)")
+            library.albumsByID["al-\(id)"] = makeAlbum(id: "al-\(id)")
+        }
+
+        let viewModel = NowPlayingScreenViewModel(
+            queueManager: queue,
+            engine: engine,
+            library: library,
+            resolver: NowPlayingResolver(library: library, artwork: ArtworkPipelineMock())
+        )
+        await waitUntil { viewModel.trackTitle == "Track t-old" }
+        #expect(viewModel.elapsed == 42) // engine is on this track: pass through
+
+        // Replace the queue (shuffle): the engine is still on t-old while the new
+        // track's URL resolves.
+        queue.items = [makeQueueItem(trackID: "t-new")]
+        queue.currentItem = queue.items[0]
+        await waitUntil { viewModel.trackTitle == "Track t-new" }
+
+        #expect(viewModel.elapsed == 0)
+        #expect(viewModel.duration == 180) // the new track's library duration, not 99
+
+        // Engine confirms the new track: live engine values flow again.
+        engine.currentTrackID = "t-new"
+        engine.elapsed = 3
+        engine.duration = 180
+        #expect(viewModel.elapsed == 3)
+        #expect(viewModel.duration == 180)
+    }
+
     /// Lunara-uww.7.4: up-next rows must resolve CONCURRENTLY, not one row at a time.
     /// The library mock holds a barrier that only opens when 4 track lookups are in
     /// flight at once — a serial row loop never gets past the first gated row.
