@@ -28,6 +28,12 @@ final class LibraryGridViewModel {
     private var searchRequestID = 0
     private var searchTask: Task<Void, Never>?
 
+    /// Recency order for `artworkByAlbumID` keys, most recently used last.
+    /// Bookkeeping only — views never read it — so it's excluded from observation
+    /// (the dictionary itself stays observable and drives re-renders).
+    @ObservationIgnored private var artworkLRU: [String] = []
+    private let artworkCacheCapacity: Int
+
     // Keyset pagination state.
     private let pageSize = 50
     private var nextCursor: AlbumCursor?
@@ -64,13 +70,15 @@ final class LibraryGridViewModel {
         artworkPipeline: ArtworkPipelineProtocol,
         actions: LibraryGridActionRouting,
         downloadManager: DownloadManagerProtocol? = nil,
-        gardenClient: GardenAPIClientProtocol? = nil
+        gardenClient: GardenAPIClientProtocol? = nil,
+        artworkCacheCapacity: Int = 300
     ) {
         self.library = library
         self.artworkPipeline = artworkPipeline
         self.actions = actions
         self.downloadManager = downloadManager
         self.gardenClient = gardenClient
+        self.artworkCacheCapacity = max(1, artworkCacheCapacity)
     }
 
     func loadInitialIfNeeded() async {
@@ -135,7 +143,11 @@ final class LibraryGridViewModel {
     }
 
     func thumbnailURL(for albumID: String) -> URL? {
-        artworkByAlbumID[albumID]
+        guard let url = artworkByAlbumID[albumID] else {
+            return nil
+        }
+        touchArtwork(albumID)
+        return url
     }
 
     func loadThumbnailIfNeeded(for album: Album) {
@@ -159,7 +171,7 @@ final class LibraryGridViewModel {
                     ownerKind: .album,
                     sourceURL: sourceURL
                 ) {
-                    self.artworkByAlbumID[album.plexID] = resolvedURL
+                    self.storeArtwork(resolvedURL, for: album.plexID)
                 }
             } catch {
                 // Artwork is non-blocking for this screen; leave placeholder visible when fetch fails.
@@ -167,6 +179,25 @@ final class LibraryGridViewModel {
 
             self.pendingArtworkAlbumIDs.remove(album.plexID)
         }
+    }
+
+    /// Inserts a resolved thumbnail URL and evicts the least recently used entries
+    /// beyond `artworkCacheCapacity`, so the dictionary stays bounded as the user
+    /// scrolls a multi-thousand-album library (Lunara-uww.4.2). Eviction leaves
+    /// `pendingArtworkAlbumIDs` alone — an evicted album simply re-resolves on its
+    /// next appearance.
+    private func storeArtwork(_ url: URL, for albumID: String) {
+        artworkByAlbumID[albumID] = url
+        touchArtwork(albumID)
+        while artworkByAlbumID.count > artworkCacheCapacity, let oldest = artworkLRU.first {
+            artworkLRU.removeFirst()
+            artworkByAlbumID.removeValue(forKey: oldest)
+        }
+    }
+
+    private func touchArtwork(_ albumID: String) {
+        artworkLRU.removeAll { $0 == albumID }
+        artworkLRU.append(albumID)
     }
 
     func userFacingMessage(for error: Error) -> String {
