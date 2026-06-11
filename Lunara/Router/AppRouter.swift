@@ -288,7 +288,8 @@ final class AppRouter {
                 trackID: track.plexID,
                 streamKey: track.key,
                 albumID: track.albumID,
-                trackNumber: track.trackNumber
+                trackNumber: track.trackNumber,
+                duration: track.duration
             )
         }
     }

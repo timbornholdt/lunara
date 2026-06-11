@@ -321,9 +321,11 @@ final class QueueManager: QueueManagerProtocol {
                     }
                 }
 
-                // The policy detects the fade-out at the END of the OUTGOING track,
-                // so this must be the CURRENT item's contour, not the next's (Lunara-9x1).
+                // OUTGOING contour first (fade-out detection, Lunara-9x1), then the
+                // INCOMING contour (quiet-intro onset lead, Lunara-2vz). Both come
+                // from the store-backed cache after first fetch, so this stays cheap.
                 let loudness = try? await loudnessProvider?.fetchLoudnessLevels(trackID: currentItem.trackID)
+                let nextLoudness = try? await loudnessProvider?.fetchLoudnessLevels(trackID: nextItem.trackID)
                 guard !Task.isCancelled else { return }
 
                 await MainActor.run {
@@ -334,14 +336,17 @@ final class QueueManager: QueueManagerProtocol {
                         nextAlbumID: nextItem.albumID,
                         nextTrackNumber: nextItem.trackNumber,
                         currentTrackDuration: self.engine.duration,
-                        loudnessLevels: loudness
+                        loudnessLevels: loudness,
+                        nextLoudnessLevels: nextLoudness,
+                        nextTrackDuration: nextItem.duration
                     )
                     self.engine.prepareNext(url: prepareURL, trackID: nextItem.trackID, transition: transition)
                     self.recordFadeDecision(
                         transition,
                         from: currentItem,
                         to: nextItem,
-                        hadContour: loudness != nil
+                        hadContour: loudness != nil,
+                        hadNextContour: nextLoudness != nil
                     )
                 }
             } catch {
@@ -356,13 +361,15 @@ final class QueueManager: QueueManagerProtocol {
         _ transition: TransitionStyle,
         from currentItem: QueueItem,
         to nextItem: QueueItem,
-        hadContour: Bool
+        hadContour: Bool,
+        hadNextContour: Bool = false
     ) {
         guard let telemetry, telemetry.isEnabled else { return }
         var info: [String: String] = [
             "from": currentItem.trackID,
             "to": nextItem.trackID,
             "hadContour": hadContour ? "1" : "0",
+            "hadNextContour": hadNextContour ? "1" : "0",
             "trackDuration": String(format: "%.1f", engine.duration)
         ]
         switch transition {
