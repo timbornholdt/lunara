@@ -191,3 +191,16 @@ final class PlaybackURLResolvingMock: PlaybackURLResolving, @unchecked Sendable 
         return URL(string: "https://resolver.example.com/\(item.streamKey).mp3")!
     }
 }
+
+// MARK: - LoudnessProviderMock
+
+@MainActor
+final class LoudnessProviderMock: LoudnessDataProviding {
+    var levelsByTrackID: [String: [Float]] = [:]
+    private(set) var requestedTrackIDs: [String] = []
+
+    func fetchLoudnessLevels(trackID: String) async throws -> [Float]? {
+        requestedTrackIDs.append(trackID)
+        return levelsByTrackID[trackID]
+    }
+}

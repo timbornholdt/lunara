@@ -16,5 +16,9 @@
 	<string>https://timbornholdt.com</string>
 	<key>GARDEN_API_KEY</key>
 	<string>YOUR_GARDEN_API_KEY</string>
+	<key>TICKETMASTER_CONSUMER_KEY</key>
+	<string>a-key</string>
+	<key>TICKETMASTER_CONSUMER_SECRET</key>
+	<string>a-secret</string>
 </dict>
 </plist>
