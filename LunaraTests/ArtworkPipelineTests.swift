@@ -46,6 +46,23 @@ struct ArtworkPipelineTests {
         #expect(persistedData == Data("remote-image".utf8))
     }
 
+    // Lunara-uww.7.5: a hung artwork download must give up well before the old 30s
+    // URLRequest default, so the lock screen isn't held blank behind a dead fetch.
+    @Test
+    func download_requestUsesTenSecondTimeout() async throws {
+        let fixture = try Fixture()
+        fixture.session.dataToReturn = Data("remote-image".utf8)
+
+        _ = try await fixture.pipeline.fetchFullSize(
+            for: "album-timeout",
+            ownerKind: .album,
+            sourceURL: URL(string: "https://plex.example.com/full.png")
+        )
+
+        let request = try #require(fixture.session.requests.first)
+        #expect(request.timeoutInterval == 10)
+    }
+
     @Test
     func fetchThumbnail_whenStoredPathIsStale_cleansStoreThenFetchesFreshFile() async throws {
         let fixture = try Fixture()

@@ -81,7 +81,9 @@ final class ArtworkPipeline: ArtworkPipelineProtocol {
         logger.info("artwork DOWNLOAD  \(tag, privacy: .public) ← \(sourceURL.host ?? sourceURL.absoluteString, privacy: .public)")
 
         var request = URLRequest(url: sourceURL)
-        request.timeoutInterval = 30
+        // Short enough that a hung fetch doesn't hold the lock screen blank for the
+        // 30s URLRequest default; the now-playing retry path re-fetches on failure.
+        request.timeoutInterval = 10
 
         do {
             let (data, response) = try await session.data(for: request)
