@@ -100,7 +100,8 @@ struct LibraryRootTabView: View {
                             downloadManager: coordinator.downloadManager,
                             gardenClient: coordinator.gardenClient
                         ),
-                        refreshStatus: coordinator.refreshStatus
+                        refreshStatus: coordinator.refreshStatus,
+                        radarService: coordinator.radarService
                     )
                     .toolbarBackground(Color.lunara(.backgroundBase), for: .tabBar)
                     .toolbarBackgroundVisibility(.visible, for: .tabBar)

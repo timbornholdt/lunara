@@ -3,6 +3,55 @@ import Testing
 @testable import Lunara
 
 struct LibraryStoreTests {
+    // MARK: - Release radar persistence (Lunara-nlo)
+
+    @Test
+    func artistNamesWithAlbumRatedAtLeast_returnsDistinctQualifyingArtists() async throws {
+        let store = try LibraryStore.inMemory()
+        let snapshot = LibrarySnapshot(
+            albums: [
+                makeRatedAlbum(id: "a1", artist: "Sloan", rating: 10),
+                makeRatedAlbum(id: "a2", artist: "Sloan", rating: 9),
+                makeRatedAlbum(id: "a3", artist: "Cheekface", rating: 9),
+                makeRatedAlbum(id: "a4", artist: "Mediocre Band", rating: 8),
+                makeRatedAlbum(id: "a5", artist: "Unrated Band", rating: nil)
+            ],
+            tracks: [], artists: [], collections: []
+        )
+        try await store.replaceLibrary(with: snapshot, refreshedAt: Date())
+
+        let names = try await store.artistNames(withAlbumRatedAtLeast: 9)
+
+        #expect(names.sorted() == ["Cheekface", "Sloan"])
+    }
+
+    @Test
+    func radarEntries_replaceAndFetchRoundTrip() async throws {
+        let store = try LibraryStore.inMemory()
+        let entries = [
+            RadarEntry(id: "rg-2", artistName: "Sloan", title: "Later Album", firstReleaseDate: "2026-10-01"),
+            RadarEntry(id: "rg-1", artistName: "Cheekface", title: "Sooner Album", firstReleaseDate: "2026-07-01")
+        ]
+
+        try await store.replaceRadarEntries(entries)
+        let fetched = try await store.radarEntries()
+
+        // Soonest first.
+        #expect(fetched.map(\.id) == ["rg-1", "rg-2"])
+
+        // Replace fully supersedes.
+        try await store.replaceRadarEntries([entries[0]])
+        #expect(try await store.radarEntries().map(\.id) == ["rg-2"])
+    }
+
+    private func makeRatedAlbum(id: String, artist: String, rating: Int?) -> Album {
+        Album(
+            plexID: id, title: "Album \(id)", artistName: artist, year: nil,
+            thumbURL: nil, genre: nil, rating: rating, addedAt: nil,
+            trackCount: 1, duration: 100
+        )
+    }
+
     // MARK: - Batched track fetch (Lunara-uuy)
 
     @Test

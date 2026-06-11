@@ -6,13 +6,17 @@ struct ArtistsListView: View {
     @State private var selectedArtist: Artist?
     /// Shared background-refresh status; nil in previews/tests that don't exercise it.
     private let refreshStatus: RefreshStatusService?
+    /// Release radar (Lunara-nlo); nil hides the card.
+    private let radarService: RadarService?
 
     init(
         viewModel: ArtistsListViewModel,
-        refreshStatus: RefreshStatusService? = nil
+        refreshStatus: RefreshStatusService? = nil,
+        radarService: RadarService? = nil
     ) {
         _viewModel = State(initialValue: viewModel)
         self.refreshStatus = refreshStatus
+        self.radarService = radarService
     }
 
     var body: some View {
@@ -97,6 +101,7 @@ struct ArtistsListView: View {
         } else {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 20) {
+                    radarCard
                     ForEach(viewModel.sectionedArtists, id: \.letter) { section in
                         sectionHeader(section.letter)
                         ForEach(section.artists) { artist in
@@ -105,6 +110,57 @@ struct ArtistsListView: View {
                     }
                 }
             }
+        }
+    }
+
+    /// Entry point to the release radar, pinned above the artist list when the
+    /// search is idle (Lunara-nlo).
+    @ViewBuilder
+    private var radarCard: some View {
+        if let radarService,
+           viewModel.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            NavigationLink {
+                RadarView(service: radarService)
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "antenna.radiowaves.left.and.right")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(Color.lunara(.textPrimary))
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Release Radar")
+                            .font(titleFont)
+                            .foregroundStyle(Color.lunara(.textPrimary))
+                        Text(radarSubtitle)
+                            .font(subtitleFont)
+                            .foregroundStyle(Color.lunara(.textSecondary))
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.lunara(.textSecondary))
+                }
+                .padding(14)
+                .background {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color.lunara(.backgroundElevated))
+                }
+            }
+            .buttonStyle(.plain)
+            .task {
+                await radarService.loadCached()
+            }
+        }
+    }
+
+    private var radarSubtitle: String {
+        let count = radarService?.entries.count ?? 0
+        switch count {
+        case 0: return "Upcoming albums from artists you love"
+        case 1: return "1 upcoming album"
+        default: return "\(count) upcoming albums"
         }
     }
 

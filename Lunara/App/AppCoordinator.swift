@@ -34,7 +34,9 @@ final class AppCoordinator {
     /// read-only enrichment like artist bios (Lunara-uww.6.1).
     let lastFMClient: LastFMClientProtocol
     /// MusicBrainz enrichment (artist links + external discography, Lunara-uww.6.2/6.3).
-    let musicBrainzClient: MusicBrainzClientProtocol = MusicBrainzClient()
+    let musicBrainzClient: MusicBrainzClientProtocol
+    /// Release radar (Lunara-nlo); nil in tests that don't exercise it.
+    let radarService: RadarService?
     /// Upcoming concerts near home (Lunara-uww.6.4); nil when no API key is configured.
     let ticketmasterClient: TicketmasterClientProtocol? = {
         let key = TicketmasterClient.configuredAPIKey
@@ -70,6 +72,8 @@ final class AppCoordinator {
         lastFMAuthManager: LastFMAuthManager,
         scrobbleManager: ScrobbleManager,
         lastFMClient: LastFMClientProtocol = LastFMClient(),
+        musicBrainzClient: MusicBrainzClientProtocol = MusicBrainzClient(),
+        radarService: RadarService? = nil,
         gardenClient: GardenAPIClientProtocol? = nil,
         playbackTelemetry: PlaybackTelemetry? = nil
     ) {
@@ -87,6 +91,8 @@ final class AppCoordinator {
         self.lastFMAuthManager = lastFMAuthManager
         self.scrobbleManager = scrobbleManager
         self.lastFMClient = lastFMClient
+        self.musicBrainzClient = musicBrainzClient
+        self.radarService = radarService
         self.gardenClient = gardenClient
         self.playbackTelemetry = playbackTelemetry ?? PlaybackTelemetry()
         self.libraryRefresh = LibraryRefreshService(
@@ -117,6 +123,8 @@ final class AppCoordinator {
             lastFMAuthManager: deps.lastFMAuthManager,
             scrobbleManager: deps.scrobbleManager,
             lastFMClient: deps.lastFMClient,
+            musicBrainzClient: deps.musicBrainzClient,
+            radarService: deps.radarService,
             gardenClient: deps.gardenClient,
             playbackTelemetry: deps.playbackTelemetry
         )

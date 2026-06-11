@@ -308,6 +308,17 @@ enum LibraryStoreMigrations {
             }
         }
 
+        // Release radar: persisted upcoming albums from 4.5★+ artists (Lunara-nlo).
+        migrator.registerMigration("v12_radar_entries") { db in
+            try db.create(table: "radar_entries") { table in
+                table.column("releaseGroupID", .text).primaryKey()
+                table.column("artistName", .text).notNull()
+                table.column("title", .text).notNull()
+                table.column("firstReleaseDate", .text).notNull()
+                table.column("fetchedAt", .datetime).notNull()
+            }
+        }
+
         return migrator
     }
 }

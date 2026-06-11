@@ -363,6 +363,10 @@ final class MusicBrainzClientMock: MusicBrainzClientProtocol, @unchecked Sendabl
         requests.append(name)
         return enrichmentByArtistName[name]
     }
+
+    func upcomingAlbums(artistName: String) async throws -> [ExternalReleaseGroup] {
+        []
+    }
 }
 
 
