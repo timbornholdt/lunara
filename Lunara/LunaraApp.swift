@@ -58,8 +58,10 @@ struct LunaraApp: App {
                 switch newPhase {
                 case .active:
                     coordinator.playbackTelemetry.recordScenePhase(active: true)
+                    coordinator.playbackEngine.sceneDidChangeActivity(isActive: true)
                 case .background:
                     coordinator.playbackTelemetry.recordScenePhase(active: false)
+                    coordinator.playbackEngine.sceneDidChangeActivity(isActive: false)
                 default:
                     break
                 }

@@ -273,8 +273,29 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
 
     // MARK: - Elapsed Timer (UI only)
 
+    /// Whether the scene is foregrounded. The elapsed timer only feeds the
+    /// in-app UI (the lock screen interpolates position from rate + timestamp),
+    /// so it never runs while backgrounded — 4 CPU wakes/second saved for the
+    /// whole of a lock-screen listening session (Lunara-n09).
+    private var isSceneActive = true
+
+    func sceneDidChangeActivity(isActive: Bool) {
+        isSceneActive = isActive
+        if !isActive {
+            stopElapsedTimer()
+        } else if playbackState == .playing {
+            updateElapsed()
+            startElapsedTimer()
+        }
+    }
+
+    #if DEBUG
+    var isElapsedTimerRunningForTesting: Bool { elapsedTimer != nil }
+    #endif
+
     private func startElapsedTimer() {
         stopElapsedTimer()
+        guard isSceneActive else { return }
         elapsedTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.updateElapsed()
