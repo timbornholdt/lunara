@@ -223,7 +223,14 @@ final class DownloadManager: DownloadManagerProtocol {
                     downloadedAt: Date(),
                     fileSizeBytes: Int64(data.count)
                 )
-                try await offlineStore.saveOfflineTrack(offlineTrack)
+                do {
+                    try await offlineStore.saveOfflineTrack(offlineTrack)
+                } catch {
+                    // A file without a store row is invisible to every cleanup
+                    // path — delete it NOW or it leaks forever (Lunara-uww.3.7).
+                    try? FileManager.default.removeItem(at: fileURL)
+                    throw error
+                }
 
                 albumStates[albumID] = .downloading(completedTracks: index + 1, totalTracks: totalTracks)
                 logger.info("Downloaded track \(index + 1)/\(totalTracks) for album '\(albumID, privacy: .public)'")
@@ -239,9 +246,50 @@ final class DownloadManager: DownloadManagerProtocol {
             }
         }
 
+        // A cancel that lands during the LAST track's save would otherwise fall
+        // through and mark the album complete after its rows were deleted.
+        guard !Task.isCancelled else {
+            await cleanupFailedDownload(albumID: albumID)
+            return
+        }
+
         albumStates[albumID] = .complete
         logger.info("Download complete for album '\(albumID, privacy: .public)' (\(totalTracks) tracks)")
         onOfflineAvailabilityChanged?([albumID])
+    }
+
+    /// Deletes files in the offline directory that have no store row — leftovers
+    /// from a write interrupted before its metadata saved (process death, races
+    /// predating the save-failure cleanup). No-op while downloads are active, so
+    /// a just-written-not-yet-saved file can't be swept mid-download (Lunara-uww.3.7).
+    func removeOrphanedFiles() async {
+        guard activeTasks.isEmpty else { return }
+
+        let knownFilenames: Set<String>
+        do {
+            var names: Set<String> = []
+            for albumID in try await offlineStore.allOfflineAlbumIDs() {
+                for track in try await offlineStore.offlineTracks(forAlbum: albumID) {
+                    names.insert(track.filename)
+                }
+            }
+            knownFilenames = names
+        } catch {
+            logger.error("Orphan sweep skipped, store unavailable: \(error.localizedDescription, privacy: .public)")
+            return
+        }
+        guard activeTasks.isEmpty else { return } // a download started during the store reads
+
+        let fileManager = FileManager.default
+        guard let files = try? fileManager.contentsOfDirectory(
+            at: offlineDirectory,
+            includingPropertiesForKeys: nil
+        ) else { return }
+
+        for fileURL in files where !knownFilenames.contains(fileURL.lastPathComponent) {
+            try? fileManager.removeItem(at: fileURL)
+            logger.info("Orphan sweep removed '\(fileURL.lastPathComponent, privacy: .public)'")
+        }
     }
 
     private func cleanupFailedDownload(albumID: String) async {

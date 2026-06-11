@@ -147,6 +147,11 @@ final class AppCoordinator {
         downloadManager.onOfflineAvailabilityChanged = { [weak queueManager] changedAlbumIDs in
             queueManager?.offlineAvailabilityDidChange(forAlbums: changedAlbumIDs)
         }
+        // Self-heal files orphaned by interrupted downloads (Lunara-uww.3.7);
+        // runs before any download can start, and no-ops if one somehow has.
+        Task { [weak downloadManager] in
+            await downloadManager?.removeOrphanedFiles()
+        }
 
         let nowPlayingResolver = NowPlayingResolver(library: libraryRepo, artwork: artworkPipeline)
         let nowPlayingBridge = NowPlayingBridge(

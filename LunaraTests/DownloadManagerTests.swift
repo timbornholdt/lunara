@@ -197,6 +197,50 @@ struct DownloadManagerTests {
 
     // MARK: - Helpers
 
+    // MARK: - Orphaned files + atomicity (Lunara-uww.3.7)
+
+    /// A file written to disk whose metadata save then fails must be deleted
+    /// immediately — cleanup only knows about store-backed files, so a file
+    /// without a row would otherwise leak forever.
+    @Test
+    func saveFailure_removesWrittenFileFromDisk() async throws {
+        let subject = makeSubject()
+        let album = makeAlbum(id: "a1")
+        let track = makeTrack(id: "t1", albumID: "a1")
+        let source = subject.offlineDir.appendingPathComponent("source.mp3")
+        try Data("audio".utf8).write(to: source)
+        subject.library.streamURLByTrackID["t1"] = source
+        subject.offlineStore.saveOfflineTrackError = LibraryError.operationFailed(reason: "db full")
+
+        await subject.manager.downloadAlbum(album, tracks: [track])
+
+        #expect(subject.manager.downloadState(forAlbum: "a1") == .failed("Download failed"))
+        // Only the source fixture remains: the downloaded copy was removed when
+        // its save failed.
+        let remaining = try FileManager.default.contentsOfDirectory(atPath: subject.offlineDir.path)
+        #expect(remaining == ["source.mp3"])
+    }
+
+    /// Files in the offline directory with no store row (write interrupted before
+    /// the metadata save — crash, cancellation) are swept; store-backed files stay.
+    @Test
+    func removeOrphanedFiles_deletesFilesWithoutStoreRows() async throws {
+        let subject = makeSubject()
+        let known = subject.offlineDir.appendingPathComponent("known.mp3")
+        try Data("k".utf8).write(to: known)
+        subject.offlineStore.offlineAlbumIDs = ["a1"]
+        subject.offlineStore.offlineTracksByAlbumID["a1"] = [
+            OfflineTrack(trackID: "t1", albumID: "a1", filename: "known.mp3", downloadedAt: Date(), fileSizeBytes: 1)
+        ]
+        let orphan = subject.offlineDir.appendingPathComponent("orphan.mp3")
+        try Data("o".utf8).write(to: orphan)
+
+        await subject.manager.removeOrphanedFiles()
+
+        #expect(FileManager.default.fileExists(atPath: known.path))
+        #expect(!FileManager.default.fileExists(atPath: orphan.path))
+    }
+
     private func waitUntil(
         iterations: Int = 50,
         condition: @escaping () -> Bool

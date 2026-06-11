@@ -361,6 +361,15 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
         guard let transition = pendingTransition,
               case .crossfade(_, let fadeDuration) = transition else { return }
 
+        // Health check at fade time: the staged source may have died since
+        // prepareNext (file evicted, resolve race). Fading into it would be
+        // silence — discard it and let the queue re-resolve at EOF (Lunara-uww.3.8).
+        guard inactiveSlot.isReadyForPlayback else {
+            logger.error("[CF] beginCrossfade: staged next track no longer loadable — discarding")
+            clearPreparedNext()
+            return
+        }
+
         cancelCrossfadeTriggerTimer()
 
         logger.debug("[CF] beginCrossfade: active=\(self.activeSlot.trackID ?? "nil", privacy: .public) inactive=\(self.inactiveSlot.trackID ?? "nil", privacy: .public) fadeDuration=\(fadeDuration)")
@@ -440,6 +449,16 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
         }
 
         cancelCrossfadeTriggerTimer()
+
+        // Same health check as beginCrossfade for the immediate-swap path: a dead
+        // staged buffer plays as silence, so discard it and fall through to the
+        // idle path, where the queue re-resolves the next track fresh (Lunara-uww.3.8).
+        if pendingTransition != nil, inactiveSlot.trackID != nil, !inactiveSlot.isReadyForPlayback {
+            logger.error("[CF] handleTrackEnded: staged next track no longer loadable — discarding")
+            inactiveSlot.stop()
+            pendingTransition = nil
+            pendingTrackID = nil
+        }
 
         if pendingTransition != nil, inactiveSlot.trackID != nil {
             // A next track is loaded — swap and play immediately.
