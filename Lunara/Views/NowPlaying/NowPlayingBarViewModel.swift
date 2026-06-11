@@ -13,13 +13,14 @@ final class NowPlayingBarViewModel {
     var playbackState: PlaybackState { engine.playbackState }
 
     var isVisible: Bool {
-        // Show the bar when something is actively playing, paused, or buffering.
-        // Also stay visible during brief .idle moments between tracks (auto-advance)
-        // to avoid the bar/sheet disappearing and re-animating.
-        // A restored queue on launch leaves the engine in .idle with hasBegunPlayback
-        // still false — we don't want the bar to appear before the user has explicitly
-        // started playback.
-        queueManager.currentItem != nil && (playbackState != .idle || hasBegunPlayback)
+        // Show the bar while a queue exists and playback has begun this session.
+        // queueManager.hasPlaybackBegun latches SYNCHRONOUSLY in playNow/play —
+        // the old engine-state latch raced the async observer, so mid-start
+        // idle bounces flapped the iOS 26 accessory off/on, tearing down the
+        // Now Playing sheet host in a dismiss/re-present loop (Lunara-m73).
+        // A restored queue on launch stays hidden until the user explicitly plays.
+        queueManager.currentItem != nil
+            && (playbackState != .idle || hasBegunPlayback || queueManager.hasPlaybackBegun)
     }
 
     // MARK: - Dependencies

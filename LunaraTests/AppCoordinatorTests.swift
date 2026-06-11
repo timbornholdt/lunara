@@ -496,6 +496,7 @@ private final class CoordinatorQueueManagerMock: QueueManagerProtocol {
     var currentIndex: Int?
     var currentItem: QueueItem?
     var lastError: MusicError?
+    var hasPlaybackBegun = false
     private(set) var pauseCallCount = 0
     private(set) var resumeCallCount = 0
     private(set) var skipToNextCallCount = 0

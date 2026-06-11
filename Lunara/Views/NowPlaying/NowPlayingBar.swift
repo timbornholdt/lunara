@@ -9,28 +9,16 @@ struct NowPlayingBar: View {
     let viewModel: NowPlayingBarViewModel
     let screenViewModel: NowPlayingScreenViewModel
     @Binding var showSheet: Bool
-    var onNavigateToAlbum: ((Album) -> Void)?
-    var onNavigateToArtist: ((Artist) -> Void)?
 
     var body: some View {
+        // No .sheet here: the accessory tears its content down on visibility
+        // changes, and a sheet hosted inside it gets auto-dismissed
+        // mid-presentation (Lunara-m73). LibraryRootTabView hosts the sheet.
         if viewModel.isVisible {
             barContent
                 .background(screenViewModel.palette.background)
                 .onTapGesture {
                     showSheet = true
-                }
-                .sheet(isPresented: $showSheet) {
-                    NowPlayingScreen(
-                        viewModel: screenViewModel,
-                        onNavigateToAlbum: { album in
-                            showSheet = false
-                            onNavigateToAlbum?(album)
-                        },
-                        onNavigateToArtist: { artist in
-                            showSheet = false
-                            onNavigateToArtist?(artist)
-                        }
-                    )
                 }
                 .animation(.easeInOut(duration: 0.4), value: screenViewModel.palette)
         }
@@ -54,16 +42,10 @@ struct NowPlayingBar: View {
     private var artworkView: some View {
         Group {
             if let url = viewModel.artworkFileURL {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                    default:
-                        artworkPlaceholder
-                    }
-                }
+                // Cached decode renders on the first frame — AsyncImage
+                // restarted from scratch on every bar rebuild, flickering the
+                // art during playback startup (Lunara-m73).
+                DownsampledThumbnail(url: url, maxPixelSize: 132)
             } else {
                 artworkPlaceholder
             }

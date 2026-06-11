@@ -636,6 +636,7 @@ private final class QueueManagerMock: QueueManagerProtocol {
     private(set) var currentIndex: Int?
     private(set) var currentItem: QueueItem?
     private(set) var lastError: MusicError?
+    var hasPlaybackBegun = false
 
     private(set) var playNowCalls: [[QueueItem]] = []
     private(set) var playNextCalls: [[QueueItem]] = []
