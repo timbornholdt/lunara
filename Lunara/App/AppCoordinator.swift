@@ -260,6 +260,13 @@ final class AppCoordinator {
         isSignedIn = authManager.isSignedIn
     }
 
+    /// Server URL + auth token for the Settings diagnostics copy row
+    /// (Lunara-cgh), so Tim can run external queries against his library.
+    func plexDiagnosticsCredentials() async -> String? {
+        guard let token = try? await authManager.validToken() else { return nil }
+        return "\(plexClient.baseURL.absoluteString) \(token)"
+    }
+
     /// Reconciles all synced collections against their current album lists.
     /// Called on app launch after library refresh.
     func syncAllCollections() async {

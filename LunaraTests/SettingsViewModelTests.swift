@@ -115,6 +115,19 @@ struct SettingsViewModelTests {
         #expect(vm.album(forActiveDownload: "72008")?.artistName == "Artist")
     }
 
+    // MARK: - Plex diagnostics credentials (Lunara-cgh)
+
+    @Test
+    func plexCredentials_comesFromInjectedProvider() async {
+        let wired = makeViewModel(plexCredentialsProvider: { "http://plex.local:32400 tok-123" })
+        #expect(wired.canCopyPlexCredentials)
+        #expect(await wired.plexCredentials() == "http://plex.local:32400 tok-123")
+
+        let bare = makeViewModel()
+        #expect(!bare.canCopyPlexCredentials)
+        #expect(await bare.plexCredentials() == nil)
+    }
+
     // MARK: - Helpers
 
     private func makeViewModel(
@@ -123,7 +136,8 @@ struct SettingsViewModelTests {
         signOutAction: @escaping () -> Void = {},
         artworkPipeline: ArtworkPipelineProtocol? = nil,
         albumActions: AlbumDetailActionRouting? = nil,
-        library: LibraryRepoProtocol? = nil
+        library: LibraryRepoProtocol? = nil,
+        plexCredentialsProvider: (() async -> String?)? = nil
     ) -> SettingsViewModel {
         let dm = downloadManager ?? makeDownloadManager()
         return SettingsViewModel(
@@ -132,7 +146,8 @@ struct SettingsViewModelTests {
             library: library ?? SettingsLibraryMock(),
             signOutAction: signOutAction,
             artworkPipeline: artworkPipeline,
-            albumActions: albumActions
+            albumActions: albumActions,
+            plexCredentialsProvider: plexCredentialsProvider
         )
     }
 

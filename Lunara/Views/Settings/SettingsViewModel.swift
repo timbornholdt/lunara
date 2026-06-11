@@ -22,6 +22,9 @@ final class SettingsViewModel {
     private let artworkPipeline: ArtworkPipelineProtocol?
     private let albumActions: AlbumDetailActionRouting?
     private let gardenClient: GardenAPIClientProtocol?
+    /// Server URL + token string for external diagnostics (Lunara-cgh); nil in
+    /// contexts that shouldn't expose credentials.
+    private let plexCredentialsProvider: (() async -> String?)?
 
     private(set) var artworkByAlbumID: [String: URL] = [:]
     private var pendingArtworkAlbumIDs: Set<String> = []
@@ -36,7 +39,8 @@ final class SettingsViewModel {
         playbackTelemetry: PlaybackTelemetry? = nil,
         artworkPipeline: ArtworkPipelineProtocol? = nil,
         albumActions: AlbumDetailActionRouting? = nil,
-        gardenClient: GardenAPIClientProtocol? = nil
+        gardenClient: GardenAPIClientProtocol? = nil,
+        plexCredentialsProvider: (() async -> String?)? = nil
     ) {
         self.offlineStore = offlineStore
         self.downloadManager = downloadManager
@@ -48,7 +52,18 @@ final class SettingsViewModel {
         self.artworkPipeline = artworkPipeline
         self.albumActions = albumActions
         self.gardenClient = gardenClient
+        self.plexCredentialsProvider = plexCredentialsProvider
         self.settings = OfflineSettings.load()
+    }
+
+    // MARK: - Plex diagnostics credentials (Lunara-cgh)
+
+    var canCopyPlexCredentials: Bool {
+        plexCredentialsProvider != nil
+    }
+
+    func plexCredentials() async -> String? {
+        await plexCredentialsProvider?()
     }
 
     // MARK: - Active download metadata (Lunara-dhv)

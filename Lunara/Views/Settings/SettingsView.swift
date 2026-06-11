@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @State private var viewModel: SettingsViewModel
+    @State private var copiedPlexCredentials = false
     @Environment(ColorSchemeManager.self) private var colorSchemeManager
 
     init(viewModel: SettingsViewModel) {
@@ -229,10 +230,31 @@ struct SettingsView: View {
                     viewModel.clearDiagnosticsLog()
                 }
             }
+
+            if viewModel.canCopyPlexCredentials {
+                Button {
+                    Task {
+                        guard let credentials = await viewModel.plexCredentials() else { return }
+                        UIPasteboard.general.string = credentials
+                        copiedPlexCredentials = true
+                        try? await Task.sleep(for: .seconds(2))
+                        copiedPlexCredentials = false
+                    }
+                } label: {
+                    HStack {
+                        Text("Copy Plex Server + Token")
+                        Spacer()
+                        if copiedPlexCredentials {
+                            Image(systemName: "checkmark")
+                                .foregroundStyle(Color.lunara(.accentPrimary))
+                        }
+                    }
+                }
+            }
         } header: {
             Text("Diagnostics")
         } footer: {
-            Text("Records memory and playback events to an on-device log you can share. Includes track identifiers; stays on your device until you share or clear it.")
+            Text("Records memory and playback events to an on-device log you can share. Includes track identifiers; stays on your device until you share or clear it. Copy Plex Server + Token puts your server address and auth token on the clipboard — treat it like a password.")
         }
     }
 }

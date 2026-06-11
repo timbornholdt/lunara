@@ -4,7 +4,8 @@ import os
 /// HTTP client for Plex Media Server API
 /// Handles authentication, request building, and response parsing
 final class PlexAPIClient: PlexAuthAPIProtocol {
-    private let baseURL: URL
+    /// Exposed for Settings' copy-credentials diagnostics row (Lunara-cgh).
+    let baseURL: URL
     private let authManager: AuthManager
     let session: URLSessionProtocol
     let xmlDecoder: XMLDecoder
