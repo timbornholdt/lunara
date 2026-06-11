@@ -224,8 +224,10 @@ final class QueueManager: QueueManagerProtocol {
                 let resolvedURL = try await resolver.resolvePlaybackURL(for: currentItem, allowOffline: allowOffline)
                 let tResolved = clock.now
 
-                // Remote URLs route through the track cache (download/cache),
-                // falling back to direct play if caching fails. Local files play directly.
+                // Remote URLs route through the track cache (download/cache);
+                // local files play directly. A failed cache download IS the play
+                // failure: AVAudioPlayer cannot stream a remote URL, so there is
+                // no direct-play fallback to fall back to (Lunara-6jj).
                 var playURL = resolvedURL
                 var source = resolvedURL.isFileURL ? "offline" : "stream"
                 if !resolvedURL.isFileURL, let trackCache {
@@ -233,9 +235,7 @@ final class QueueManager: QueueManagerProtocol {
                         source = await trackCache.cachedFile(forTrackID: currentItem.trackID) != nil
                             ? "cached" : "downloaded"
                     }
-                    if let cached = try? await trackCache.prepare(url: resolvedURL, trackID: currentItem.trackID) {
-                        playURL = cached
-                    }
+                    playURL = try await trackCache.prepare(url: resolvedURL, trackID: currentItem.trackID)
                 }
                 let tPrepared = clock.now
 
