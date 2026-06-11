@@ -81,6 +81,7 @@ struct DownloadsView: View {
 
     private func album(for albumID: String) -> Album? {
         viewModel.downloadedAlbums.first { $0.albumID == albumID }?.album
+            ?? viewModel.album(forActiveDownload: albumID)
     }
 
     private func albumRow(
@@ -120,6 +121,14 @@ struct DownloadsView: View {
         .task {
             if let album {
                 viewModel.loadThumbnailIfNeeded(for: album)
+            } else {
+                // Freshly queued: no offline tracks yet, so resolve the album's
+                // metadata directly — the row re-renders with title/artist/art
+                // the moment it lands (Lunara-dhv).
+                await viewModel.resolveActiveDownloadAlbum(albumID: albumID)
+                if let resolved = viewModel.album(forActiveDownload: albumID) {
+                    viewModel.loadThumbnailIfNeeded(for: resolved)
+                }
             }
         }
     }

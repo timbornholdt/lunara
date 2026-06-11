@@ -100,6 +100,21 @@ struct SettingsViewModelTests {
         )
     }
 
+    /// Lunara-dhv: a freshly queued album resolves its full metadata on demand —
+    /// no waiting for the first track to download or the 3s polling tick.
+    @Test
+    func resolveActiveDownloadAlbum_publishesAlbumForQueuedDownload() async {
+        let library = SettingsLibraryMock()
+        library.albumsByID["72008"] = makeAlbum(id: "72008")
+        let vm = makeViewModel(library: library)
+        #expect(vm.album(forActiveDownload: "72008") == nil)
+
+        await vm.resolveActiveDownloadAlbum(albumID: "72008")
+
+        #expect(vm.album(forActiveDownload: "72008")?.title == "Album 72008")
+        #expect(vm.album(forActiveDownload: "72008")?.artistName == "Artist")
+    }
+
     // MARK: - Helpers
 
     private func makeViewModel(
@@ -107,13 +122,14 @@ struct SettingsViewModelTests {
         downloadManager: DownloadManager? = nil,
         signOutAction: @escaping () -> Void = {},
         artworkPipeline: ArtworkPipelineProtocol? = nil,
-        albumActions: AlbumDetailActionRouting? = nil
+        albumActions: AlbumDetailActionRouting? = nil,
+        library: LibraryRepoProtocol? = nil
     ) -> SettingsViewModel {
         let dm = downloadManager ?? makeDownloadManager()
         return SettingsViewModel(
             offlineStore: offlineStore,
             downloadManager: dm,
-            library: SettingsLibraryMock(),
+            library: library ?? SettingsLibraryMock(),
             signOutAction: signOutAction,
             artworkPipeline: artworkPipeline,
             albumActions: albumActions
@@ -131,8 +147,10 @@ struct SettingsViewModelTests {
 
 @MainActor
 private final class SettingsLibraryMock: LibraryRepoProtocol {
+    var albumsByID: [String: Album] = [:]
+
     func albums(page: LibraryPage) async throws -> [Album] { [] }
-    func album(id: String) async throws -> Album? { nil }
+    func album(id: String) async throws -> Album? { albumsByID[id] }
     func searchAlbums(query: String) async throws -> [Album] { [] }
     func queryAlbums(filter: AlbumQueryFilter) async throws -> [Album] { [] }
     func tracks(forAlbum albumID: String) async throws -> [Track] { [] }

@@ -51,6 +51,22 @@ final class SettingsViewModel {
         self.settings = OfflineSettings.load()
     }
 
+    // MARK: - Active download metadata (Lunara-dhv)
+
+    /// Albums resolved for in-flight downloads, so a freshly queued album shows
+    /// its real title/artist/art immediately instead of a Plex ID.
+    private(set) var activeDownloadAlbumsByID: [String: Album] = [:]
+
+    func album(forActiveDownload albumID: String) -> Album? {
+        activeDownloadAlbumsByID[albumID]
+    }
+
+    func resolveActiveDownloadAlbum(albumID: String) async {
+        guard activeDownloadAlbumsByID[albumID] == nil else { return }
+        guard let album = try? await library.album(id: albumID) else { return }
+        activeDownloadAlbumsByID[albumID] = album
+    }
+
     // MARK: - Downloads manager rows (Lunara-j0l)
 
     func thumbnailURL(for albumID: String) -> URL? {
