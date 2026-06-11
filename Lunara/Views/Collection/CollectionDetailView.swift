@@ -53,19 +53,52 @@ struct CollectionDetailView: View {
 
     // MARK: - Header
 
+    /// Compact header (Lunara-1mu): a slow album marquee about a quarter of the
+    /// screen tall, then one bar with the title, count, and icon actions —
+    /// replacing the full-width square collage that pushed the grid offscreen.
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            headerArtwork
-                .frame(maxWidth: .infinity)
-                .aspectRatio(1, contentMode: .fit)
+            AlbumMarquee(
+                thumbnailURLs: marqueeThumbnailURLs,
+                height: 150
+            )
 
-            Text(viewModel.collection.title)
-                .font(titleHeadingFont())
-                .foregroundStyle(Color.lunara(.textPrimary))
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(viewModel.collection.title)
+                        .font(titleHeadingFont())
+                        .foregroundStyle(Color.lunara(.textPrimary))
+                        .lineLimit(2)
 
-            Text(viewModel.collection.subtitle)
-                .font(subtitleFont())
-                .foregroundStyle(Color.lunara(.textSecondary))
+                    Text(viewModel.collection.subtitle)
+                        .font(subtitleFont())
+                        .foregroundStyle(Color.lunara(.textSecondary))
+                }
+
+                Spacer(minLength: 8)
+
+                Button {
+                    Task {
+                        await viewModel.playAll()
+                        showNowPlaying.wrappedValue = true
+                    }
+                } label: {
+                    Image(systemName: "play.fill")
+                }
+                .buttonStyle(LunaraCircleButtonStyle())
+                .accessibilityLabel("Play All")
+
+                Button {
+                    Task {
+                        await viewModel.shuffle()
+                        showNowPlaying.wrappedValue = true
+                    }
+                } label: {
+                    Image(systemName: "shuffle")
+                }
+                .buttonStyle(LunaraCircleButtonStyle(role: .secondary))
+                .accessibilityLabel("Shuffle")
+            }
 
             if let summary = viewModel.collection.summary,
                !summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -73,51 +106,25 @@ struct CollectionDetailView: View {
                     .font(subtitleFont())
                     .foregroundStyle(Color.lunara(.textSecondary))
             }
-
-            HStack(spacing: 12) {
-                Button("Play All") {
-                    Task {
-                        await viewModel.playAll()
-                        showNowPlaying.wrappedValue = true
-                    }
-                }
-                .buttonStyle(LunaraPillButtonStyle())
-
-                Button("Shuffle") {
-                    Task {
-                        await viewModel.shuffle()
-                        showNowPlaying.wrappedValue = true
-                    }
-                }
-                .buttonStyle(LunaraPillButtonStyle(role: .secondary))
-            }
         }
         .padding(14)
         .background {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(Color.lunara(.backgroundElevated))
         }
-    }
-
-    @ViewBuilder
-    private var headerArtwork: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.lunara(.backgroundBase))
-
-            if let artworkURL = viewModel.artworkURL {
-                AsyncImage(url: artworkURL) { image in
-                    image.resizable().scaledToFill()
-                } placeholder: {
-                    ProgressView()
-                }
-            } else {
-                Image(systemName: "rectangle.stack")
-                    .font(.system(size: 48))
-                    .foregroundStyle(Color.lunara(.textSecondary))
+        .task(id: viewModel.albums.first?.plexID) {
+            // The marquee shows the collection's own covers; kick their
+            // thumbnail loads as soon as the album list lands.
+            for album in viewModel.albums.prefix(12) {
+                viewModel.loadAlbumThumbnailIfNeeded(for: album)
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    /// Covers for the marquee: the first dozen albums' thumbnails (placeholders
+    /// until each resolves), so the header is always THIS collection's art.
+    private var marqueeThumbnailURLs: [URL?] {
+        viewModel.albums.prefix(12).map { viewModel.albumThumbnailURL(for: $0.plexID) }
     }
 
     // MARK: - Albums
