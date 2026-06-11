@@ -56,9 +56,7 @@ struct LibraryRootTabView: View {
                             gardenClient: coordinator.gardenClient,
                             offlineStore: coordinator.offlineStore
                         ),
-                        backgroundRefreshSuccessToken: coordinator.backgroundRefreshSuccessToken,
-                        backgroundRefreshFailureToken: coordinator.backgroundRefreshFailureToken,
-                        backgroundRefreshErrorMessage: coordinator.lastBackgroundRefreshErrorMessage
+                        refreshStatus: coordinator.refreshStatus
                     )
                     .toolbarBackground(Color.lunara(.backgroundBase), for: .tabBar)
                     .toolbarBackgroundVisibility(.visible, for: .tabBar)
@@ -72,9 +70,7 @@ struct LibraryRootTabView: View {
                             actions: coordinator,
                             gardenClient: coordinator.gardenClient
                         ),
-                        backgroundRefreshSuccessToken: coordinator.backgroundRefreshSuccessToken,
-                        backgroundRefreshFailureToken: coordinator.backgroundRefreshFailureToken,
-                        backgroundRefreshErrorMessage: coordinator.lastBackgroundRefreshErrorMessage
+                        refreshStatus: coordinator.refreshStatus
                     )
                     .toolbarBackground(Color.lunara(.backgroundBase), for: .tabBar)
                     .toolbarBackgroundVisibility(.visible, for: .tabBar)
@@ -89,9 +85,7 @@ struct LibraryRootTabView: View {
                             downloadManager: coordinator.downloadManager,
                             gardenClient: coordinator.gardenClient
                         ),
-                        backgroundRefreshSuccessToken: coordinator.backgroundRefreshSuccessToken,
-                        backgroundRefreshFailureToken: coordinator.backgroundRefreshFailureToken,
-                        backgroundRefreshErrorMessage: coordinator.lastBackgroundRefreshErrorMessage
+                        refreshStatus: coordinator.refreshStatus
                     )
                     .toolbarBackground(Color.lunara(.backgroundBase), for: .tabBar)
                     .toolbarBackgroundVisibility(.visible, for: .tabBar)
@@ -106,9 +100,7 @@ struct LibraryRootTabView: View {
                             downloadManager: coordinator.downloadManager,
                             gardenClient: coordinator.gardenClient
                         ),
-                        backgroundRefreshSuccessToken: coordinator.backgroundRefreshSuccessToken,
-                        backgroundRefreshFailureToken: coordinator.backgroundRefreshFailureToken,
-                        backgroundRefreshErrorMessage: coordinator.lastBackgroundRefreshErrorMessage
+                        refreshStatus: coordinator.refreshStatus
                     )
                     .toolbarBackground(Color.lunara(.backgroundBase), for: .tabBar)
                     .toolbarBackgroundVisibility(.visible, for: .tabBar)

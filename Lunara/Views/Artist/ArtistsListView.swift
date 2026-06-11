@@ -4,20 +4,15 @@ import UIKit
 struct ArtistsListView: View {
     @State private var viewModel: ArtistsListViewModel
     @State private var selectedArtist: Artist?
-    private let backgroundRefreshSuccessToken: Int
-    private let backgroundRefreshFailureToken: Int
-    private let backgroundRefreshErrorMessage: String?
+    /// Shared background-refresh status; nil in previews/tests that don't exercise it.
+    private let refreshStatus: RefreshStatusService?
 
     init(
         viewModel: ArtistsListViewModel,
-        backgroundRefreshSuccessToken: Int = 0,
-        backgroundRefreshFailureToken: Int = 0,
-        backgroundRefreshErrorMessage: String? = nil
+        refreshStatus: RefreshStatusService? = nil
     ) {
         _viewModel = State(initialValue: viewModel)
-        self.backgroundRefreshSuccessToken = backgroundRefreshSuccessToken
-        self.backgroundRefreshFailureToken = backgroundRefreshFailureToken
-        self.backgroundRefreshErrorMessage = backgroundRefreshErrorMessage
+        self.refreshStatus = refreshStatus
     }
 
     var body: some View {
@@ -44,13 +39,13 @@ struct ArtistsListView: View {
                 .task {
                     await viewModel.loadInitialIfNeeded()
                 }
-                .task(id: backgroundRefreshSuccessToken) {
-                    await viewModel.applyBackgroundRefreshUpdateIfNeeded(successToken: backgroundRefreshSuccessToken)
+                .task(id: refreshStatus?.successToken ?? 0) {
+                    await viewModel.applyBackgroundRefreshUpdateIfNeeded(successToken: refreshStatus?.successToken ?? 0)
                 }
-                .task(id: backgroundRefreshFailureToken) {
+                .task(id: refreshStatus?.failureToken ?? 0) {
                     viewModel.applyBackgroundRefreshFailureIfNeeded(
-                        failureToken: backgroundRefreshFailureToken,
-                        message: backgroundRefreshErrorMessage
+                        failureToken: refreshStatus?.failureToken ?? 0,
+                        message: refreshStatus?.lastErrorMessage
                     )
                 }
                 .refreshable {

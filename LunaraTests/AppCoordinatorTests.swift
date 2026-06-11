@@ -15,8 +15,8 @@ struct AppCoordinatorTests {
         #expect(albums.map(\.plexID) == ["cached-1"])
         await waitForRefreshReasons(on: subject.library, expected: [.appLaunch])
         await waitForBackgroundRefreshSuccess(on: subject.coordinator, expected: 1)
-        #expect(subject.coordinator.lastBackgroundRefreshDate == Date(timeIntervalSince1970: 0))
-        #expect(subject.coordinator.lastBackgroundRefreshErrorMessage == nil)
+        #expect(subject.coordinator.refreshStatus.lastRefreshDate == Date(timeIntervalSince1970: 0))
+        #expect(subject.coordinator.refreshStatus.lastErrorMessage == nil)
         #expect(subject.library.albumsByPage[1]?.map(\.plexID) == ["fresh-1", "fresh-2"])
     }
     @Test
@@ -28,7 +28,7 @@ struct AppCoordinatorTests {
         #expect(albums.map(\.plexID) == ["cached-1"])
         await waitForRefreshReasons(on: subject.library, expected: [.appLaunch])
         await waitForBackgroundRefreshFailure(on: subject.coordinator, expected: 1)
-        #expect(subject.coordinator.lastBackgroundRefreshErrorMessage == LibraryError.timeout.userMessage)
+        #expect(subject.coordinator.refreshStatus.lastErrorMessage == LibraryError.timeout.userMessage)
     }
     @Test
     func loadLibraryOnLaunch_whenRefreshFailsAndCacheEmpty_throwsRefreshError() async {
@@ -54,8 +54,8 @@ struct AppCoordinatorTests {
         #expect(albums.map(\.plexID) == ["cached-1"])
         await waitForRefreshReasons(on: subject.library, expected: [.userInitiated])
         await waitForBackgroundRefreshSuccess(on: subject.coordinator, expected: 1)
-        #expect(subject.coordinator.lastBackgroundRefreshDate == Date(timeIntervalSince1970: 0))
-        #expect(subject.coordinator.lastBackgroundRefreshErrorMessage == nil)
+        #expect(subject.coordinator.refreshStatus.lastRefreshDate == Date(timeIntervalSince1970: 0))
+        #expect(subject.coordinator.refreshStatus.lastErrorMessage == nil)
         #expect(subject.library.albumsByPage[1]?.map(\.plexID) == ["fresh-1", "fresh-2"])
     }
     @Test
@@ -67,7 +67,7 @@ struct AppCoordinatorTests {
         #expect(albums.map(\.plexID) == ["cached-1"])
         await waitForRefreshReasons(on: subject.library, expected: [.userInitiated])
         await waitForBackgroundRefreshFailure(on: subject.coordinator, expected: 1)
-        #expect(subject.coordinator.lastBackgroundRefreshErrorMessage == LibraryError.timeout.userMessage)
+        #expect(subject.coordinator.refreshStatus.lastErrorMessage == LibraryError.timeout.userMessage)
     }
     @Test
     func fetchAlbums_whenRefreshFailsAndCacheEmpty_throwsRefreshError() async {
@@ -174,7 +174,7 @@ struct AppCoordinatorTests {
         let subject = makeSubject()
         // No cached albums -> foreground refresh path.
         _ = try await subject.coordinator.loadLibraryOnLaunch()
-        #expect(subject.coordinator.backgroundRefreshSuccessToken == 1)
+        #expect(subject.coordinator.refreshStatus.successToken == 1)
     }
     @Test
     func completeSignIn_setsIsSignedInTrue() throws {
@@ -354,7 +354,7 @@ struct AppCoordinatorTests {
         expected: Int
     ) async {
         for _ in 0..<80 {
-            if coordinator.backgroundRefreshSuccessToken == expected {
+            if coordinator.refreshStatus.successToken == expected {
                 return
             }
             await Task.yield()
@@ -377,7 +377,7 @@ struct AppCoordinatorTests {
         expected: Int
     ) async {
         for _ in 0..<80 {
-            if coordinator.backgroundRefreshFailureToken == expected {
+            if coordinator.refreshStatus.failureToken == expected {
                 return
             }
             await Task.yield()

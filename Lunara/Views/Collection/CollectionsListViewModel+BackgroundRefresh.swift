@@ -1,31 +1,11 @@
 import Foundation
 
-extension CollectionsListViewModel {
-    func applyBackgroundRefreshUpdateIfNeeded(successToken: Int) async {
-        guard successToken > 0 else {
-            return
-        }
-
-        guard loadingState != .loading else {
-            return
-        }
-
-        await reloadCollectionsForBackgroundUpdate()
+extension CollectionsListViewModel: BackgroundRefreshApplying {
+    var isLoadingForBackgroundRefresh: Bool {
+        loadingState == .loading
     }
 
-    func applyBackgroundRefreshFailureIfNeeded(failureToken: Int, message: String?) {
-        guard failureToken > 0 else {
-            return
-        }
-
-        guard let message, !message.isEmpty else {
-            return
-        }
-
-        errorBannerState.show(message: message)
-    }
-
-    private func reloadCollectionsForBackgroundUpdate() async {
+    func reloadForBackgroundUpdate() async {
         do {
             let allCollections = try await library.collections()
             collections = allCollections.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
