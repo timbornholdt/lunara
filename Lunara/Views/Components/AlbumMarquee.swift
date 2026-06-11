@@ -46,33 +46,40 @@ struct AlbumMarquee: View {
         !reduceMotion && scenePhase == .active
     }
 
-    @ViewBuilder
+    /// The oversized tile strip renders as an OVERLAY on a screen-width base, so
+    /// its ~1300pt intrinsic width never participates in the parent's layout —
+    /// letting it leak pushed the whole collection page offscreen (Lunara-910).
     private func row(urls: [URL?], tileSize: CGFloat, speed: Double, reversed: Bool) -> some View {
         let contentWidth = CGFloat(urls.count) * (tileSize + Self.tileSpacing)
-        if isAnimating {
-            TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
-                let offset = Self.marqueeOffset(
-                    elapsed: context.date.timeIntervalSinceReferenceDate,
-                    speed: speed,
-                    contentWidth: contentWidth
-                )
-                rowContent(urls: urls, tileSize: tileSize)
-                    .offset(x: reversed ? -contentWidth - offset : offset)
+        return Color.clear
+            .frame(height: tileSize)
+            .frame(maxWidth: .infinity)
+            .overlay(alignment: .leading) {
+                if isAnimating {
+                    TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
+                        let offset = Self.marqueeOffset(
+                            elapsed: context.date.timeIntervalSinceReferenceDate,
+                            speed: speed,
+                            contentWidth: contentWidth
+                        )
+                        strip(urls: urls, tileSize: tileSize)
+                            .offset(x: reversed ? -contentWidth - offset : offset)
+                    }
+                } else {
+                    strip(urls: urls, tileSize: tileSize)
+                }
             }
-        } else {
-            rowContent(urls: urls, tileSize: tileSize)
-        }
+            .clipped()
     }
 
     /// The row's tile sequence laid out twice so the wrap never shows a gap.
-    private func rowContent(urls: [URL?], tileSize: CGFloat) -> some View {
+    private func strip(urls: [URL?], tileSize: CGFloat) -> some View {
         HStack(spacing: Self.tileSpacing) {
             ForEach(Array((urls + urls).enumerated()), id: \.offset) { _, url in
                 tile(url: url, size: tileSize)
             }
         }
-        .fixedSize(horizontal: true, vertical: false)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .fixedSize()
     }
 
     @ViewBuilder
