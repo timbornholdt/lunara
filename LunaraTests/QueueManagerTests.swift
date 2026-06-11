@@ -671,11 +671,11 @@ struct QueueManagerTests {
 
     // MARK: - Crossfade loudness source (Lunara-9x1)
 
-    /// The crossfade decision detects the fade-out at the END of the OUTGOING
-    /// track, so the contour handed to CrossfadePolicy must belong to the track
-    /// that is playing — not the staged next track.
+    /// The crossfade decision needs the OUTGOING track's contour (fade-out
+    /// detection, Lunara-9x1) and the INCOMING track's contour (music-onset
+    /// lead, Lunara-2vz) — outgoing first.
     @Test
-    func prepareNext_fetchesLoudnessForTheOutgoingTrack() async throws {
+    func prepareNext_fetchesLoudnessForOutgoingThenIncoming() async throws {
         let engine = PlaybackEngineMock()
         let persistence = QueueStatePersistenceMock()
         let resolver = PlaybackURLResolvingMock()
@@ -691,9 +691,9 @@ struct QueueManagerTests {
         let item1 = QueueItem(trackID: "t1", streamKey: "/k/t1", albumID: "album-B")
 
         manager.playNow([item0, item1])
-        await waitUntil { !loudness.requestedTrackIDs.isEmpty }
+        await waitUntil { loudness.requestedTrackIDs.count >= 2 }
 
-        #expect(loudness.requestedTrackIDs == ["t0"])
+        #expect(loudness.requestedTrackIDs == ["t0", "t1"])
     }
 
     // MARK: - Offline availability change → re-resolve preloaded next (Lunara-uww.3.6)

@@ -10,12 +10,23 @@ struct QueueItem: Codable, Equatable, Hashable, Sendable {
     let streamKey: String
     let albumID: String
     let trackNumber: Int
+    /// Track length in seconds, carried for crossfade-policy decisions (the
+    /// incoming track's onset lead, Lunara-2vz). Optional so queues persisted
+    /// before this field decode cleanly.
+    let duration: TimeInterval?
 
-    init(trackID: String, streamKey: String, albumID: String = "", trackNumber: Int = 0) {
+    init(
+        trackID: String,
+        streamKey: String,
+        albumID: String = "",
+        trackNumber: Int = 0,
+        duration: TimeInterval? = nil
+    ) {
         self.trackID = trackID
         self.streamKey = streamKey
         self.albumID = albumID
         self.trackNumber = trackNumber
+        self.duration = duration
     }
 }
 

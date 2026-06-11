@@ -392,7 +392,13 @@ struct AppRouterTests {
     }
 
     private func expectedQueueItem(for track: Track) -> QueueItem {
-        QueueItem(trackID: track.plexID, streamKey: track.key, albumID: track.albumID, trackNumber: track.trackNumber)
+        QueueItem(
+            trackID: track.plexID,
+            streamKey: track.key,
+            albumID: track.albumID,
+            trackNumber: track.trackNumber,
+            duration: track.duration
+        )
     }
 }
 

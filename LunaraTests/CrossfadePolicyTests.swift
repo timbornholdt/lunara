@@ -85,10 +85,12 @@ struct CrossfadePolicyTests {
     }
 
     @Test
-    func loudnessAware_noQuietSection_returnsDefault() {
+    func loudnessAware_noQuietSection_usesMinimumNotDefault() {
+        // Contour says the track ends hot — cut as little of it as possible
+        // instead of the blind 3s default (Lunara-2vz).
         let levels: [Float] = Array(repeating: 0.5, count: 100)
         let duration = CrossfadePolicy.crossfadeDuration(loudnessLevels: levels, trackDuration: 200)
-        #expect(duration == 3)
+        #expect(duration == 2)
     }
 
     @Test
@@ -104,11 +106,12 @@ struct CrossfadePolicyTests {
     }
 
     @Test
-    func hardEnding_usesDefault() {
-        // All samples at body level through the end — no fade detected
+    func hardEnding_usesMinimum() {
+        // All samples at body level through the end — no fade detected, so the
+        // fade is as short as allowed rather than chopping 3s of hot audio.
         let levels: [Float] = Array(repeating: 0.6, count: 128)
         let duration = CrossfadePolicy.crossfadeDuration(loudnessLevels: levels, trackDuration: 240)
-        #expect(duration == 3)
+        #expect(duration == 2)
     }
 
     @Test
@@ -146,7 +149,106 @@ struct CrossfadePolicyTests {
         levels.append(contentsOf: Array(repeating: Float(0.5), count: 28))
         let duration = CrossfadePolicy.crossfadeDuration(loudnessLevels: levels, trackDuration: 300)
         // The fade region (from last >= threshold onwards) would be the last ~28 samples
-        // but they're not decreasing, so validation fails → default
-        #expect(duration == 3)
+        // but they're not decreasing, so no outro is detected → minimum cut
+        #expect(duration == 2)
+    }
+
+    // MARK: - Incoming music onset (Lunara-2vz sweet fades)
+
+    /// Outgoing outro of 6s + incoming quiet intro: the overlap stretches so the
+    /// incoming's music arrives while the outgoing is still audible.
+    @Test
+    func quietIntroIncoming_lengthensOverlap() {
+        // Outgoing: 100 samples over 60s, last 10 a clean fade → 6s outro.
+        var outgoing: [Float] = Array(repeating: 0.6, count: 90)
+        for i in 0..<10 {
+            outgoing.append(0.15 * Float(10 - i) / 10.0)
+        }
+        let outroOnly = CrossfadePolicy.crossfadeDuration(loudnessLevels: outgoing, trackDuration: 60)
+        #expect(outroOnly == 6)
+
+        // Incoming: first 25% near-silence, then body. 80s track → 20s onset,
+        // capped at the 4s max lead.
+        var incoming: [Float] = Array(repeating: 0.01, count: 25)
+        incoming.append(contentsOf: Array(repeating: 0.5, count: 75))
+
+        let combined = CrossfadePolicy.crossfadeDuration(
+            loudnessLevels: outgoing,
+            trackDuration: 60,
+            nextLoudnessLevels: incoming,
+            nextTrackDuration: 80
+        )
+        #expect(combined == 10) // 6s outro + 4s capped onset lead
+    }
+
+    /// An incoming track that starts hot adds no lead.
+    @Test
+    func hotIncoming_addsNoLead() {
+        var outgoing: [Float] = Array(repeating: 0.6, count: 90)
+        for i in 0..<10 {
+            outgoing.append(0.15 * Float(10 - i) / 10.0)
+        }
+        let incoming: [Float] = Array(repeating: 0.5, count: 100)
+
+        let duration = CrossfadePolicy.crossfadeDuration(
+            loudnessLevels: outgoing,
+            trackDuration: 60,
+            nextLoudnessLevels: incoming,
+            nextTrackDuration: 80
+        )
+        #expect(duration == 6)
+    }
+
+    /// A hot outgoing ending stays a minimal cut even when the incoming has a
+    /// quiet intro — never fade body audio early.
+    @Test
+    func hotEnding_ignoresIncomingLead() {
+        let outgoing: [Float] = Array(repeating: 0.6, count: 100)
+        var incoming: [Float] = Array(repeating: 0.01, count: 25)
+        incoming.append(contentsOf: Array(repeating: 0.5, count: 75))
+
+        let duration = CrossfadePolicy.crossfadeDuration(
+            loudnessLevels: outgoing,
+            trackDuration: 200,
+            nextLoudnessLevels: incoming,
+            nextTrackDuration: 80
+        )
+        #expect(duration == 2)
+    }
+
+    /// Without an outgoing contour the default applies, still stretched by the
+    /// incoming's onset lead when that contour exists.
+    @Test
+    func unknownOutgoing_defaultPlusLead() {
+        var incoming: [Float] = Array(repeating: 0.01, count: 25)
+        incoming.append(contentsOf: Array(repeating: 0.5, count: 75))
+
+        let duration = CrossfadePolicy.crossfadeDuration(
+            loudnessLevels: nil,
+            trackDuration: 200,
+            nextLoudnessLevels: incoming,
+            nextTrackDuration: 80
+        )
+        #expect(duration == 7) // 3s default + 4s capped lead
+    }
+
+    /// The whole stack respects the 12s ceiling.
+    @Test
+    func combinedDuration_clampedToMax() {
+        // 25% outro over a 60s track → 15s, already above the cap.
+        var outgoing: [Float] = Array(repeating: 0.6, count: 75)
+        for i in 0..<25 {
+            outgoing.append(0.15 * Float(25 - i) / 25.0)
+        }
+        var incoming: [Float] = Array(repeating: 0.01, count: 25)
+        incoming.append(contentsOf: Array(repeating: 0.5, count: 75))
+
+        let duration = CrossfadePolicy.crossfadeDuration(
+            loudnessLevels: outgoing,
+            trackDuration: 60,
+            nextLoudnessLevels: incoming,
+            nextTrackDuration: 80
+        )
+        #expect(duration == 12)
     }
 }
