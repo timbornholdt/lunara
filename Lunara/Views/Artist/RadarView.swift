@@ -8,8 +8,15 @@ struct RadarView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
+                if service.isRefreshing {
+                    progressHeader
+                }
                 if service.entries.isEmpty {
-                    emptyState
+                    if !service.hasQualifyingArtists {
+                        noQualifyingArtistsState
+                    } else if !service.isRefreshing {
+                        emptyState
+                    }
                 } else {
                     ForEach(service.entries) { entry in
                         radarRow(entry)
@@ -18,6 +25,11 @@ struct RadarView: View {
             }
             .padding(.horizontal, 16)
             .padding(.top, 12)
+        }
+        .refreshable {
+            // Fire-and-forget: the sweep runs for minutes and the progress
+            // header takes over, so don't pin the pull spinner to it.
+            Task { await service.refresh(force: true) }
         }
         .navigationTitle("Release Radar")
         .navigationBarTitleDisplayMode(.inline)
@@ -30,6 +42,29 @@ struct RadarView: View {
         }
     }
 
+    /// Static determinate bar — updates once per checked artist, no spinner.
+    private var progressHeader: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Checking your artists… \(service.checkedCount) of \(service.totalArtists)")
+                .font(serifFont(size: 14))
+                .foregroundStyle(Color.lunara(.textSecondary))
+            ProgressView(value: Double(service.checkedCount), total: Double(max(service.totalArtists, 1)))
+                .tint(Color.lunara(.accentPrimary))
+        }
+    }
+
+    private var noQualifyingArtistsState: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("No albums rated 4.5★ yet.")
+                .font(serifFont(size: 16))
+                .foregroundStyle(Color.lunara(.textPrimary))
+            Text("Rate some albums and the artists you love will be tracked here.")
+                .font(serifFont(size: 14))
+                .foregroundStyle(Color.lunara(.textSecondary))
+        }
+        .padding(.top, 12)
+    }
+
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Nothing on the radar yet.")
@@ -38,6 +73,11 @@ struct RadarView: View {
             Text("Albums announced by artists you've rated 4.5 stars or higher will appear here as MusicBrainz learns about them.")
                 .font(serifFont(size: 14))
                 .foregroundStyle(Color.lunara(.textSecondary))
+            if let lastChecked = service.lastChecked {
+                Text("Last checked \(lastChecked.formatted(date: .abbreviated, time: .shortened))")
+                    .font(serifFont(size: 12))
+                    .foregroundStyle(Color.lunara(.textSecondary))
+            }
         }
         .padding(.top, 12)
     }

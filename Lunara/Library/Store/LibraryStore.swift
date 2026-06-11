@@ -416,6 +416,27 @@ final class LibraryStore: LibraryStoreProtocol {
         }
     }
 
+    /// Cached MusicBrainz artist ID, so radar sweeps skip the per-artist search
+    /// request after the first resolution (Lunara-be2).
+    func artistMBID(name: String) async throws -> String? {
+        try await dbQueue.read { db in
+            try String.fetchOne(
+                db,
+                sql: "SELECT mbid FROM artist_mbids WHERE artistName = ?",
+                arguments: [name]
+            )
+        }
+    }
+
+    func saveArtistMBID(_ mbid: String, name: String) async throws {
+        try await dbQueue.write { db in
+            try db.execute(
+                sql: "INSERT OR REPLACE INTO artist_mbids (artistName, mbid, fetchedAt) VALUES (?, ?, ?)",
+                arguments: [name, mbid, Date()]
+            )
+        }
+    }
+
     // MARK: - Loudness (Lunara-ki3)
 
     func loudnessLevels(forTrack trackID: String) async throws -> [Float]? {

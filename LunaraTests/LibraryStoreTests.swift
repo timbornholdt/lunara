@@ -44,6 +44,21 @@ struct LibraryStoreTests {
         #expect(try await store.radarEntries().map(\.id) == ["rg-2"])
     }
 
+    /// Lunara-be2: resolved MusicBrainz artist IDs persist so radar sweeps skip
+    /// the per-artist search.
+    @Test
+    func artistMBID_roundTripAndOverwrite() async throws {
+        let store = try LibraryStore.inMemory()
+
+        #expect(try await store.artistMBID(name: "Sloan") == nil)
+
+        try await store.saveArtistMBID("mb-1", name: "Sloan")
+        #expect(try await store.artistMBID(name: "Sloan") == "mb-1")
+
+        try await store.saveArtistMBID("mb-2", name: "Sloan")
+        #expect(try await store.artistMBID(name: "Sloan") == "mb-2")
+    }
+
     private func makeRatedAlbum(id: String, artist: String, rating: Int?) -> Album {
         Album(
             plexID: id, title: "Album \(id)", artistName: artist, year: nil,
