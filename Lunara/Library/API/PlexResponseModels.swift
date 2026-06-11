@@ -34,7 +34,9 @@ struct PlexDirectory: Codable {
     let styles: [String]
     let moods: [String]
     let collectionIDs: [String]
-    let rating: Double?
+    let rating: Double?             // Critic/community score — NOT the user's stars
+    /// The user's own star rating (0-10); the only rating Lunara consumes (Lunara-my7).
+    let userRating: Double?
     let addedAt: Int?               // Unix timestamp
     let leafCount: Int?             // Track count
     let childCount: Int?            // Direct child count (e.g., album count for collections)

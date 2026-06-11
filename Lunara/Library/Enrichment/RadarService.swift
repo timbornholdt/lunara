@@ -141,17 +141,30 @@ final class RadarService {
 
     /// Resolves the artist's MBID (cache first, search once and persist) and
     /// fetches their release groups — one request per artist after the first
-    /// sweep instead of two.
+    /// sweep instead of two. Logs cache HIT/MISS + elapsed per artist so sweep
+    /// speed claims are verifiable on device (Lunara-g0p).
     private func upcomingAlbums(for artist: String) async throws -> [ExternalReleaseGroup] {
+        let start = ContinuousClock.now
         var mbid = try? await store.artistMBID(name: artist)
+        let cacheHit = mbid != nil
         if mbid == nil {
             mbid = try await musicBrainz.artistID(name: artist)
             if let mbid {
                 try? await store.saveArtistMBID(mbid, name: artist)
             }
         }
-        guard let mbid else { return [] }
-        return try await musicBrainz.upcomingAlbums(artistID: mbid)
+        guard let mbid else {
+            logger.info("radar sweep: '\(artist, privacy: .public)' no confident MBID match (\(Self.ms(since: start), privacy: .public)ms)")
+            return []
+        }
+        let albums = try await musicBrainz.upcomingAlbums(artistID: mbid)
+        logger.info("radar sweep: '\(artist, privacy: .public)' mbid \(cacheHit ? "HIT" : "MISS", privacy: .public) \(albums.count, privacy: .public) groups in \(Self.ms(since: start), privacy: .public)ms")
+        return albums
+    }
+
+    private static func ms(since start: ContinuousClock.Instant) -> Int {
+        let elapsed = start.duration(to: .now)
+        return Int(Double(elapsed.components.seconds) * 1000 + Double(elapsed.components.attoseconds) / 1e15)
     }
 
     private static func soonestFirst(_ lhs: RadarEntry, _ rhs: RadarEntry) -> Bool {
