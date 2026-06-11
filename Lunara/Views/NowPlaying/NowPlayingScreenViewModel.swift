@@ -63,6 +63,9 @@ final class NowPlayingScreenViewModel {
 
     /// Rendered size of an up-next row thumbnail; artwork is downsampled to this.
     private static let upNextThumbnailPointSize = CGSize(width: 40, height: 40)
+    /// Number of up-next rows resolved + published eagerly before the long tail, so the
+    /// visible top of Up Next paints without waiting on a full window rebuild.
+    private static let upNextEagerCount = 5
     /// Fixed display scale used when downsampling (matches the target device; keeps decoding deterministic).
     private let displayScale: CGFloat = 3
 
@@ -390,38 +393,75 @@ final class NowPlayingScreenViewModel {
         }
 
         let slice = Array(zip(startIndex..<endIndex, items[startIndex..<endIndex]))
-        var resolved: [UpNextItem] = []
 
-        for (queueIndex, item) in slice {
+        // Reuse rows already resolved for the same track (text + decoded thumbnail) so
+        // an advance or a same-window re-trigger doesn't re-fetch/re-decode them. A row
+        // that transiently failed last time stays as-is until its track leaves the
+        // window — an accepted trade for avoiding a full 20-row rebuild every change.
+        let existingByID = Dictionary(
+            upNextItems.map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+
+        // Resolve and publish the first (visible) rows eagerly, then fill the long tail,
+        // so a full replace/shuffle paints the top of Up Next without waiting on all 20.
+        let eagerBound = min(Self.upNextEagerCount, slice.count)
+        var resolved: [UpNextItem] = []
+        resolved.reserveCapacity(slice.count)
+
+        for (offset, (queueIndex, item)) in slice.enumerated() {
             guard !Task.isCancelled else { return }
-            let track = await resolver.track(id: item.trackID)
-            let thumbURL: URL?
-            if let track, let album = await resolver.album(id: track.albumID) {
-                thumbURL = await resolver.thumbnailURL(for: album)
+            if let reused = existingByID[item.trackID] {
+                // Carried over: keep the resolved text + decoded image, refresh position.
+                resolved.append(UpNextItem(
+                    id: reused.id,
+                    queueIndex: queueIndex,
+                    trackTitle: reused.trackTitle,
+                    artistName: reused.artistName,
+                    artworkImage: reused.artworkImage
+                ))
             } else {
-                thumbURL = nil
+                resolved.append(await resolveUpNextRow(queueIndex: queueIndex, item: item))
             }
-            let thumbImage: UIImage?
-            if let thumbURL {
-                let pointSize = Self.upNextThumbnailPointSize
-                let scale = displayScale
-                // Downsample off the main actor (CPU-heavy, runs up to 20× per refresh).
-                thumbImage = await Task.detached {
-                    DownsamplingImageLoader.load(contentsOf: thumbURL, pointSize: pointSize, scale: scale)
-                }.value
-            } else {
-                thumbImage = nil
+
+            // Publish the eager window the moment it's complete; the tail follows below.
+            if offset == eagerBound - 1 {
+                guard !Task.isCancelled else { return }
+                upNextItems = resolved
             }
-            resolved.append(UpNextItem(
-                id: item.trackID,
-                queueIndex: queueIndex,
-                trackTitle: track?.title ?? "Unknown Track",
-                artistName: track?.artistName ?? "Unknown Artist",
-                artworkImage: thumbImage
-            ))
         }
 
         guard !Task.isCancelled else { return }
         upNextItems = resolved
+    }
+
+    /// Fully resolves one up-next row: track + album text and a downsampled thumbnail
+    /// (decoded off the main actor). The track/album/thumbnail lookups are shared via
+    /// the resolver; only the per-row downsample decode is unique to Up Next.
+    private func resolveUpNextRow(queueIndex: Int, item: QueueItem) async -> UpNextItem {
+        let track = await resolver.track(id: item.trackID)
+        let thumbURL: URL?
+        if let track, let album = await resolver.album(id: track.albumID) {
+            thumbURL = await resolver.thumbnailURL(for: album)
+        } else {
+            thumbURL = nil
+        }
+        let thumbImage: UIImage?
+        if let thumbURL {
+            let pointSize = Self.upNextThumbnailPointSize
+            let scale = displayScale
+            thumbImage = await Task.detached {
+                DownsamplingImageLoader.load(contentsOf: thumbURL, pointSize: pointSize, scale: scale)
+            }.value
+        } else {
+            thumbImage = nil
+        }
+        return UpNextItem(
+            id: item.trackID,
+            queueIndex: queueIndex,
+            trackTitle: track?.title ?? "Unknown Track",
+            artistName: track?.artistName ?? "Unknown Artist",
+            artworkImage: thumbImage
+        )
     }
 }
