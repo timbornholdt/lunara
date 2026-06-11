@@ -32,16 +32,27 @@ final class NowPlayingBridge {
     var lastPublishHadArtworkForTesting: Bool { lastPublishHadArtwork }
     #endif
 
+    /// Records which remote (lock screen / Bluetooth / CarPlay) command fired —
+    /// a paired device sending `play` on connect looks like a phantom resume
+    /// without this trail (Lunara-epq).
+    private let telemetry: PlaybackTelemetryEmitting?
+
     init(
         engine: PlaybackEngineProtocol,
         queue: QueueManagerProtocol,
         resolver: NowPlayingResolver,
-        artworkRetryBaseDelay: Duration = .seconds(1)
+        artworkRetryBaseDelay: Duration = .seconds(1),
+        telemetry: PlaybackTelemetryEmitting? = nil
     ) {
         self.engine = engine
         self.queue = queue
         self.resolver = resolver
         self.artworkRetryBaseDelay = artworkRetryBaseDelay
+        self.telemetry = telemetry
+    }
+
+    private func recordRemoteCommand(_ command: String) {
+        telemetry?.recordDetail(eventName: "remoteCommand", info: ["command": command])
     }
 
     deinit {
@@ -64,24 +75,28 @@ final class NowPlayingBridge {
 
         center.playCommand.addTarget { [weak self] _ in
             guard let self else { return .commandFailed }
+            self.recordRemoteCommand("play")
             self.queue.play()
             return .success
         }
 
         center.pauseCommand.addTarget { [weak self] _ in
             guard let self else { return .commandFailed }
+            self.recordRemoteCommand("pause")
             self.queue.pause()
             return .success
         }
 
         center.nextTrackCommand.addTarget { [weak self] _ in
             guard let self else { return .commandFailed }
+            self.recordRemoteCommand("next")
             self.queue.skipToNext()
             return .success
         }
 
         center.previousTrackCommand.addTarget { [weak self] _ in
             guard let self else { return .commandFailed }
+            self.recordRemoteCommand("previous")
             self.queue.skipBack()
             return .success
         }

@@ -105,7 +105,8 @@ struct AppDependencies {
         let nowPlayingBridge = NowPlayingBridge(
             engine: playbackEngine,
             queue: queueManager,
-            resolver: nowPlayingResolver
+            resolver: nowPlayingResolver,
+            telemetry: playbackTelemetry
         )
 
         let lastFMClient = LastFMClient()
