@@ -256,6 +256,65 @@ struct AppRouterTests {
         #expect(allTrackIDs == Set(["track-s1", "track-s2"]))
     }
 
+    /// A shuffle whose queue contains an already-downloaded track starts on it,
+    /// so first audio comes from disk with zero network (Lunara-c48).
+    @Test
+    func shuffleCollection_rotatesAnOfflineTrackToTheFront() async throws {
+        let subject = makeSubject()
+        let collection = makeCollection(id: "col-local")
+        let albumA = makeAlbum(id: "album-streamed")
+        let albumB = makeAlbum(id: "album-offline")
+        subject.library.collectionAlbumsByCollectionID[collection.plexID] = [albumA, albumB]
+        subject.library.tracksByAlbumID[albumA.plexID] = [
+            makeTrack(id: "s1", albumID: albumA.plexID),
+            makeTrack(id: "s2", albumID: albumA.plexID)
+        ]
+        subject.library.tracksByAlbumID[albumB.plexID] = [makeTrack(id: "local1", albumID: albumB.plexID)]
+        subject.offlineStore.offlineAlbumIDs = ["album-offline"]
+        subject.offlineStore.localFileURLsByTrackID["local1"] = URL(fileURLWithPath: "/tmp/local1.mp3")
+
+        try await subject.router.shuffleCollection(collection)
+
+        let queued = subject.queue.playNowCalls[0]
+        #expect(queued.first?.trackID == "local1")
+        #expect(Set(queued.map(\.trackID)) == Set(["s1", "s2", "local1"]))
+    }
+
+    /// A fully-streamed shuffle is left exactly as shuffled.
+    @Test
+    func shuffleCollection_withNoLocalTracks_keepsShuffledOrder() async throws {
+        let subject = makeSubject()
+        let collection = makeCollection(id: "col-stream")
+        let album = makeAlbum(id: "album-s")
+        subject.library.collectionAlbumsByCollectionID[collection.plexID] = [album]
+        subject.library.tracksByAlbumID[album.plexID] = [
+            makeTrack(id: "s1", albumID: album.plexID),
+            makeTrack(id: "s2", albumID: album.plexID)
+        ]
+
+        try await subject.router.shuffleCollection(collection)
+
+        #expect(Set(subject.queue.playNowCalls[0].map(\.trackID)) == Set(["s1", "s2"]))
+    }
+
+    /// Sequential play never reorders — the local-lead rotation is shuffle-only.
+    @Test
+    func playCollection_neverConsultsOfflineStoreForReordering() async throws {
+        let subject = makeSubject()
+        let collection = makeCollection(id: "col-seq")
+        let album = makeAlbum(id: "album-q")
+        let track1 = makeTrack(id: "q1", albumID: album.plexID)
+        let track2 = makeTrack(id: "q2", albumID: album.plexID)
+        subject.library.collectionAlbumsByCollectionID[collection.plexID] = [album]
+        subject.library.tracksByAlbumID[album.plexID] = [track1, track2]
+        subject.offlineStore.offlineAlbumIDs = ["album-q"]
+        subject.offlineStore.localFileURLsByTrackID["q2"] = URL(fileURLWithPath: "/tmp/q2.mp3")
+
+        try await subject.router.playCollection(collection)
+
+        #expect(subject.queue.playNowCalls[0].map(\.trackID) == ["q1", "q2"])
+    }
+
     /// The multi-album queue build issues ONE batched track query, not one per
     /// album (Lunara-uuy).
     @Test
@@ -362,12 +421,14 @@ struct AppRouterTests {
     private func makeSubject() -> (
         router: AppRouter,
         library: LibraryRepoMock,
-        queue: QueueManagerMock
+        queue: QueueManagerMock,
+        offlineStore: MockOfflineStore
     ) {
         let library = LibraryRepoMock()
         let queue = QueueManagerMock()
-        let router = AppRouter(library: library, queue: queue)
-        return (router, library, queue)
+        let offlineStore = MockOfflineStore()
+        let router = AppRouter(library: library, queue: queue, offlineStore: offlineStore)
+        return (router, library, queue, offlineStore)
     }
 
     private func makeAlbum(id: String) -> Album {

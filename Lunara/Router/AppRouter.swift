@@ -14,16 +14,63 @@ final class AppRouter {
     private let queue: QueueManagerProtocol
     /// Opt-in queue-build span recorder (Lunara-lz4). Nil or disabled ⇒ zero work.
     private let telemetry: PlaybackTelemetryEmitting?
+    /// Used by shuffles to start on an already-downloaded track (Lunara-c48).
+    private let offlineStore: OfflineStoreProtocol?
+    /// Recently streamed tracks also count as locally playable lead candidates.
+    private let trackCache: TrackCache?
     private let logger = Logger(subsystem: "holdings.chinlock.lunara", category: "AppRouter")
 
     init(
         library: LibraryRepoProtocol,
         queue: QueueManagerProtocol,
-        telemetry: PlaybackTelemetryEmitting? = nil
+        telemetry: PlaybackTelemetryEmitting? = nil,
+        offlineStore: OfflineStoreProtocol? = nil,
+        trackCache: TrackCache? = nil
     ) {
         self.library = library
         self.queue = queue
         self.telemetry = telemetry
+        self.offlineStore = offlineStore
+        self.trackCache = trackCache
+    }
+
+    /// For SHUFFLED queues only: position 0 is arbitrary, so if any track is
+    /// already playable from disk, rotate the first such track to the front —
+    /// first audio then starts instantly with zero network (Lunara-c48). The
+    /// rest of the shuffled order is preserved. Cost is one offline-albums
+    /// query plus one file check, independent of queue size.
+    private func preferringLocalLead(_ items: [QueueItem]) async -> [QueueItem] {
+        guard items.count > 1 else { return items }
+
+        if let offlineStore {
+            let offlineAlbums = Set((try? await offlineStore.allOfflineAlbumIDs()) ?? [])
+            if !offlineAlbums.isEmpty {
+                for (index, item) in items.enumerated() where offlineAlbums.contains(item.albumID) {
+                    guard let fileURL = try? await offlineStore.localFileURL(forTrackID: item.trackID),
+                          fileURL != nil else { continue }
+                    logger.info("Shuffle lead: offline track '\(item.trackID, privacy: .public)' rotated to front")
+                    return rotatingToFront(items, index: index)
+                }
+            }
+        }
+
+        if let trackCache {
+            for (index, item) in items.prefix(5).enumerated()
+            where await trackCache.cachedFile(forTrackID: item.trackID) != nil {
+                logger.info("Shuffle lead: cached track '\(item.trackID, privacy: .public)' rotated to front")
+                return rotatingToFront(items, index: index)
+            }
+        }
+
+        return items
+    }
+
+    private func rotatingToFront(_ items: [QueueItem], index: Int) -> [QueueItem] {
+        guard index > 0 else { return items }
+        var rotated = items
+        let lead = rotated.remove(at: index)
+        rotated.insert(lead, at: 0)
+        return rotated
     }
 
     /// Times the tap→queue-built leg of a play intent and records it as a
@@ -99,7 +146,7 @@ final class AppRouter {
     func shufflePlaylist(_ playlist: Playlist) async throws {
         logger.info("shufflePlaylist started for playlist '\(playlist.title, privacy: .public)' id '\(playlist.plexID, privacy: .public)'")
         let items = try await timedQueueBuild(kind: "shufflePlaylist") { try await self.allQueueItemsForPlaylist(playlist) }
-        queue.playNow(items.shuffled())
+        queue.playNow(await preferringLocalLead(items.shuffled()))
         logger.info("shufflePlaylist queued \(items.count, privacy: .public) shuffled items for playlist id '\(playlist.plexID, privacy: .public)'")
     }
 
@@ -113,7 +160,7 @@ final class AppRouter {
     func shuffleCollection(_ collection: Collection) async throws {
         logger.info("shuffleCollection started for collection '\(collection.title, privacy: .public)' id '\(collection.plexID, privacy: .public)'")
         let items = try await timedQueueBuild(kind: "shuffleCollection") { try await self.allQueueItemsForCollection(collection) }
-        queue.playNow(items.shuffled())
+        queue.playNow(await preferringLocalLead(items.shuffled()))
         logger.info("shuffleCollection queued \(items.count, privacy: .public) shuffled items for collection id '\(collection.plexID, privacy: .public)'")
     }
 
@@ -127,7 +174,7 @@ final class AppRouter {
     func shuffleArtist(_ artist: Artist) async throws {
         logger.info("shuffleArtist started for artist '\(artist.name, privacy: .public)' id '\(artist.plexID, privacy: .public)'")
         let items = try await timedQueueBuild(kind: "shuffleArtist") { try await self.allQueueItemsForArtist(artist) }
-        queue.playNow(items.shuffled())
+        queue.playNow(await preferringLocalLead(items.shuffled()))
         logger.info("shuffleArtist queued \(items.count, privacy: .public) shuffled items for artist id '\(artist.plexID, privacy: .public)'")
     }
 
@@ -141,7 +188,7 @@ final class AppRouter {
     func shuffleAlbums(_ albums: [Album]) async throws {
         logger.info("shuffleAlbums started for \(albums.count, privacy: .public) albums")
         let items = try await timedQueueBuild(kind: "shuffleAlbums") { try await self.allQueueItemsForAlbums(albums) }
-        queue.playNow(items.shuffled())
+        queue.playNow(await preferringLocalLead(items.shuffled()))
         logger.info("shuffleAlbums queued \(items.count, privacy: .public) shuffled items")
     }
 
@@ -154,7 +201,7 @@ final class AppRouter {
         guard !items.isEmpty else {
             throw LibraryError.resourceNotFound(type: "tracks", id: "all")
         }
-        queue.playNow(items.shuffled())
+        queue.playNow(await preferringLocalLead(items.shuffled()))
         logger.info("shuffleAllAlbums queued \(items.count, privacy: .public) shuffled items")
     }
 
