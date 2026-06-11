@@ -232,6 +232,11 @@ final class DownloadManager: DownloadManagerProtocol {
                     throw error
                 }
 
+                // Prefetch the loudness contour while we're already on the network,
+                // so synced albums get contour-based crossfades offline (Lunara-ki3).
+                // Best-effort: a miss just means the default fade later.
+                _ = try? await library.fetchLoudnessLevels(trackID: track.plexID)
+
                 albumStates[albumID] = .downloading(completedTracks: index + 1, totalTracks: totalTracks)
                 logger.info("Downloaded track \(index + 1)/\(totalTracks) for album '\(albumID, privacy: .public)'")
             } catch {

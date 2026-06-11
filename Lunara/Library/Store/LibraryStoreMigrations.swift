@@ -298,6 +298,16 @@ enum LibraryStoreMigrations {
             }
         }
 
+        // Loudness contours persist so crossfade decisions work offline and
+        // never re-fetch across sessions (Lunara-ki3). ~512B per track.
+        migrator.registerMigration("v11_track_loudness") { db in
+            try db.create(table: "track_loudness") { table in
+                table.column("trackID", .text).primaryKey()
+                table.column("levels", .blob).notNull()
+                table.column("fetchedAt", .datetime).notNull()
+            }
+        }
+
         return migrator
     }
 }

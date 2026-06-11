@@ -276,4 +276,15 @@ protocol LibraryStoreProtocol: AnyObject {
     func artworkPath(for key: ArtworkKey) async throws -> String?
     func setArtworkPath(_ path: String, for key: ArtworkKey) async throws
     func deleteArtworkPath(for key: ArtworkKey) async throws
+
+    /// Persisted loudness contours (Lunara-ki3). Declared as requirements so
+    /// conformers' implementations dispatch dynamically; the extension below
+    /// supplies a no-op default for doubles that don't care.
+    func loudnessLevels(forTrack trackID: String) async throws -> [Float]?
+    func setLoudnessLevels(_ levels: [Float], forTrack trackID: String) async throws
+}
+
+extension LibraryStoreProtocol {
+    func loudnessLevels(forTrack trackID: String) async throws -> [Float]? { nil }
+    func setLoudnessLevels(_ levels: [Float], forTrack trackID: String) async throws { }
 }

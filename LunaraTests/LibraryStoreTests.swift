@@ -3,6 +3,21 @@ import Testing
 @testable import Lunara
 
 struct LibraryStoreTests {
+    // MARK: - Loudness persistence (Lunara-ki3)
+
+    @Test
+    func loudnessLevels_roundTripOverwriteAndMissing() async throws {
+        let store = try LibraryStore.inMemory()
+
+        #expect(try await store.loudnessLevels(forTrack: "t1") == nil)
+
+        try await store.setLoudnessLevels([0.1, 0.5, 1.0], forTrack: "t1")
+        #expect(try await store.loudnessLevels(forTrack: "t1") == [0.1, 0.5, 1.0])
+
+        try await store.setLoudnessLevels([0.2], forTrack: "t1")
+        #expect(try await store.loudnessLevels(forTrack: "t1") == [0.2])
+    }
+
     @Test
     func fetchesEmptyCollectionsFromFreshStore() async throws {
         let store = try LibraryStore.inMemory()
