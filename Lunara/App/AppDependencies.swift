@@ -70,10 +70,11 @@ struct AppDependencies {
             persistence: FileQueueStatePersistence(),
             trackCache: trackCache,
             loudnessProvider: loudnessAdapter,
-            resolver: playbackURLResolver
+            resolver: playbackURLResolver,
+            telemetry: playbackTelemetry
         )
 
-        let appRouter = AppRouter(library: libraryRepo, queue: queueManager)
+        let appRouter = AppRouter(library: libraryRepo, queue: queueManager, telemetry: playbackTelemetry)
 
         let downloadManager = DownloadManager(
             offlineStore: offlineStore,

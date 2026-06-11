@@ -107,6 +107,34 @@ struct PlaybackTelemetryTests {
         #expect(!(readEntries(url) + readEntries(telemetry.previousFileURL)).isEmpty)
     }
 
+    // MARK: - Detail records (Lunara-lz4)
+
+    @Test
+    func recordDetail_writesEventWithInfoFields() throws {
+        let (telemetry, url) = makeTelemetry()
+        telemetry.isEnabled = true
+
+        telemetry.recordDetail(eventName: "playStart", info: [
+            "trackID": "t0", "source": "offline", "resolveMs": "3", "totalMs": "41"
+        ])
+        telemetry.flush()
+
+        let entry = try #require(readEntries(url).last { $0.ev == "playStart" })
+        #expect(entry.info?["source"] == "offline")
+        #expect(entry.info?["resolveMs"] == "3")
+        #expect(entry.info?["totalMs"] == "41")
+    }
+
+    @Test
+    func recordDetail_whenDisabled_writesNothing() {
+        let (telemetry, url) = makeTelemetry()
+
+        telemetry.recordDetail(eventName: "playStart", info: ["trackID": "t0"])
+        telemetry.flush()
+
+        #expect(readEntries(url).isEmpty)
+    }
+
     // MARK: - Helpers
 
     private func makeTelemetry(
