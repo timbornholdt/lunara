@@ -82,9 +82,48 @@ struct ArtistDetailViewModelTests {
         #expect(subject.actions.playAlbumRequests == ["album-play"])
     }
 
+    // MARK: - Last.fm bio fallback (Lunara-uww.6.1)
+
+    @Test
+    func loadLastFMBio_fillsInWhenPlexSummaryEmpty() async {
+        let subject = makeSubject(artistSummary: nil)
+        let client = LastFMClientMock()
+        client.artistBioByName["Test Artist"] = "From Halifax, Nova Scotia."
+
+        await subject.viewModel.loadLastFMBioIfNeeded(using: client)
+
+        #expect(subject.viewModel.displayBio == "From Halifax, Nova Scotia.")
+        #expect(client.artistBioRequests == ["Test Artist"])
+    }
+
+    @Test
+    func loadLastFMBio_skipsWhenPlexSummaryPresent() async {
+        let subject = makeSubject(artistSummary: "A test artist")
+        let client = LastFMClientMock()
+        client.artistBioByName["Test Artist"] = "Should not be used"
+
+        await subject.viewModel.loadLastFMBioIfNeeded(using: client)
+
+        #expect(subject.viewModel.displayBio == "A test artist")
+        #expect(client.artistBioRequests.isEmpty)
+    }
+
+    @Test
+    func loadLastFMBio_fetchesOnlyOnce() async {
+        let subject = makeSubject(artistSummary: nil)
+        let client = LastFMClientMock()
+        client.artistBioByName["Test Artist"] = "Bio"
+
+        await subject.viewModel.loadLastFMBioIfNeeded(using: client)
+        await subject.viewModel.loadLastFMBioIfNeeded(using: client)
+
+        #expect(client.artistBioRequests.count == 1)
+    }
+
     private func makeSubject(
         artistID: String = "artist-1",
-        artistName: String = "Test Artist"
+        artistName: String = "Test Artist",
+        artistSummary: String? = "A test artist"
     ) -> (
         viewModel: ArtistDetailViewModel,
         artist: Artist,
@@ -98,7 +137,7 @@ struct ArtistDetailViewModelTests {
             sortName: nil,
             thumbURL: nil,
             genre: "Rock",
-            summary: "A test artist",
+            summary: artistSummary,
             albumCount: 5
         )
         let library = ArtistDetailRepoMock()

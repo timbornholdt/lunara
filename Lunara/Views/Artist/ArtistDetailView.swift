@@ -4,6 +4,7 @@ import UIKit
 struct ArtistDetailView: View {
     @State private var viewModel: ArtistDetailViewModel
     @Environment(\.showNowPlaying) private var showNowPlaying
+    @Environment(\.lastFMClient) private var lastFMClient
     @State private var selectedAlbum: Album?
     @State private var isBioExpanded = false
 
@@ -42,6 +43,7 @@ struct ArtistDetailView: View {
         .lunaraErrorBanner(using: viewModel.errorBannerState)
         .task {
             await viewModel.loadIfNeeded()
+            await viewModel.loadLastFMBioIfNeeded(using: lastFMClient)
         }
     }
 
@@ -66,8 +68,7 @@ struct ArtistDetailView: View {
                     .background(Color.lunara(.backgroundBase), in: Capsule())
             }
 
-            if let summary = viewModel.artist.summary,
-               !summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if let summary = viewModel.displayBio {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(summary)
                         .font(subtitleFont())

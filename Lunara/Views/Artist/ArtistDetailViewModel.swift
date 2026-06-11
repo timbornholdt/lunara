@@ -23,8 +23,19 @@ final class ArtistDetailViewModel {
     var errorBannerState = ErrorBannerState()
     var artworkURL: URL?
     var artworkByAlbumID: [String: URL] = [:]
+    private(set) var lastFMBio: String?
+
+    /// Plex's own summary when it has one; otherwise the Last.fm bio fallback.
+    var displayBio: String? {
+        if let summary = artist.summary,
+           !summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return summary
+        }
+        return lastFMBio
+    }
 
     private var pendingArtworkAlbumIDs: Set<String> = []
+    private var hasRequestedLastFMBio = false
 
     init(
         artist: Artist,
@@ -50,6 +61,16 @@ final class ArtistDetailViewModel {
         loadingState = .loading
         await loadAlbums()
         await loadArtistArtwork()
+    }
+
+    /// Fetches the Last.fm bio once, and only for artists whose Plex summary is
+    /// blank — Plex's own text always wins (Lunara-uww.6.1). The client comes in
+    /// per call (from the view's environment) so the VM's init chain stays untouched.
+    func loadLastFMBioIfNeeded(using client: LastFMClientProtocol?) async {
+        guard let client, !hasRequestedLastFMBio else { return }
+        guard displayBio == nil else { return }
+        hasRequestedLastFMBio = true
+        lastFMBio = try? await client.getArtistBio(artist: artist.name)
     }
 
     func playAll() async {

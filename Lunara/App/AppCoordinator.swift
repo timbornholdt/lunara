@@ -30,6 +30,9 @@ final class AppCoordinator {
     private let nowPlayingBridge: NowPlayingBridge
     let lastFMAuthManager: LastFMAuthManager
     let scrobbleManager: ScrobbleManager
+    /// Shared Last.fm client; also injected into the view environment for
+    /// read-only enrichment like artist bios (Lunara-uww.6.1).
+    let lastFMClient: LastFMClientProtocol
     let gardenClient: GardenAPIClientProtocol?
     let playbackTelemetry: PlaybackTelemetry
     private let logger = Logger(subsystem: "holdings.chinlock.lunara", category: "AppCoordinator")
@@ -56,6 +59,7 @@ final class AppCoordinator {
         nowPlayingBridge: NowPlayingBridge,
         lastFMAuthManager: LastFMAuthManager,
         scrobbleManager: ScrobbleManager,
+        lastFMClient: LastFMClientProtocol = LastFMClient(),
         gardenClient: GardenAPIClientProtocol? = nil,
         playbackTelemetry: PlaybackTelemetry? = nil
     ) {
@@ -72,6 +76,7 @@ final class AppCoordinator {
         self.nowPlayingBridge = nowPlayingBridge
         self.lastFMAuthManager = lastFMAuthManager
         self.scrobbleManager = scrobbleManager
+        self.lastFMClient = lastFMClient
         self.gardenClient = gardenClient
         self.playbackTelemetry = playbackTelemetry ?? PlaybackTelemetry()
         self.isSignedIn = authManager.isSignedIn
@@ -185,6 +190,7 @@ final class AppCoordinator {
             nowPlayingBridge: nowPlayingBridge,
             lastFMAuthManager: lastFMAuthManager,
             scrobbleManager: scrobbleManager,
+            lastFMClient: lastFMClient,
             gardenClient: gardenClient,
             playbackTelemetry: playbackTelemetry
         )
