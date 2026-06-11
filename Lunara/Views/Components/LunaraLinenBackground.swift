@@ -3,20 +3,34 @@ import SwiftUI
 private struct LunaraLinenOverlay: View {
     var body: some View {
         let token = LunaraVisualTokens.linenToken
-        VStack(spacing: token.horizontalLineSpacing) {
-            ForEach(0..<160, id: \.self) { index in
-                Rectangle()
-                    .fill(Color.lunara(.accentOnAccent).opacity(index.isMultiple(of: 2) ? token.horizontalOpacity : token.horizontalOpacity * 0.3))
-                    .frame(height: 0.5)
+        // Canvas sizes the weave from the actual geometry — fixed line counts
+        // left untextured strips on wide screens (Lunara-9ws).
+        Canvas { context, size in
+            let lineColor = Color.lunara(.accentOnAccent)
+            let lineWidth: CGFloat = 0.5
+
+            var y: CGFloat = 0
+            var row = 0
+            while y < size.height {
+                let opacity = row.isMultiple(of: 2) ? token.horizontalOpacity : token.horizontalOpacity * 0.3
+                context.fill(
+                    Path(CGRect(x: 0, y: y, width: size.width, height: lineWidth)),
+                    with: .color(lineColor.opacity(opacity))
+                )
+                y += lineWidth + token.horizontalLineSpacing
+                row += 1
             }
-        }
-        .overlay {
-            HStack(spacing: token.verticalLineSpacing) {
-                ForEach(0..<100, id: \.self) { index in
-                    Rectangle()
-                        .fill(Color.lunara(.accentOnAccent).opacity(index.isMultiple(of: 3) ? token.verticalOpacity : token.verticalOpacity * 0.25))
-                        .frame(width: 0.5)
-                }
+
+            var x: CGFloat = 0
+            var column = 0
+            while x < size.width {
+                let opacity = column.isMultiple(of: 3) ? token.verticalOpacity : token.verticalOpacity * 0.25
+                context.fill(
+                    Path(CGRect(x: x, y: 0, width: lineWidth, height: size.height)),
+                    with: .color(lineColor.opacity(opacity))
+                )
+                x += lineWidth + token.verticalLineSpacing
+                column += 1
             }
         }
         .blendMode(.overlay)
