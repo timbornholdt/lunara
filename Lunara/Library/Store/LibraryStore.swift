@@ -200,18 +200,39 @@ final class LibraryStore: LibraryStoreProtocol {
 
         let pattern = LibraryStoreSearchNormalizer.likeContainsPattern(for: normalizedQuery)
         return try await dbQueue.read { db in
-            let records = try ArtistRecord.fetchAll(
+            // Same library-derived album count as fetchArtists — the stored Plex
+            // field is usually 0 on this endpoint (Lunara-wq2).
+            let rows = try Row.fetchAll(
                 db,
                 sql: """
-                SELECT *
-                FROM artists
-                WHERE nameSearch LIKE ? ESCAPE '\\'
-                   OR sortNameSearch LIKE ? ESCAPE '\\'
-                ORDER BY sortName ASC, name ASC
+                SELECT a.*,
+                       COALESCE(ac.cnt, 0) AS computedAlbumCount
+                FROM artists a
+                LEFT JOIN (
+                    SELECT artistName, COUNT(*) AS cnt
+                    FROM albums
+                    GROUP BY artistName
+                ) ac ON ac.artistName = a.name
+                WHERE a.nameSearch LIKE ? ESCAPE '\\'
+                   OR a.sortNameSearch LIKE ? ESCAPE '\\'
+                ORDER BY a.sortName ASC, a.name ASC
                 """,
                 arguments: [pattern, pattern]
             )
-            return records.map(\.model)
+            return try rows.map { row in
+                let record = try ArtistRecord(row: row)
+                let base = record.model
+                let count: Int = row["computedAlbumCount"]
+                return Artist(
+                    plexID: base.plexID,
+                    name: base.name,
+                    sortName: base.sortName,
+                    thumbURL: base.thumbURL,
+                    genre: base.genre,
+                    summary: base.summary,
+                    albumCount: count
+                )
+            }
         }
     }
 
