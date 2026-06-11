@@ -74,7 +74,13 @@ struct AppDependencies {
             telemetry: playbackTelemetry
         )
 
-        let appRouter = AppRouter(library: libraryRepo, queue: queueManager, telemetry: playbackTelemetry)
+        let appRouter = AppRouter(
+            library: libraryRepo,
+            queue: queueManager,
+            telemetry: playbackTelemetry,
+            offlineStore: offlineStore,
+            trackCache: trackCache
+        )
 
         let downloadManager = DownloadManager(
             offlineStore: offlineStore,
