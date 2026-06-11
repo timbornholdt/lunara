@@ -167,14 +167,9 @@ struct LibraryGridView: View {
             Color.lunara(.backgroundBase)
 
             if let thumbnailURL {
-                AsyncImage(url: thumbnailURL) { image in
-                    image
-                        .resizable()
-                        .scaledToFill()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } placeholder: {
-                    ProgressView()
-                }
+                // ~Half-screen-wide cell at 3x scale; bounds the decode well below
+                // the cached thumbnail's native resolution (Lunara-gxq).
+                DownsampledThumbnail(url: thumbnailURL, maxPixelSize: 540)
             } else {
                 Image(systemName: "opticaldisc")
                     .font(.system(size: 34))

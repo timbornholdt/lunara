@@ -375,6 +375,57 @@ struct LibraryGridViewModelTests {
         #expect(subject.library.pagedQueryCalls.count == baseline)
     }
 
+    // MARK: - Artwork LRU cache (Lunara-uww.4.2)
+
+    @Test
+    func artworkCache_neverExceedsInjectedCapacity() async {
+        let subject = makeSubject(artworkCacheCapacity: 3)
+
+        for i in 0..<8 {
+            await resolveArtwork(id: "al-\(i)", subject: subject)
+        }
+
+        #expect(subject.viewModel.artworkByAlbumID.count <= 3)
+        // The most recently resolved album is retained.
+        #expect(subject.viewModel.artworkByAlbumID["al-7"] != nil)
+    }
+
+    @Test
+    func artworkCache_evictsLeastRecentlyUsedFirst() async {
+        let subject = makeSubject(artworkCacheCapacity: 3)
+        for i in 0..<3 {
+            await resolveArtwork(id: "al-\(i)", subject: subject)
+        }
+
+        // Touch the oldest entry so it becomes most-recently-used.
+        _ = subject.viewModel.thumbnailURL(for: "al-0")
+
+        // A fourth resolution evicts the least recently USED (al-1), not al-0.
+        await resolveArtwork(id: "al-3", subject: subject)
+
+        #expect(subject.viewModel.artworkByAlbumID["al-0"] != nil)
+        #expect(subject.viewModel.artworkByAlbumID["al-1"] == nil)
+        #expect(subject.viewModel.artworkByAlbumID["al-2"] != nil)
+        #expect(subject.viewModel.artworkByAlbumID["al-3"] != nil)
+    }
+
+    @Test
+    func artworkCache_evictedAlbumReResolvesOnRequest() async {
+        let subject = makeSubject(artworkCacheCapacity: 2)
+        for i in 0..<3 {
+            await resolveArtwork(id: "al-\(i)", subject: subject)
+        }
+        #expect(subject.viewModel.artworkByAlbumID["al-0"] == nil) // evicted
+
+        // Pending state must not be stuck: a re-request issues a fresh pipeline
+        // fetch and re-inserts the artwork.
+        let requestsBefore = subject.artwork.thumbnailRequests.filter { $0.ownerID == "al-0" }.count
+        await resolveArtwork(id: "al-0", subject: subject)
+
+        #expect(subject.artwork.thumbnailRequests.filter { $0.ownerID == "al-0" }.count == requestsBefore + 1)
+        #expect(subject.viewModel.artworkByAlbumID["al-0"] != nil)
+    }
+
     private func triggerItem(_ albums: [Album]) -> Album {
         albums[max(0, albums.count - 10)]
     }
@@ -383,7 +434,7 @@ struct LibraryGridViewModelTests {
         (0..<count).map { makeAlbum(id: String(format: "album-%03d", $0)) }
     }
 
-    private func makeSubject() -> (
+    private func makeSubject(artworkCacheCapacity: Int = 300) -> (
         viewModel: LibraryGridViewModel,
         library: LibraryGridRepoMock,
         artwork: ArtworkPipelineMock,
@@ -395,10 +446,23 @@ struct LibraryGridViewModelTests {
         let viewModel = LibraryGridViewModel(
             library: library,
             artworkPipeline: artwork,
-            actions: actions
+            actions: actions,
+            artworkCacheCapacity: artworkCacheCapacity
         )
 
         return (viewModel, library, artwork, actions)
+    }
+
+    /// Seeds the pipeline mock with a resolvable thumbnail for `id`, requests it,
+    /// and waits for it to land in the view model's artwork dictionary.
+    private func resolveArtwork(
+        id: String,
+        subject: (viewModel: LibraryGridViewModel, library: LibraryGridRepoMock, artwork: ArtworkPipelineMock, actions: LibraryGridActionsMock)
+    ) async {
+        let album = makeAlbum(id: id, thumbURL: "https://plex.example.com/\(id).jpg")
+        subject.artwork.thumbnailResultByOwnerID[id] = URL(fileURLWithPath: "/tmp/\(id).jpg")
+        subject.viewModel.loadThumbnailIfNeeded(for: album)
+        await waitForArtworkResolution(on: subject.viewModel, albumID: id)
     }
 
     private func makeAlbum(
