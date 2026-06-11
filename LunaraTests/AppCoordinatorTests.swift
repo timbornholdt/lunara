@@ -295,7 +295,8 @@ struct AppCoordinatorTests {
     ) -> ScrobbleManager {
         let client = LastFMClientMock()
         let authManager = LastFMAuthManager(client: client, keychain: keychain, urlOpener: URLOpenerMock())
-        return ScrobbleManager(engine: engine, queue: queue, library: library, client: client, authManager: authManager)
+        let resolver = NowPlayingResolver(library: library, artwork: ArtworkPipelineMock())
+        return ScrobbleManager(engine: engine, queue: queue, resolver: resolver, client: client, authManager: authManager)
     }
 
     private func makeAlbum(id: String, thumbURL: String? = nil) -> Album {

@@ -27,14 +27,21 @@ struct ScrobbleManagerTests {
         manager: ScrobbleManager,
         engine: PlaybackEngineMock,
         client: LastFMClientMock,
-        queue: ScrobbleQueue
+        queue: ScrobbleQueue,
+        library: NowPlayingLibraryMock,
+        resolver: NowPlayingResolver
     ) {
         let engine = PlaybackEngineMock()
         let queueManager = NowPlayingQueueMock()
         let library = NowPlayingLibraryMock()
         if let track {
             library.trackByID[track.plexID] = track
+            library.albumByID[track.albumID] = Album(
+                plexID: track.albumID, title: "Test Album", artistName: track.artistName, year: nil,
+                thumbURL: nil, genre: nil, rating: nil, addedAt: nil, trackCount: 1, duration: track.duration
+            )
         }
+        let resolver = NowPlayingResolver(library: library, artwork: ArtworkPipelineMock())
         let client = LastFMClientMock()
         let keychain = MockKeychainHelper()
         if isAuthenticated {
@@ -50,12 +57,19 @@ struct ScrobbleManagerTests {
         let manager = ScrobbleManager(
             engine: engine,
             queue: queueManager,
-            library: library,
+            resolver: resolver,
             client: client,
             authManager: authManager,
             scrobbleQueue: scrobbleQueue
         )
-        return (manager, engine, client, scrobbleQueue)
+        return (manager, engine, client, scrobbleQueue, library, resolver)
+    }
+
+    private func waitUntil(iterations: Int = 300, _ condition: @escaping () -> Bool) async {
+        for _ in 0..<iterations {
+            if condition() { return }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
     }
 
     @Test
@@ -88,6 +102,33 @@ struct ScrobbleManagerTests {
 
         #expect(subject.client.scrobbleCalls.isEmpty)
         #expect(await subject.queue.pendingCount == 1)
+    }
+
+    // Lunara-0hp: scrobble lookups ride the shared NowPlayingResolver cache, so a
+    // track the now-playing UI already resolved is NOT re-fetched from the library.
+    @Test
+    func sendNowPlaying_reusesSharedResolverCache() async {
+        let track = makeTrack()
+        let subject = makeSubject(track: track)
+
+        // Warm the shared resolver the way the now-playing screen/bar/bridge would.
+        _ = await subject.resolver.track(id: track.plexID)
+        if let warmed = await subject.resolver.track(id: track.plexID) {
+            _ = await subject.resolver.album(id: warmed.albumID)
+        }
+        let trackCallsAfterWarm = subject.library.trackCallCount
+        let albumCallsAfterWarm = subject.library.albumCallCount
+
+        subject.engine.currentTrackID = track.plexID
+        subject.engine.playbackState = .playing
+        subject.manager.configure()
+        await waitUntil { subject.client.nowPlayingCalls.count == 1 }
+
+        #expect(subject.client.nowPlayingCalls.count == 1)
+        #expect(subject.client.nowPlayingCalls.first?.track == track.title)
+        // Served from the resolver's memo — no additional library round-trips.
+        #expect(subject.library.trackCallCount == trackCallsAfterWarm)
+        #expect(subject.library.albumCallCount == albumCallsAfterWarm)
     }
 
     @Test

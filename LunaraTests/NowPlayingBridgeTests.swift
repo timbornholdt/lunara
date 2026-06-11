@@ -207,13 +207,21 @@ final class NowPlayingQueueMock: QueueManagerProtocol {
 final class NowPlayingLibraryMock: LibraryRepoProtocol {
     var trackByID: [String: Track] = [:]
     var albumByID: [String: Album] = [:]
+    private(set) var trackCallCount = 0
+    private(set) var albumCallCount = 0
 
     func albums(page: LibraryPage) async throws -> [Album] { [] }
-    func album(id: String) async throws -> Album? { albumByID[id] }
+    func album(id: String) async throws -> Album? {
+        albumCallCount += 1
+        return albumByID[id]
+    }
     func searchAlbums(query: String) async throws -> [Album] { [] }
     func queryAlbums(filter: AlbumQueryFilter) async throws -> [Album] { [] }
     func tracks(forAlbum albumID: String) async throws -> [Track] { [] }
-    func track(id: String) async throws -> Track? { trackByID[id] }
+    func track(id: String) async throws -> Track? {
+        trackCallCount += 1
+        return trackByID[id]
+    }
     func refreshAlbumDetail(albumID: String) async throws -> AlbumDetailRefreshOutcome {
         AlbumDetailRefreshOutcome(album: nil, tracks: [])
     }
