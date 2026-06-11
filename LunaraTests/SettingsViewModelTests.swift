@@ -63,19 +63,60 @@ struct SettingsViewModelTests {
         #expect(usage.contains("1"))
     }
 
+    // MARK: - Downloads manager (Lunara-j0l)
+
+    @Test
+    func loadThumbnailIfNeeded_resolvesArtworkForDownloadRows() async {
+        let artwork = ArtworkPipelineMock()
+        artwork.thumbnailResultByOwnerID["al-1"] = URL(fileURLWithPath: "/tmp/al-1.jpg")
+        let vm = makeViewModel(artworkPipeline: artwork)
+        let album = makeAlbum(id: "al-1")
+
+        vm.loadThumbnailIfNeeded(for: album)
+        for _ in 0..<50 where vm.thumbnailURL(for: "al-1") == nil {
+            await Task.yield()
+        }
+
+        #expect(vm.thumbnailURL(for: "al-1")?.path == "/tmp/al-1.jpg")
+    }
+
+    @Test
+    func makeAlbumDetailViewModel_requiresWiredDependencies() {
+        let bare = makeViewModel()
+        #expect(bare.makeAlbumDetailViewModel(for: makeAlbum(id: "al-x")) == nil)
+
+        let wired = makeViewModel(
+            artworkPipeline: ArtworkPipelineMock(),
+            albumActions: SettingsAlbumActionsMock()
+        )
+        #expect(wired.makeAlbumDetailViewModel(for: makeAlbum(id: "al-x")) != nil)
+    }
+
+    private func makeAlbum(id: String) -> Album {
+        Album(
+            plexID: id, title: "Album \(id)", artistName: "Artist", year: nil,
+            thumbURL: "/thumb/\(id)", genre: nil, rating: nil, addedAt: nil,
+            trackCount: 1, duration: 180
+        )
+    }
+
     // MARK: - Helpers
 
     private func makeViewModel(
         offlineStore: MockOfflineStore = MockOfflineStore(),
         downloadManager: DownloadManager? = nil,
-        signOutAction: @escaping () -> Void = {}
+        signOutAction: @escaping () -> Void = {},
+        artworkPipeline: ArtworkPipelineProtocol? = nil,
+        albumActions: AlbumDetailActionRouting? = nil
     ) -> SettingsViewModel {
         let dm = downloadManager ?? makeDownloadManager()
         return SettingsViewModel(
             offlineStore: offlineStore,
             downloadManager: dm,
             library: SettingsLibraryMock(),
-            signOutAction: signOutAction
+            signOutAction: signOutAction,
+            artworkPipeline: artworkPipeline,
+            albumActions: albumActions
         )
     }
 
@@ -120,4 +161,16 @@ private final class SettingsLibraryMock: LibraryRepoProtocol {
     func lastRefreshDate() async throws -> Date? { nil }
     func streamURL(for track: Track) async throws -> URL { URL(string: "https://example.com")! }
     func authenticatedArtworkURL(for rawValue: String?) async throws -> URL? { nil }
+}
+
+
+@MainActor
+final class SettingsAlbumActionsMock: AlbumDetailActionRouting {
+    func playAlbum(_ album: Album) async throws { }
+    func queueAlbumNext(_ album: Album) async throws { }
+    func queueAlbumLater(_ album: Album) async throws { }
+    func playTrackNow(_ track: Track) async throws { }
+    func playTracksNow(_ tracks: [Track]) async throws { }
+    func queueTrackNext(_ track: Track) async throws { }
+    func queueTrackLater(_ track: Track) async throws { }
 }

@@ -15,8 +15,7 @@ struct SettingsView: View {
                 lastFMSection
                 storageSection
                 syncedCollectionsSection
-                activeDownloadsSection
-                downloadsSection
+                downloadsLinkSection
                 diagnosticsSection
                 accountSection
             }
@@ -141,84 +140,27 @@ struct SettingsView: View {
         }
     }
 
-    @ViewBuilder
-    private var activeDownloadsSection: some View {
-        let downloads = viewModel.activeDownloads
-        if !downloads.isEmpty {
-            Section("Downloading") {
-                ForEach(downloads, id: \.albumID) { entry in
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(entry.name)
-                                .lineLimit(1)
-                        }
-                        Spacer()
-                        downloadStateLabel(state: entry.state, sizeBytes: 0)
-                    }
+    /// One summary row that opens the dedicated downloads manager (Lunara-j0l).
+    private var downloadsLinkSection: some View {
+        Section("Downloads") {
+            NavigationLink {
+                DownloadsView(viewModel: viewModel)
+            } label: {
+                HStack {
+                    Text("Manage Downloads")
+                    Spacer()
+                    Text(downloadsSummary)
+                        .font(.caption)
+                        .foregroundStyle(Color.lunara(.textSecondary))
                 }
             }
         }
     }
 
-    private var downloadsSection: some View {
-        Section("Downloaded Albums") {
-            if viewModel.downloadedAlbums.isEmpty {
-                Text("No downloaded albums")
-                    .foregroundStyle(Color.lunara(.textSecondary))
-            } else {
-                ForEach(viewModel.downloadedAlbums, id: \.albumID) { entry in
-                    downloadedAlbumRow(entry)
-                        .swipeActions(edge: .trailing) {
-                            Button("Remove", role: .destructive) {
-                                Task { await viewModel.removeAlbumDownload(albumID: entry.albumID) }
-                            }
-                        }
-                }
-
-                Button("Remove All Downloads", role: .destructive) {
-                    Task { await viewModel.removeAllDownloads() }
-                }
-            }
-        }
-    }
-
-    private func downloadedAlbumRow(_ entry: (albumID: String, album: Album?, sizeBytes: Int64)) -> some View {
-        let state = viewModel.downloadState(forAlbum: entry.albumID)
-
-        return HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(entry.album?.title ?? entry.albumID)
-                    .lineLimit(1)
-                Text(entry.album?.artistName ?? "Unknown Artist")
-                    .font(.caption)
-                    .foregroundStyle(Color.lunara(.textSecondary))
-                    .lineLimit(1)
-            }
-            Spacer()
-            downloadStateLabel(state: state, sizeBytes: entry.sizeBytes)
-        }
-    }
-
-    @ViewBuilder
-    private func downloadStateLabel(state: AlbumDownloadState, sizeBytes: Int64) -> some View {
-        switch state {
-        case .downloading(let completed, let total):
-            HStack(spacing: 6) {
-                ProgressView(value: Double(completed), total: Double(total))
-                    .frame(width: 60)
-                Text("\(completed)/\(total)")
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(Color.lunara(.textSecondary))
-            }
-        case .failed(let message):
-            Text(message)
-                .font(.caption)
-                .foregroundStyle(.red)
-        default:
-            Text(ByteCountFormatter.string(fromByteCount: sizeBytes, countStyle: .file))
-                .font(.caption)
-                .foregroundStyle(Color.lunara(.textSecondary))
-        }
+    private var downloadsSummary: String {
+        let count = viewModel.downloadedAlbums.count
+        let albums = count == 1 ? "1 album" : "\(count) albums"
+        return "\(albums) · \(viewModel.formattedUsage)"
     }
 
     private var lastFMSection: some View {
