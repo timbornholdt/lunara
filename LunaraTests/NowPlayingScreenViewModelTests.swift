@@ -238,6 +238,42 @@ struct NowPlayingScreenViewModelTests {
         #expect(max(cg.width, cg.height) <= 130)
     }
 
+    /// Lunara-uww.7.4: up-next rows must resolve CONCURRENTLY, not one row at a time.
+    /// The library mock holds a barrier that only opens when 4 track lookups are in
+    /// flight at once — a serial row loop never gets past the first gated row.
+    @Test
+    func upNextRowsResolveConcurrently() async throws {
+        let ids = (0...5).map { "t\($0)" } // t0 current; t1...t5 fill the eager window
+        let queue = NowPlayingQueueMock()
+        queue.items = ids.map { makeQueueItem(trackID: $0) }
+        queue.currentIndex = 0
+        queue.currentItem = queue.items[0]
+
+        let library = ConfigurableLibraryRepoMock()
+        for id in ids {
+            let albumID = "al-\(id)"
+            library.tracksByID[id] = makeTrack(id: id, albumID: albumID)
+            library.albumsByID[albumID] = makeAlbum(id: albumID)
+        }
+        // t1 is excluded: the next-track prefetch path also resolves it. t2...t5 are
+        // touched only by up-next row resolution.
+        library.trackBarrierIDs = ["t2", "t3", "t4", "t5"]
+        library.trackBarrierCount = 4
+
+        let viewModel = NowPlayingScreenViewModel(
+            queueManager: queue,
+            engine: PlaybackEngineMock(),
+            library: library,
+            resolver: NowPlayingResolver(library: library, artwork: ArtworkPipelineMock())
+        )
+
+        await waitUntil { viewModel.upNextItems.map(\.id) == ["t1", "t2", "t3", "t4", "t5"] }
+        #expect(viewModel.upNextItems.map(\.id) == ["t1", "t2", "t3", "t4", "t5"])
+
+        // Unblock any stragglers so a failing run doesn't leak suspended continuations.
+        library.releaseTrackBarrier()
+    }
+
     /// Lunara-uww.7.2: when the queue advances, up-next rows that carry over to the new
     /// window must be REUSED, not re-resolved/re-decoded. Reuse keeps the exact decoded
     /// UIImage instance; a full rebuild would decode a fresh (non-identical) image.
