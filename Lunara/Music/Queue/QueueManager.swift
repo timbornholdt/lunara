@@ -295,7 +295,9 @@ final class QueueManager: QueueManagerProtocol {
                     }
                 }
 
-                let loudness = try? await loudnessProvider?.fetchLoudnessLevels(trackID: nextItem.trackID)
+                // The policy detects the fade-out at the END of the OUTGOING track,
+                // so this must be the CURRENT item's contour, not the next's (Lunara-9x1).
+                let loudness = try? await loudnessProvider?.fetchLoudnessLevels(trackID: currentItem.trackID)
                 guard !Task.isCancelled else { return }
 
                 await MainActor.run {
