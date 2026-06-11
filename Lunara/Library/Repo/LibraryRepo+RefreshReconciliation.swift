@@ -67,6 +67,22 @@ extension LibraryRepo {
                     in: run
                 )
             }
+            // Fetch + stamp collection membership EVERY run: pruneRowsNotSeen
+            // deletes junction rows not stamped with this run's ID, so skipping
+            // this wiped album_collections on every refresh — slowing all
+            // collection opens and enabling the 5dh mass-delete (Lunara-ujm).
+            var albumCollectionIDs: [String: [String]] = [:]
+            for collection in remoteCollections {
+                guard let memberIDs = try? await remote.fetchCollectionAlbumIDs(collectionID: collection.plexID) else {
+                    logger.warning("refresh: membership fetch failed for collection '\(collection.plexID, privacy: .public)'")
+                    continue
+                }
+                for albumID in memberIDs {
+                    albumCollectionIDs[albumID, default: []].append(collection.plexID)
+                }
+            }
+            try await store.upsertAlbumCollections(albumCollectionIDs, in: run)
+
             try await store.markAlbumsSeen(dedupedLibrary.albums.map(\.plexID), in: run)
             try await store.markTracksWithValidAlbumsSeen(in: run)
             let pruneResult = try await store.pruneRowsNotSeen(in: run)

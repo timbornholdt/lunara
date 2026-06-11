@@ -455,8 +455,10 @@ final class LibraryStoreMock: LibraryStoreProtocol {
         collectionsByID = Dictionary(uniqueKeysWithValues: collections.map { ($0.plexID, $0) })
     }
 
+    private(set) var upsertedAlbumCollections: [String: [String]] = [:]
+
     func upsertAlbumCollections(_ albumCollectionIDs: [String: [String]], in run: LibrarySyncRun) async throws {
-        // No-op for test double
+        upsertedAlbumCollections.merge(albumCollectionIDs) { _, new in new }
     }
 
     func fetchPlaylists() async throws -> [LibraryPlaylistSnapshot] {
