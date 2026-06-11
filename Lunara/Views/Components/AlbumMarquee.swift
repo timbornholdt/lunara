@@ -16,30 +16,27 @@ struct AlbumMarquee: View {
 
     private static let rowSpacing: CGFloat = 8
     private static let tileSpacing: CGFloat = 8
-    private static let tilesPerRowMinimum = 8
+    /// Six ~71pt tiles (+spacing) already exceed portrait screen widths, and a
+    /// lower floor means 13+ covers split into two rows without padding —
+    /// padding repeats covers, which Lunara-5nc forbids when there are enough.
+    private static let tilesPerRowMinimum = 6
+    /// Cap on covers a collection contributes; sampled across the whole
+    /// collection, not the first N (Lunara-5nc).
+    static let coverSampleCap = 32
     /// Slow drift, slightly different per row so the pattern never aligns.
     private static let rowSpeeds: [Double] = [14, 11]
 
     var body: some View {
         let tileSize = (height - Self.rowSpacing) / 2
+        let rows = Self.rows(from: thumbnailURLs)
         VStack(alignment: .leading, spacing: Self.rowSpacing) {
-            row(urls: Self.paddedURLs(evenURLs, minimumCount: Self.tilesPerRowMinimum),
-                tileSize: tileSize, speed: Self.rowSpeeds[0], reversed: false)
-            row(urls: Self.paddedURLs(oddURLs, minimumCount: Self.tilesPerRowMinimum),
-                tileSize: tileSize, speed: Self.rowSpeeds[1], reversed: true)
+            row(urls: rows.even, tileSize: tileSize, speed: Self.rowSpeeds[0], reversed: false)
+            row(urls: rows.odd, tileSize: tileSize, speed: Self.rowSpeeds[1], reversed: true)
         }
         .frame(height: height)
         .frame(maxWidth: .infinity, alignment: .leading)
         .clipped()
         .accessibilityHidden(true)
-    }
-
-    private var evenURLs: [URL?] {
-        thumbnailURLs.enumerated().filter { $0.offset.isMultiple(of: 2) }.map(\.element)
-    }
-
-    private var oddURLs: [URL?] {
-        thumbnailURLs.enumerated().filter { !$0.offset.isMultiple(of: 2) }.map(\.element)
     }
 
     private var isAnimating: Bool {
@@ -115,5 +112,25 @@ struct AlbumMarquee: View {
         }
         guard urls.count < minimumCount else { return urls }
         return (0..<minimumCount).map { urls[$0 % urls.count] }
+    }
+
+    /// Splits covers into the two row strips: disjoint even/odd interleave, each
+    /// padded only when the collection is genuinely too small to span the screen
+    /// — so 13+ distinct covers never repeat anywhere on screen (Lunara-5nc).
+    static func rows(from urls: [URL?]) -> (even: [URL?], odd: [URL?]) {
+        let even = urls.enumerated().filter { $0.offset.isMultiple(of: 2) }.map(\.element)
+        let odd = urls.enumerated().filter { !$0.offset.isMultiple(of: 2) }.map(\.element)
+        return (
+            even: paddedURLs(even, minimumCount: tilesPerRowMinimum),
+            odd: paddedURLs(odd, minimumCount: tilesPerRowMinimum)
+        )
+    }
+
+    /// Up to `cap` items spread evenly across the whole collection — start,
+    /// middle, and end all represented (Lunara-5nc). Order preserved.
+    static func sampled<T>(_ items: [T], cap: Int) -> [T] {
+        guard items.count > cap, cap > 0 else { return items }
+        let stride = Double(items.count) / Double(cap)
+        return (0..<cap).map { items[Int(Double($0) * stride)] }
     }
 }

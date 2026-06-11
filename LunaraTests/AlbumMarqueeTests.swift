@@ -66,4 +66,50 @@ struct AlbumMarqueeTests {
         #expect(padded.count == 8)
         #expect(padded.allSatisfy { $0 == nil })
     }
+
+    // MARK: - Whole-collection sampling (Lunara-5nc)
+
+    @Test
+    func sampled_returnsEverythingAtOrUnderTheCap() {
+        let items = Array(0..<20)
+        #expect(AlbumMarquee.sampled(items, cap: 32) == items)
+        #expect(AlbumMarquee.sampled([Int](), cap: 32).isEmpty)
+    }
+
+    @Test
+    func sampled_capsAndSpansTheWholeCollection() {
+        let items = Array(0..<63)
+        let sample = AlbumMarquee.sampled(items, cap: 32)
+
+        #expect(sample.count == 32)
+        // Spread across the collection, not the first 32.
+        #expect(sample.first == 0)
+        #expect(sample.last! >= 56)
+        // Order preserved, no duplicates.
+        #expect(sample == sample.sorted())
+        #expect(Set(sample).count == sample.count)
+    }
+
+    /// Tim's acceptance: with more than ~12 distinct covers, no cover should be
+    /// visible twice on screen — rows are disjoint and unpadded.
+    @Test
+    func rows_thirteenDistinctCovers_noRepeatsWithinOrAcrossRows() {
+        let urls: [URL?] = (0..<13).map { URL(string: "file:///\($0).jpg") }
+        let rows = AlbumMarquee.rows(from: urls)
+
+        let even = rows.even.compactMap { $0 }
+        let odd = rows.odd.compactMap { $0 }
+        #expect(Set(even).count == even.count)
+        #expect(Set(odd).count == odd.count)
+        #expect(Set(even).isDisjoint(with: Set(odd)))
+        #expect(even.count + odd.count == 13)
+    }
+
+    @Test
+    func rows_tinyCollectionStillPadsToFillTheScreen() {
+        let url = URL(string: "file:///a.jpg")
+        let rows = AlbumMarquee.rows(from: [url, nil, url])
+        #expect(rows.even.count >= 6)
+        #expect(rows.odd.count >= 6)
+    }
 }

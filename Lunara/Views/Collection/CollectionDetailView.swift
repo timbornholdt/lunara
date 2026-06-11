@@ -114,16 +114,22 @@ struct CollectionDetailView: View {
         .task(id: viewModel.albums.first?.plexID) {
             // The marquee shows the collection's own covers; kick their
             // thumbnail loads as soon as the album list lands.
-            for album in viewModel.albums.prefix(12) {
+            for album in marqueeAlbums {
                 viewModel.loadAlbumThumbnailIfNeeded(for: album)
             }
         }
     }
 
-    /// Covers for the marquee: the first dozen albums' thumbnails (placeholders
-    /// until each resolves), so the header is always THIS collection's art.
+    /// Marquee covers sampled across the WHOLE collection — the first-12 prefix
+    /// made large collections cycle the same few covers (Lunara-5nc).
+    private var marqueeAlbums: [Album] {
+        AlbumMarquee.sampled(viewModel.albums, cap: AlbumMarquee.coverSampleCap)
+    }
+
+    /// Placeholders until each thumbnail resolves, so the header is always THIS
+    /// collection's art.
     private var marqueeThumbnailURLs: [URL?] {
-        viewModel.albums.prefix(12).map { viewModel.albumThumbnailURL(for: $0.plexID) }
+        marqueeAlbums.map { viewModel.albumThumbnailURL(for: $0.plexID) }
     }
 
     // MARK: - Albums
