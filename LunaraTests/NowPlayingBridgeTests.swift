@@ -213,6 +213,7 @@ final class NowPlayingQueueMock: QueueManagerProtocol {
     var currentIndex: Int?
     var currentItem: QueueItem?
     var lastError: MusicError?
+    var hasPlaybackBegun = false
 
     private(set) var playCallCount = 0
     private(set) var pauseCallCount = 0

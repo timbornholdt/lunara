@@ -40,8 +40,9 @@ final class QueueManager: QueueManagerProtocol {
     private var manualNavigationTargetTrackID: String?
     // Prevents the engine-idle observer from auto-advancing the queue
     // on a cold launch with a restored queue. Only set to true when
-    // playback is explicitly triggered by the user.
-    private var hasPlaybackBegun = false
+    // playback is explicitly triggered by the user. Exposed (read-only) so the
+    // Now Playing bar latches visibility on it synchronously (Lunara-m73).
+    private(set) var hasPlaybackBegun = false
     // One-shot stream-recovery budget per track: set to the trackID when a load
     // failure triggers a forced-stream retry, so a second failure for the same
     // track stops instead of ping-ponging. Reset when a different track begins.

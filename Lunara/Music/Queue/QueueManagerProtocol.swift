@@ -42,6 +42,11 @@ protocol QueueManagerProtocol: AnyObject, Observable {
     var currentIndex: Int? { get }
     var currentItem: QueueItem? { get }
     var lastError: MusicError? { get }
+    /// True once the user explicitly starts playback this session — set
+    /// SYNCHRONOUSLY in playNow/play, so UI visibility can latch on it without
+    /// racing async engine-state observation (Lunara-m73). False while a
+    /// restored queue waits for an explicit play.
+    var hasPlaybackBegun: Bool { get }
 
     func playNow(_ items: [QueueItem])
     func playNext(_ items: [QueueItem])

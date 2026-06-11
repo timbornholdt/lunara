@@ -146,15 +146,25 @@ struct LibraryRootTabView: View {
                 NowPlayingBar(
                     viewModel: nowPlayingBarViewModel,
                     screenViewModel: nowPlayingScreenViewModel,
-                    showSheet: $showNowPlayingSheet,
-                    onNavigateToAlbum: { album in
-                        albumFromNowPlaying = album
-                    },
-                    onNavigateToArtist: { artist in
-                        artistFromNowPlaying = artist
-                    }
+                    showSheet: $showNowPlayingSheet
                 )
             }
+        }
+        // Hosted here, NOT inside the accessory content: the accessory tears
+        // its subtree down on visibility changes, which auto-dismissed a sheet
+        // presented from within it (Lunara-m73).
+        .sheet(isPresented: $showNowPlayingSheet) {
+            NowPlayingScreen(
+                viewModel: nowPlayingScreenViewModel,
+                onNavigateToAlbum: { album in
+                    showNowPlayingSheet = false
+                    albumFromNowPlaying = album
+                },
+                onNavigateToArtist: { artist in
+                    showNowPlayingSheet = false
+                    artistFromNowPlaying = artist
+                }
+            )
         }
         .sheet(item: $albumFromNowPlaying) { album in
             NavigationStack {
