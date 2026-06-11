@@ -91,6 +91,33 @@ struct LibraryStoreQueryTests {
         #expect(sortNameMatches.map(\.plexID) == ["artist-bjork-post"])
     }
 
+    /// Lunara-wq2: search rows must carry the same library-derived album count
+    /// as the unfiltered list — the stored Plex field is often 0.
+    @Test
+    func searchArtists_derivesAlbumCountFromLibrary() async throws {
+        let store = try LibraryStore.inMemory()
+        try await store.replaceLibrary(
+            with: LibrarySnapshot(
+                albums: [
+                    makeAlbum(id: "album-nm", title: "Nevermind", artist: "Nirvana"),
+                    makeAlbum(id: "album-iu", title: "In Utero", artist: "Nirvana")
+                ],
+                tracks: [],
+                artists: [
+                    // Plex reported zero (the field this endpoint usually omits).
+                    makeArtist(id: "artist-nirvana", name: "Nirvana", sortName: "Nirvana")
+                ],
+                collections: []
+            ),
+            refreshedAt: Date(timeIntervalSince1970: 1000)
+        )
+
+        let matches = try await store.searchArtists(query: "nirv")
+
+        #expect(matches.map(\.plexID) == ["artist-nirvana"])
+        #expect(matches.first?.albumCount == 2)
+    }
+
     @Test
     func searchCollections_matchesTitle_caseAndDiacriticInsensitive_sortedByTitle() async throws {
         let store = try LibraryStore.inMemory()
