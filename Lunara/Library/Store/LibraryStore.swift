@@ -344,6 +344,52 @@ final class LibraryStore: LibraryStoreProtocol {
         }
     }
 
+    // MARK: - Release radar (Lunara-nlo)
+
+    /// Distinct artists with at least one album rated at or above `rating`
+    /// (Plex 0–10 scale) — the radar's qualifying set.
+    func artistNames(withAlbumRatedAtLeast rating: Int) async throws -> [String] {
+        try await dbQueue.read { db in
+            try String.fetchAll(
+                db,
+                sql: "SELECT DISTINCT artistName FROM albums WHERE rating >= ? ORDER BY artistName ASC",
+                arguments: [rating]
+            )
+        }
+    }
+
+    func radarEntries() async throws -> [RadarEntry] {
+        try await dbQueue.read { db in
+            let rows = try Row.fetchAll(
+                db,
+                sql: "SELECT * FROM radar_entries ORDER BY firstReleaseDate ASC, title ASC"
+            )
+            return rows.map { row in
+                RadarEntry(
+                    id: row["releaseGroupID"],
+                    artistName: row["artistName"],
+                    title: row["title"],
+                    firstReleaseDate: row["firstReleaseDate"]
+                )
+            }
+        }
+    }
+
+    func replaceRadarEntries(_ entries: [RadarEntry]) async throws {
+        try await dbQueue.write { db in
+            try db.execute(sql: "DELETE FROM radar_entries")
+            for entry in entries {
+                try db.execute(
+                    sql: """
+                    INSERT INTO radar_entries (releaseGroupID, artistName, title, firstReleaseDate, fetchedAt)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    arguments: [entry.id, entry.artistName, entry.title, entry.firstReleaseDate, Date()]
+                )
+            }
+        }
+    }
+
     // MARK: - Loudness (Lunara-ki3)
 
     func loudnessLevels(forTrack trackID: String) async throws -> [Float]? {

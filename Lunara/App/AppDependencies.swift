@@ -19,6 +19,8 @@ struct AppDependencies {
     let lastFMAuthManager: LastFMAuthManager
     let scrobbleManager: ScrobbleManager
     let lastFMClient: LastFMClientProtocol
+    let musicBrainzClient: MusicBrainzClientProtocol
+    let radarService: RadarService
     let gardenClient: GardenAPIClientProtocol?
     let playbackTelemetry: PlaybackTelemetry
 
@@ -119,6 +121,9 @@ struct AppDependencies {
             authManager: lastFMAuthManager
         )
 
+        let musicBrainzClient = MusicBrainzClient()
+        let radarService = RadarService(store: libraryStore, musicBrainz: musicBrainzClient)
+
         return AppDependencies(
             authManager: authManager,
             plexClient: plexClient,
@@ -134,6 +139,8 @@ struct AppDependencies {
             lastFMAuthManager: lastFMAuthManager,
             scrobbleManager: scrobbleManager,
             lastFMClient: lastFMClient,
+            musicBrainzClient: musicBrainzClient,
+            radarService: radarService,
             gardenClient: makeGardenClient(),
             playbackTelemetry: playbackTelemetry
         )

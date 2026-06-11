@@ -19,6 +19,16 @@ struct ExternalReleaseGroup: Equatable, Sendable, Identifiable {
     let id: String
     let title: String
     let firstReleaseYear: Int?
+    /// Raw MusicBrainz date ("yyyy", "yyyy-MM", or "yyyy-MM-dd") — future for
+    /// announced-but-unreleased albums, which powers the radar (Lunara-nlo).
+    let firstReleaseDate: String?
+
+    init(id: String, title: String, firstReleaseYear: Int?, firstReleaseDate: String? = nil) {
+        self.id = id
+        self.title = title
+        self.firstReleaseYear = firstReleaseYear
+        self.firstReleaseDate = firstReleaseDate
+    }
 
     var musicBrainzURL: URL {
         URL(string: "https://musicbrainz.org/release-group/\(id)")!
@@ -29,6 +39,10 @@ protocol MusicBrainzClientProtocol: Sendable {
     /// Resolves an artist by name and returns links + studio-album discography,
     /// or nil when MusicBrainz has no confident match.
     func artistEnrichment(name: String) async throws -> MusicBrainzArtistEnrichment?
+
+    /// Studio-album release groups for an artist — the lighter, links-free
+    /// lookup the radar uses (2 requests vs enrichment's 3-4).
+    func upcomingAlbums(artistName: String) async throws -> [ExternalReleaseGroup]
 }
 
 /// MusicBrainz needs no API key, but requires a descriptive User-Agent and
@@ -75,6 +89,17 @@ actor MusicBrainzClient: MusicBrainzClientProtocol {
             wikipediaURL: wikipediaURL,
             homepageURL: relations.homepageURL,
             albums: albums
+        )
+    }
+
+    /// All studio-album release groups for the artist, full dates included; the
+    /// caller filters for the future. Named for its radar role (Lunara-nlo).
+    func upcomingAlbums(artistName: String) async throws -> [ExternalReleaseGroup] {
+        guard let artistID = try await searchArtistID(name: artistName) else { return [] }
+        return try Self.parseReleaseGroups(
+            await get("https://musicbrainz.org/ws/2/release-group", query: [
+                "artist": artistID, "type": "album", "fmt": "json", "limit": "100"
+            ])
         )
     }
 
@@ -185,9 +210,9 @@ actor MusicBrainzClient: MusicBrainzClientProtocol {
                   (group["secondary-types"] as? [String] ?? []).isEmpty else {
                 return nil
             }
-            let year = (group["first-release-date"] as? String)
-                .flatMap { $0.prefix(4).isEmpty ? nil : Int($0.prefix(4)) }
-            return ExternalReleaseGroup(id: id, title: title, firstReleaseYear: year)
+            let rawDate = (group["first-release-date"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+            let year = rawDate.flatMap { Int($0.prefix(4)) }
+            return ExternalReleaseGroup(id: id, title: title, firstReleaseYear: year, firstReleaseDate: rawDate)
         }
     }
 }
