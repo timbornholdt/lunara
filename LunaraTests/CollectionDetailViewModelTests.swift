@@ -81,6 +81,66 @@ struct CollectionDetailViewModelTests {
         #expect(subject.actions.playAlbumRequests == ["album-play"])
     }
 
+    // MARK: - Cached-first load + seamless reconcile (Lunara-wd4)
+
+    /// Cached membership renders instantly; the remote reconcile then reflows
+    /// the grid in place when Plex's membership differs.
+    @Test
+    func loadIfNeeded_rendersCacheInstantly_thenReconcilesChanges() async {
+        let subject = makeSubject()
+        subject.library.collectionAlbumsByID[subject.collection.plexID] = [makeAlbum(id: "album-1")]
+        subject.library.refreshedCollectionAlbumsByID[subject.collection.plexID] = [
+            makeAlbum(id: "album-1"),
+            makeAlbum(id: "album-new")
+        ]
+
+        await subject.viewModel.loadIfNeeded()
+
+        // Cache rendered immediately.
+        #expect(subject.viewModel.loadingState == .loaded)
+        #expect(subject.viewModel.albums.map(\.plexID) == ["album-1"])
+
+        // Background reconcile lands the remote change.
+        await waitUntil { subject.viewModel.albums.count == 2 }
+        #expect(subject.viewModel.albums.map(\.plexID) == ["album-1", "album-new"])
+        #expect(subject.library.refreshRequests == [subject.collection.plexID])
+    }
+
+    /// A flaky/empty remote response never blanks a populated page.
+    @Test
+    func reconcile_ignoresEmptyRemoteMembership() async {
+        let subject = makeSubject()
+        subject.library.collectionAlbumsByID[subject.collection.plexID] = [makeAlbum(id: "album-1")]
+        subject.library.refreshedCollectionAlbumsByID[subject.collection.plexID] = []
+
+        await subject.viewModel.loadIfNeeded()
+        await waitUntil { !subject.library.refreshRequests.isEmpty }
+        await Task.yield()
+        await Task.yield()
+
+        #expect(subject.viewModel.albums.map(\.plexID) == ["album-1"])
+    }
+
+    /// Empty cache falls through to the refresh path (which persists membership
+    /// for next time), keeping today's first-open behavior.
+    @Test
+    func loadIfNeeded_withEmptyCache_usesRefreshPath() async {
+        let subject = makeSubject()
+        subject.library.refreshedCollectionAlbumsByID[subject.collection.plexID] = [makeAlbum(id: "album-1")]
+
+        await subject.viewModel.loadIfNeeded()
+
+        #expect(subject.viewModel.albums.map(\.plexID) == ["album-1"])
+        #expect(subject.viewModel.loadingState == .loaded)
+    }
+
+    private func waitUntil(iterations: Int = 300, _ condition: @escaping () -> Bool) async {
+        for _ in 0..<iterations {
+            if condition() { return }
+            try? await Task.sleep(nanoseconds: 5_000_000)
+        }
+    }
+
     private func makeSubject(
         collectionID: String = "col-1",
         collectionTitle: String = "Test Collection"
@@ -140,6 +200,15 @@ private final class CollectionDetailRepoMock: LibraryRepoProtocol {
     func collectionAlbums(collectionID: String) async throws -> [Album] {
         if let collectionAlbumsError { throw collectionAlbumsError }
         return collectionAlbumsByID[collectionID] ?? []
+    }
+
+    var refreshedCollectionAlbumsByID: [String: [Album]] = [:]
+    private(set) var refreshRequests: [String] = []
+
+    func refreshCollectionAlbums(collectionID: String) async throws -> [Album] {
+        refreshRequests.append(collectionID)
+        if let collectionAlbumsError { throw collectionAlbumsError }
+        return refreshedCollectionAlbumsByID[collectionID] ?? collectionAlbumsByID[collectionID] ?? []
     }
     func tracks(forAlbum albumID: String) async throws -> [Track] { [] }
     func track(id: String) async throws -> Track? { nil }

@@ -287,6 +287,10 @@ protocol LibraryStoreProtocol: AnyObject {
     /// (not just an extension member) so LibraryStore's single-query version
     /// dispatches dynamically; the default below loops for doubles.
     func fetchTracks(forAlbums albumIDs: [String]) async throws -> [Track]
+
+    /// Collection-membership writeback after a remote fetch (Lunara-wd4).
+    /// Requirement for dynamic dispatch; no-op default for doubles.
+    func replaceAlbumIDs(_ albumIDs: [String], forCollectionID collectionID: String) async throws
 }
 
 extension LibraryStoreProtocol {
@@ -300,4 +304,6 @@ extension LibraryStoreProtocol {
         }
         return tracks
     }
+
+    func replaceAlbumIDs(_ albumIDs: [String], forCollectionID collectionID: String) async throws { }
 }

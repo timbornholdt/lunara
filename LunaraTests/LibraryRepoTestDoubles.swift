@@ -337,7 +337,17 @@ final class LibraryStoreMock: LibraryStoreProtocol {
         return collectionsByID[id]
     }
 
-    func fetchAlbumIDs(forCollectionID collectionID: String) async throws -> [String] { [] }
+    var albumIDsByCollectionID: [String: [String]] = [:]
+    private(set) var replacedAlbumIDsByCollection: [String: [String]] = [:]
+
+    func fetchAlbumIDs(forCollectionID collectionID: String) async throws -> [String] {
+        albumIDsByCollectionID[collectionID] ?? []
+    }
+
+    func replaceAlbumIDs(_ albumIDs: [String], forCollectionID collectionID: String) async throws {
+        replacedAlbumIDsByCollection[collectionID] = albumIDs
+        albumIDsByCollectionID[collectionID] = albumIDs
+    }
 
     var collectionAlbumsByCollectionID: [String: [Album]] = [:]
     var collectionAlbumsRequests: [String] = []

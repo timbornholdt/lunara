@@ -344,6 +344,32 @@ final class LibraryStore: LibraryStoreProtocol {
         }
     }
 
+    // MARK: - Collection membership writeback (Lunara-wd4)
+
+    /// Replaces a collection's junction rows with freshly-fetched membership so
+    /// the next open renders from cache. Rows are written without a sync run ID;
+    /// the next library sync re-stamps or supersedes them.
+    func replaceAlbumIDs(_ albumIDs: [String], forCollectionID collectionID: String) async throws {
+        try await dbQueue.write { db in
+            try db.execute(
+                sql: "DELETE FROM album_collections WHERE collectionID = ?",
+                arguments: [collectionID]
+            )
+            for albumID in albumIDs {
+                // Skip albums the local catalog doesn't know yet (FK target);
+                // they render after the next library sync brings them in.
+                try db.execute(
+                    sql: """
+                    INSERT INTO album_collections (albumID, collectionID, lastSeenSyncID, lastSeenAt)
+                    SELECT ?, ?, NULL, ?
+                    WHERE EXISTS (SELECT 1 FROM albums WHERE plexID = ?)
+                    """,
+                    arguments: [albumID, collectionID, Date(), albumID]
+                )
+            }
+        }
+    }
+
     // MARK: - Release radar (Lunara-nlo)
 
     /// Distinct artists with at least one album rated at or above `rating`

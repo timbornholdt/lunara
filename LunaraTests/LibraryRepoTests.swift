@@ -523,6 +523,22 @@ struct LibraryRepoTests {
         let actualDate = try await subject.repo.lastRefreshDate()
         #expect(actualDate == expectedDate)
     }
+    // MARK: - Collection membership refresh (Lunara-wd4)
+
+    /// The refresh path fetches membership from Plex AND writes it back to the
+    /// local junction, so the next open is instant.
+    @Test
+    func refreshCollectionAlbums_persistsMembershipLocally() async throws {
+        let subject = makeSubject()
+        subject.remote.collectionAlbumIDsByCollectionID["col-1"] = ["al-1"]
+        subject.store.albumByID["al-1"] = makeAlbum(id: "al-1")
+
+        let albums = try await subject.repo.refreshCollectionAlbums(collectionID: "col-1")
+
+        #expect(albums.map(\.plexID) == ["al-1"])
+        #expect(subject.store.replacedAlbumIDsByCollection["col-1"] == ["al-1"])
+    }
+
     // MARK: - Batched queue-build tracks (Lunara-uuy)
 
     /// Cached albums resolve through ONE batched store query, with per-album
