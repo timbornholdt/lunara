@@ -142,6 +142,27 @@ struct ArtistDetailViewModelTests {
         #expect(client.requests.count == 1)
     }
 
+    /// Lunara-c9w: unowned albums list newest-first so fresh releases surface.
+    @Test
+    func loadEnrichment_sortsMissingAlbumsNewestFirst() async {
+        let subject = makeSubject()
+        await subject.viewModel.loadIfNeeded()
+
+        let client = MusicBrainzClientMock()
+        client.enrichmentByArtistName["Test Artist"] = MusicBrainzArtistEnrichment(
+            artistID: "mbid-1", wikipediaURL: nil, homepageURL: nil,
+            albums: [
+                ExternalReleaseGroup(id: "rg-old", title: "Old", firstReleaseYear: 1998),
+                ExternalReleaseGroup(id: "rg-unknown", title: "Mystery", firstReleaseYear: nil),
+                ExternalReleaseGroup(id: "rg-new", title: "New", firstReleaseYear: 2023)
+            ]
+        )
+
+        await subject.viewModel.loadEnrichmentIfNeeded(using: client)
+
+        #expect(subject.viewModel.missingAlbums.map(\.id) == ["rg-new", "rg-old", "rg-unknown"])
+    }
+
     // MARK: - Upcoming concerts (Lunara-uww.6.4)
 
     @Test

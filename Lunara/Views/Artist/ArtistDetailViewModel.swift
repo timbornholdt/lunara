@@ -93,9 +93,11 @@ final class ArtistDetailViewModel {
         externalLinks = enrichment
 
         let libraryTitles = Set(albums.map { Self.normalizedTitle($0.title) })
-        missingAlbums = enrichment.albums.filter {
-            !libraryTitles.contains(Self.normalizedTitle($0.title))
-        }
+        // Newest releases first (unknown years last) — fresh albums you don't
+        // own yet are the point of the section (Lunara-c9w).
+        missingAlbums = enrichment.albums
+            .filter { !libraryTitles.contains(Self.normalizedTitle($0.title)) }
+            .sorted { ($0.firstReleaseYear ?? Int.min) > ($1.firstReleaseYear ?? Int.min) }
     }
 
     /// Casefolded, diacritic-insensitive, alphanumerics-only — so "One Chord To
