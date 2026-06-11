@@ -17,6 +17,10 @@ final class DownloadManager: DownloadManagerProtocol {
     private(set) var albumStates: [String: AlbumDownloadState] = [:]
     private var activeTasks: [String: Task<Void, Never>] = [:]
 
+    /// Bumped whenever a collection's synced flag changes, so screens built from
+    /// syncedCollectionIDs (Settings) can reload without a restart (Lunara-5xu).
+    private(set) var syncStateVersion = 0
+
     /// Fired after offline availability for albums changes (a download completed
     /// or its files were deleted) so the queue can re-resolve any pre-loaded next
     /// track that now points at the wrong source. Carries the affected album IDs.
@@ -101,6 +105,7 @@ final class DownloadManager: DownloadManagerProtocol {
 
         // Mark as synced
         try? await offlineStore.addSyncedCollection(collectionID)
+        syncStateVersion += 1
 
         // An empty membership list for a synced collection is a failed or raced
         // fetch (the launch refresh rewrites the junction table this reads)
@@ -165,6 +170,7 @@ final class DownloadManager: DownloadManagerProtocol {
 
         // Remove sync marker
         try? await offlineStore.removeSyncedCollection(collectionID)
+        syncStateVersion += 1
 
         // Remove orphaned downloads
         let syncedIDs = Set((try? await offlineStore.syncedCollectionIDs()) ?? [])

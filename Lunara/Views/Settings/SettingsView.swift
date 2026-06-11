@@ -27,6 +27,14 @@ struct SettingsView: View {
             .task {
                 await viewModel.observeDownloadProgress()
             }
+            // Tab views stay alive across tab switches, so .task alone leaves
+            // this screen stale when sync state changes elsewhere (Lunara-5xu).
+            .onAppear {
+                Task { await viewModel.load() }
+            }
+            .onChange(of: viewModel.downloadManager.syncStateVersion) {
+                Task { await viewModel.load() }
+            }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
                 Task { await viewModel.completePendingLastFMAuth() }
             }
