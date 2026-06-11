@@ -5,9 +5,8 @@ struct LibraryGridView: View {
     @Environment(\.showNowPlaying) private var showNowPlaying
     @State private var viewModel: LibraryGridViewModel
     @State private var selectedAlbum: Album?
-    private let backgroundRefreshSuccessToken: Int
-    private let backgroundRefreshFailureToken: Int
-    private let backgroundRefreshErrorMessage: String?
+    /// Shared background-refresh status; nil in previews/tests that don't exercise it.
+    private let refreshStatus: RefreshStatusService?
 
     private let columns = [
         GridItem(.adaptive(minimum: 140, maximum: 220), spacing: 16)
@@ -15,14 +14,10 @@ struct LibraryGridView: View {
 
     init(
         viewModel: LibraryGridViewModel,
-        backgroundRefreshSuccessToken: Int = 0,
-        backgroundRefreshFailureToken: Int = 0,
-        backgroundRefreshErrorMessage: String? = nil
+        refreshStatus: RefreshStatusService? = nil
     ) {
         _viewModel = State(initialValue: viewModel)
-        self.backgroundRefreshSuccessToken = backgroundRefreshSuccessToken
-        self.backgroundRefreshFailureToken = backgroundRefreshFailureToken
-        self.backgroundRefreshErrorMessage = backgroundRefreshErrorMessage
+        self.refreshStatus = refreshStatus
     }
 
     var body: some View {
@@ -60,13 +55,13 @@ struct LibraryGridView: View {
                 .task {
                     await viewModel.loadInitialIfNeeded()
                 }
-                .task(id: backgroundRefreshSuccessToken) {
-                    await viewModel.applyBackgroundRefreshUpdateIfNeeded(successToken: backgroundRefreshSuccessToken)
+                .task(id: refreshStatus?.successToken ?? 0) {
+                    await viewModel.applyBackgroundRefreshUpdateIfNeeded(successToken: refreshStatus?.successToken ?? 0)
                 }
-                .task(id: backgroundRefreshFailureToken) {
+                .task(id: refreshStatus?.failureToken ?? 0) {
                     viewModel.applyBackgroundRefreshFailureIfNeeded(
-                        failureToken: backgroundRefreshFailureToken,
-                        message: backgroundRefreshErrorMessage
+                        failureToken: refreshStatus?.failureToken ?? 0,
+                        message: refreshStatus?.lastErrorMessage
                     )
                 }
                 .refreshable {

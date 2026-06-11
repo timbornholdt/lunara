@@ -1,31 +1,11 @@
 import Foundation
 
-extension LibraryGridViewModel {
-    func applyBackgroundRefreshUpdateIfNeeded(successToken: Int) async {
-        guard successToken > 0 else {
-            return
-        }
-
-        guard loadingState != .loading else {
-            return
-        }
-
-        await reloadCachedCatalogForBackgroundUpdate()
+extension LibraryGridViewModel: BackgroundRefreshApplying {
+    var isLoadingForBackgroundRefresh: Bool {
+        loadingState == .loading
     }
 
-    func applyBackgroundRefreshFailureIfNeeded(failureToken: Int, message: String?) {
-        guard failureToken > 0 else {
-            return
-        }
-
-        guard let message, !message.isEmpty else {
-            return
-        }
-
-        errorBannerState.show(message: message)
-    }
-
-    private func reloadCachedCatalogForBackgroundUpdate() async {
+    func reloadForBackgroundUpdate() async {
         do {
             // Preserve the user's loaded scroll depth instead of collapsing to one page.
             try await replaceCatalog(limit: reloadLimit)

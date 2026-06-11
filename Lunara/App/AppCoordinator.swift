@@ -38,10 +38,7 @@ final class AppCoordinator {
 
     private(set) var isSignedIn: Bool
 
-    private(set) var backgroundRefreshSuccessToken = 0
-    private(set) var backgroundRefreshFailureToken = 0
-    private(set) var lastBackgroundRefreshDate: Date?
-    private(set) var lastBackgroundRefreshErrorMessage: String?
+    let refreshStatus = RefreshStatusService()
 
     // MARK: - Initialization
 
@@ -93,7 +90,9 @@ final class AppCoordinator {
             session: URLSession.shared
         )
 
-        let libraryStore: LibraryStoreProtocol
+        // Concrete type (not the protocol): OfflineStore below shares its dbQueue,
+        // which the protocol deliberately doesn't expose (Lunara-uww.5.1).
+        let libraryStore: LibraryStore
         do {
             libraryStore = try Self.makeLibraryStore()
         } catch {
@@ -118,7 +117,7 @@ final class AppCoordinator {
         let offlineDirectory: URL
         do {
             offlineDirectory = try Self.offlineDirectory()
-            offlineStore = OfflineStore(dbQueue: (libraryStore as! LibraryStore).dbQueue, offlineDirectory: offlineDirectory)
+            offlineStore = OfflineStore(dbQueue: libraryStore.dbQueue, offlineDirectory: offlineDirectory)
         } catch {
             fatalError("Failed to initialize OfflineStore: \(error)")
         }
@@ -368,16 +367,12 @@ final class AppCoordinator {
 
         do {
             let outcome = try await libraryRepo.refreshLibrary(reason: refreshReason)
-            backgroundRefreshSuccessToken += 1
-            lastBackgroundRefreshDate = outcome.refreshedAt
-            lastBackgroundRefreshErrorMessage = nil
+            refreshStatus.recordSuccess(at: outcome.refreshedAt)
         } catch let error as LunaraError {
-            backgroundRefreshFailureToken += 1
-            lastBackgroundRefreshErrorMessage = error.userMessage
+            refreshStatus.recordFailure(message: error.userMessage)
             throw error
         } catch {
-            backgroundRefreshFailureToken += 1
-            lastBackgroundRefreshErrorMessage = error.localizedDescription
+            refreshStatus.recordFailure(message: error.localizedDescription)
             throw error
         }
         await reconcileQueueAfterCatalogUpdate(trigger: "foreground-refresh-\(String(describing: refreshReason))")
@@ -387,9 +382,7 @@ final class AppCoordinator {
     private func performBackgroundRefresh(reason: LibraryRefreshReason) async {
         do {
             let outcome = try await libraryRepo.refreshLibrary(reason: reason)
-            backgroundRefreshSuccessToken += 1
-            lastBackgroundRefreshDate = outcome.refreshedAt
-            lastBackgroundRefreshErrorMessage = nil
+            refreshStatus.recordSuccess(at: outcome.refreshedAt)
             logger.info("Background refresh succeeded for reason '\(String(describing: reason), privacy: .public)' at \(outcome.refreshedAt, privacy: .public)")
 
             if reason == .appLaunch {
@@ -398,12 +391,10 @@ final class AppCoordinator {
                 await reconcileQueueAfterCatalogUpdate(trigger: "background-refresh-\(String(describing: reason))")
             }
         } catch let error as LunaraError {
-            backgroundRefreshFailureToken += 1
-            lastBackgroundRefreshErrorMessage = error.userMessage
+            refreshStatus.recordFailure(message: error.userMessage)
             logger.error("Background refresh failed for reason '\(String(describing: reason), privacy: .public)' with LunaraError: \(String(describing: error), privacy: .public)")
         } catch {
-            backgroundRefreshFailureToken += 1
-            lastBackgroundRefreshErrorMessage = error.localizedDescription
+            refreshStatus.recordFailure(message: error.localizedDescription)
             logger.error("Background refresh failed for reason '\(String(describing: reason), privacy: .public)' with unexpected error: \(error.localizedDescription, privacy: .public)")
         }
     }

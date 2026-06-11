@@ -18,7 +18,7 @@ extension DebugLibraryView {
 
     @MainActor
     func applyBackgroundRefreshIfNeeded() async {
-        guard coordinator.backgroundRefreshSuccessToken > 0 else {
+        guard coordinator.refreshStatus.successToken > 0 else {
             return
         }
 
@@ -38,11 +38,11 @@ extension DebugLibraryView {
 
     @MainActor
     func applyBackgroundRefreshFailureIfNeeded() {
-        guard coordinator.backgroundRefreshFailureToken > 0 else {
+        guard coordinator.refreshStatus.failureToken > 0 else {
             return
         }
 
-        guard let message = coordinator.lastBackgroundRefreshErrorMessage,
+        guard let message = coordinator.refreshStatus.lastErrorMessage,
               !message.isEmpty else {
             return
         }

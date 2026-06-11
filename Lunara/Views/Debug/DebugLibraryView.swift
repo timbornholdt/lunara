@@ -61,10 +61,10 @@ struct DebugLibraryView: View {
                     fetchAlbumsOnLaunch()
                 }
             }
-            .task(id: coordinator.backgroundRefreshSuccessToken) {
+            .task(id: coordinator.refreshStatus.successToken) {
                 await applyBackgroundRefreshIfNeeded()
             }
-            .task(id: coordinator.backgroundRefreshFailureToken) {
+            .task(id: coordinator.refreshStatus.failureToken) {
                 applyBackgroundRefreshFailureIfNeeded()
             }
         }
