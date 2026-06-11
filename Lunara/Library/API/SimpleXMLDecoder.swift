@@ -91,6 +91,7 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
             let attrs = directoryItem.attributes
             let year = attrs["year"].flatMap { Int($0) }
             let rating = attrs["rating"].flatMap { Double($0) }
+            let userRating = attrs["userRating"].flatMap { Double($0) }
             let addedAt = attrs["addedAt"].flatMap { Int($0) }
             let leafCount = attrs["leafCount"].flatMap { Int($0) }
             let childCount = attrs["childCount"].flatMap { Int($0) }
@@ -114,6 +115,7 @@ final class SimpleXMLDecoder: NSObject, XMLParserDelegate {
                 moods: directoryItem.moods,
                 collectionIDs: directoryItem.collectionIDs,
                 rating: rating,
+                userRating: userRating,
                 addedAt: addedAt,
                 leafCount: leafCount,
                 childCount: childCount,

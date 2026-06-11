@@ -92,6 +92,24 @@ final class PlexAPIClientTests: XCTestCase {
         XCTAssertEqual(albums[1].title, "Dark Side of the Moon")
     }
 
+    /// Lunara-my7: Album.rating means the USER's stars. Plex's 'rating'
+    /// attribute is the critic score and must never qualify an album.
+    func test_fetchAlbums_mapsUserRatingNotCriticRating() async throws {
+        try authManager.setToken("token")
+        mockSession.dataToReturn = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <MediaContainer>
+            <Directory key="3001" ratingKey="3001" type="album" title="Starred" parentTitle="A" rating="9.5" userRating="10" leafCount="1" duration="1000" />
+            <Directory key="3002" ratingKey="3002" type="album" title="CriticOnly" parentTitle="B" rating="9.5" leafCount="1" duration="1000" />
+        </MediaContainer>
+        """.data(using: .utf8)!
+
+        let albums = try await client.fetchAlbums()
+
+        XCTAssertEqual(albums[0].rating, 10)
+        XCTAssertNil(albums[1].rating)
+    }
+
     func test_fetchAlbums_parsesSummaryAndChildGenreTags() async throws {
         try authManager.setToken("token")
         mockSession.dataToReturn = """

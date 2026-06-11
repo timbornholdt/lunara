@@ -26,7 +26,7 @@ extension PlexAPIClient {
             releaseDate: releaseDate,
             thumbURL: directory.thumb,
             genre: resolvedGenres.first,
-            rating: directory.rating.map { Int($0) },
+            rating: directory.userRating.map { Int($0) },
             addedAt: addedAtDate,
             trackCount: directory.leafCount ?? 0,
             duration: durationSeconds,
