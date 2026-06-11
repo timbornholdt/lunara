@@ -43,7 +43,10 @@ final class AppCoordinator {
 
     private(set) var isSignedIn: Bool
 
-    let refreshStatus = RefreshStatusService()
+    /// Refresh lifecycle lives in its own service (Lunara-uww.5.3); the
+    /// coordinator exposes its observable status for the list views.
+    private let libraryRefresh: LibraryRefreshService
+    var refreshStatus: RefreshStatusService { libraryRefresh.status }
 
     // MARK: - Initialization
 
@@ -81,124 +84,40 @@ final class AppCoordinator {
         self.lastFMClient = lastFMClient
         self.gardenClient = gardenClient
         self.playbackTelemetry = playbackTelemetry ?? PlaybackTelemetry()
+        self.libraryRefresh = LibraryRefreshService(
+            library: libraryRepo,
+            appRouter: appRouter,
+            offlineStore: offlineStore,
+            downloadManager: downloadManager
+        )
         self.isSignedIn = authManager.isSignedIn
         nowPlayingBridge.configure()
         scrobbleManager.configure()
     }
 
     convenience init() {
-        // Initialize dependencies
-        let keychain = KeychainHelper()
-        let serverURL = Self.loadServerURL()
-        let authManager = AuthManager(keychain: keychain)
-        let plexClient = PlexAPIClient(
-            baseURL: serverURL,
-            authManager: authManager,
-            session: URLSession.shared
-        )
-
-        // Concrete type (not the protocol): OfflineStore below shares its dbQueue,
-        // which the protocol deliberately doesn't expose (Lunara-uww.5.1).
-        let libraryStore: LibraryStore
-        do {
-            libraryStore = try Self.makeLibraryStore()
-        } catch {
-            fatalError("Failed to initialize LibraryStore: \(error)")
-        }
-
-        let artworkPipeline: ArtworkPipelineProtocol
-        do {
-            artworkPipeline = try Self.makeArtworkPipeline(store: libraryStore)
-        } catch {
-            fatalError("Failed to initialize ArtworkPipeline: \(error)")
-        }
-
-        let libraryRepo = LibraryRepo(remote: plexClient, store: libraryStore, artworkPipeline: artworkPipeline)
-        let playbackTelemetry = PlaybackTelemetry()
-        let crossfadeEngine = CrossfadeEngine(audioSession: AudioSession(), telemetry: playbackTelemetry)
-        let playbackEngine: PlaybackEngineProtocol = crossfadeEngine
-        let trackCache = TrackCache()
-        let loudnessAdapter = PlexLoudnessAdapter(library: libraryRepo)
-
-        let offlineStore: OfflineStoreProtocol
-        let offlineDirectory: URL
-        do {
-            offlineDirectory = try Self.offlineDirectory()
-            offlineStore = OfflineStore(dbQueue: libraryStore.dbQueue, offlineDirectory: offlineDirectory)
-        } catch {
-            fatalError("Failed to initialize OfflineStore: \(error)")
-        }
-
-        let playbackURLResolver = PlaybackURLResolver(offlineStore: offlineStore, library: libraryRepo)
-        let queueManager = QueueManager(
-            engine: playbackEngine,
-            persistence: FileQueueStatePersistence(),
-            trackCache: trackCache,
-            loudnessProvider: loudnessAdapter,
-            resolver: playbackURLResolver
-        )
-
-        let appRouter = AppRouter(library: libraryRepo, queue: queueManager)
-
-        let downloadManager = DownloadManager(
-            offlineStore: offlineStore,
-            library: libraryRepo,
-            offlineDirectory: offlineDirectory
-        )
-        let loadedSettings = OfflineSettings.load()
-        downloadManager.storageLimitBytes = loadedSettings.storageLimitBytes
-        downloadManager.wifiOnly = loadedSettings.wifiOnly
-        // When a download completes or is removed, let the queue re-resolve any
-        // pre-loaded next track that now points at a stale source.
-        downloadManager.onOfflineAvailabilityChanged = { [weak queueManager] changedAlbumIDs in
-            queueManager?.offlineAvailabilityDidChange(forAlbums: changedAlbumIDs)
-        }
-        // Self-heal files orphaned by interrupted downloads (Lunara-uww.3.7);
-        // runs before any download can start, and no-ops if one somehow has.
-        Task { [weak downloadManager] in
-            await downloadManager?.removeOrphanedFiles()
-        }
-
-        let nowPlayingResolver = NowPlayingResolver(library: libraryRepo, artwork: artworkPipeline)
-        let nowPlayingBridge = NowPlayingBridge(
-            engine: playbackEngine,
-            queue: queueManager,
-            resolver: nowPlayingResolver
-        )
-
-        let lastFMClient = LastFMClient()
-        let lastFMAuthManager = LastFMAuthManager(client: lastFMClient, keychain: keychain)
-        let scrobbleManager = ScrobbleManager(
-            engine: playbackEngine,
-            queue: queueManager,
-            resolver: nowPlayingResolver,
-            client: lastFMClient,
-            authManager: lastFMAuthManager
-        )
-
-        let gardenClient = Self.makeGardenClient()
-
+        let deps = AppDependencies.make()
         self.init(
-            authManager: authManager,
-            plexClient: plexClient,
-            libraryRepo: libraryRepo,
-            artworkPipeline: artworkPipeline,
-            playbackEngine: playbackEngine,
-            queueManager: queueManager,
-            appRouter: appRouter,
-            offlineStore: offlineStore,
-            downloadManager: downloadManager,
-            nowPlayingResolver: nowPlayingResolver,
-            nowPlayingBridge: nowPlayingBridge,
-            lastFMAuthManager: lastFMAuthManager,
-            scrobbleManager: scrobbleManager,
-            lastFMClient: lastFMClient,
-            gardenClient: gardenClient,
-            playbackTelemetry: playbackTelemetry
+            authManager: deps.authManager,
+            plexClient: deps.plexClient,
+            libraryRepo: deps.libraryRepo,
+            artworkPipeline: deps.artworkPipeline,
+            playbackEngine: deps.playbackEngine,
+            queueManager: deps.queueManager,
+            appRouter: deps.appRouter,
+            offlineStore: deps.offlineStore,
+            downloadManager: deps.downloadManager,
+            nowPlayingResolver: deps.nowPlayingResolver,
+            nowPlayingBridge: deps.nowPlayingBridge,
+            lastFMAuthManager: deps.lastFMAuthManager,
+            scrobbleManager: deps.scrobbleManager,
+            lastFMClient: deps.lastFMClient,
+            gardenClient: deps.gardenClient,
+            playbackTelemetry: deps.playbackTelemetry
         )
 
         // Apply persisted crossfade setting
-        playbackEngine.crossfadeEnabled = UserDefaults.standard.object(forKey: "crossfadeEnabled") as? Bool ?? true
+        deps.playbackEngine.crossfadeEnabled = UserDefaults.standard.object(forKey: "crossfadeEnabled") as? Bool ?? true
     }
 
     // MARK: - Actions
@@ -331,154 +250,12 @@ final class AppCoordinator {
     /// Reconciles all synced collections against their current album lists.
     /// Called on app launch after library refresh.
     func syncAllCollections() async {
-        do {
-            let syncedIDs = try await offlineStore.syncedCollectionIDs()
-            guard !syncedIDs.isEmpty else { return }
-
-            logger.info("syncAllCollections: reconciling \(syncedIDs.count) synced collections")
-            for collectionID in syncedIDs {
-                do {
-                    let albums = try await libraryRepo.collectionAlbums(collectionID: collectionID)
-                    await downloadManager.syncCollection(collectionID, albums: albums, library: libraryRepo)
-                } catch {
-                    logger.warning("syncAllCollections: failed to sync collection '\(collectionID, privacy: .public)': \(error.localizedDescription, privacy: .public)")
-                }
-            }
-        } catch {
-            logger.warning("syncAllCollections: failed to load synced collection IDs: \(error.localizedDescription, privacy: .public)")
-        }
+        await libraryRefresh.syncAllCollections()
     }
 
     // MARK: - Private Helpers
 
     private func syncAlbums(refreshReason: LibraryRefreshReason) async throws -> [Album] {
-        let cachedAlbums = try await libraryRepo.fetchAlbums()
-
-        if !cachedAlbums.isEmpty {
-            if refreshReason == .appLaunch {
-                Task { [weak self] in
-                    guard let self else {
-                        return
-                    }
-                    await self.reconcileQueueAfterCatalogUpdate(trigger: "startup-cache-load")
-                }
-            }
-
-            Task { [weak self] in
-                guard let self else {
-                    return
-                }
-                await self.performBackgroundRefresh(reason: refreshReason)
-            }
-            return cachedAlbums
-        }
-
-        do {
-            let outcome = try await libraryRepo.refreshLibrary(reason: refreshReason)
-            refreshStatus.recordSuccess(at: outcome.refreshedAt)
-        } catch let error as LunaraError {
-            refreshStatus.recordFailure(message: error.userMessage)
-            throw error
-        } catch {
-            refreshStatus.recordFailure(message: error.localizedDescription)
-            throw error
-        }
-        await reconcileQueueAfterCatalogUpdate(trigger: "foreground-refresh-\(String(describing: refreshReason))")
-        return try await libraryRepo.fetchAlbums()
-    }
-
-    private func performBackgroundRefresh(reason: LibraryRefreshReason) async {
-        do {
-            let outcome = try await libraryRepo.refreshLibrary(reason: reason)
-            refreshStatus.recordSuccess(at: outcome.refreshedAt)
-            logger.info("Background refresh succeeded for reason '\(String(describing: reason), privacy: .public)' at \(outcome.refreshedAt, privacy: .public)")
-
-            if reason == .appLaunch {
-                await syncAllCollections()
-            } else {
-                await reconcileQueueAfterCatalogUpdate(trigger: "background-refresh-\(String(describing: reason))")
-            }
-        } catch let error as LunaraError {
-            refreshStatus.recordFailure(message: error.userMessage)
-            logger.error("Background refresh failed for reason '\(String(describing: reason), privacy: .public)' with LunaraError: \(String(describing: error), privacy: .public)")
-        } catch {
-            refreshStatus.recordFailure(message: error.localizedDescription)
-            logger.error("Background refresh failed for reason '\(String(describing: reason), privacy: .public)' with unexpected error: \(error.localizedDescription, privacy: .public)")
-        }
-    }
-
-    private func reconcileQueueAfterCatalogUpdate(trigger: String) async {
-        do {
-            let outcome = try await appRouter.reconcileQueueAgainstLibrary()
-            guard outcome.removedItemCount > 0 else {
-                logger.info("Queue reconciliation found no missing tracks for trigger '\(trigger, privacy: .public)'")
-                return
-            }
-
-            logger.info(
-                "Queue reconciliation removed \(outcome.removedItemCount, privacy: .public) queue items for trigger '\(trigger, privacy: .public)'"
-            )
-        } catch {
-            logger.error("Queue reconciliation failed for trigger '\(trigger, privacy: .public)': \(error.localizedDescription, privacy: .public)")
-        }
-    }
-
-    private static func makeGardenClient() -> GardenAPIClientProtocol? {
-        guard let configPath = Bundle.main.path(forResource: "LocalConfig", ofType: "plist"),
-              let config = NSDictionary(contentsOfFile: configPath) as? [String: Any],
-              let urlString = config["GARDEN_API_URL"] as? String,
-              let baseURL = URL(string: urlString),
-              let apiKey = config["GARDEN_API_KEY"] as? String,
-              !apiKey.isEmpty else {
-            return nil
-        }
-        return GardenAPIClient(baseURL: baseURL, apiKey: apiKey)
-    }
-
-    private static func loadServerURL() -> URL {
-        // Try LocalConfig.plist first
-        if let configPath = Bundle.main.path(forResource: "LocalConfig", ofType: "plist"),
-           let config = NSDictionary(contentsOfFile: configPath) as? [String: Any],
-           let urlString = config["PLEX_SERVER_URL"] as? String,
-           let url = URL(string: urlString) {
-            return url
-        }
-
-        // Default fallback (will fail, but better than crashing)
-        return URL(string: "http://localhost:32400")!
-    }
-
-    private static func makeLibraryStore() throws -> LibraryStore {
-        let appDirectory = try appDirectory()
-        let databaseURL = appDirectory.appendingPathComponent("library.sqlite")
-        return try LibraryStore(databaseURL: databaseURL)
-    }
-
-    private static func makeArtworkPipeline(store: LibraryStoreProtocol) throws -> ArtworkPipeline {
-        let appDirectory = try appDirectory()
-        let artworkCacheDirectoryURL = appDirectory.appendingPathComponent("artwork-cache", isDirectory: true)
-        return ArtworkPipeline(
-            store: store,
-            session: URLSession.shared,
-            cacheDirectoryURL: artworkCacheDirectoryURL
-        )
-    }
-
-    private static func offlineDirectory() throws -> URL {
-        let appDir = try appDirectory()
-        let offlineDir = appDir.appendingPathComponent("offline-tracks", isDirectory: true)
-        try FileManager.default.createDirectory(at: offlineDir, withIntermediateDirectories: true)
-        return offlineDir
-    }
-
-    private static func appDirectory() throws -> URL {
-        let fileManager = FileManager.default
-        guard let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-            throw LibraryError.operationFailed(reason: "Unable to resolve application support directory.")
-        }
-
-        let appDirectory = appSupportURL.appendingPathComponent("Lunara", isDirectory: true)
-        try fileManager.createDirectory(at: appDirectory, withIntermediateDirectories: true)
-        return appDirectory
+        try await libraryRefresh.syncAlbums(refreshReason: refreshReason)
     }
 }
