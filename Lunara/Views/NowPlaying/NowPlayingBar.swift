@@ -1,8 +1,10 @@
 import SwiftUI
 import UIKit
 
-/// Floating compact strip shown above the tab bar when something is queued.
-/// Tapping opens NowPlayingStubSheet. Hides itself when the queue is empty.
+/// Compact strip in the tab view's bottom accessory slot when something is
+/// queued. Tapping opens the Now Playing sheet. Hides when the queue is empty.
+/// The accessory capsule supplies shape, margins, and clipping — the bar only
+/// paints its palette color (Lunara-c5q).
 struct NowPlayingBar: View {
     let viewModel: NowPlayingBarViewModel
     let screenViewModel: NowPlayingScreenViewModel
@@ -14,8 +16,6 @@ struct NowPlayingBar: View {
         if viewModel.isVisible {
             barContent
                 .background(screenViewModel.palette.background)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .padding(.horizontal, 12)
                 .onTapGesture {
                     showSheet = true
                 }
