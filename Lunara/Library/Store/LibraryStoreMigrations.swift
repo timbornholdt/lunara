@@ -319,6 +319,16 @@ enum LibraryStoreMigrations {
             }
         }
 
+        // Resolved MusicBrainz artist IDs so radar sweeps skip the per-artist
+        // search request (Lunara-be2).
+        migrator.registerMigration("v13_artist_mbids") { db in
+            try db.create(table: "artist_mbids") { table in
+                table.column("artistName", .text).primaryKey()
+                table.column("mbid", .text).notNull()
+                table.column("fetchedAt", .datetime).notNull()
+            }
+        }
+
         return migrator
     }
 }

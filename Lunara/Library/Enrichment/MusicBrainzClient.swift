@@ -43,6 +43,22 @@ protocol MusicBrainzClientProtocol: Sendable {
     /// Studio-album release groups for an artist — the lighter, links-free
     /// lookup the radar uses (2 requests vs enrichment's 3-4).
     func upcomingAlbums(artistName: String) async throws -> [ExternalReleaseGroup]
+
+    /// Resolves an artist name to its MusicBrainz ID, or nil when there is no
+    /// confident match. The radar caches the result so later sweeps skip this
+    /// search request (Lunara-be2).
+    func artistID(name: String) async throws -> String?
+
+    /// Studio-album release groups by already-resolved MBID — one request
+    /// instead of search + fetch.
+    func upcomingAlbums(artistID: String) async throws -> [ExternalReleaseGroup]
+}
+
+// Defaults so conformers that don't serve the radar (and test mocks) need not
+// implement the MBID-aware pair — same pattern as LibraryRepoProtocol.
+extension MusicBrainzClientProtocol {
+    func artistID(name: String) async throws -> String? { nil }
+    func upcomingAlbums(artistID: String) async throws -> [ExternalReleaseGroup] { [] }
 }
 
 /// MusicBrainz needs no API key, but requires a descriptive User-Agent and
@@ -96,7 +112,15 @@ actor MusicBrainzClient: MusicBrainzClientProtocol {
     /// caller filters for the future. Named for its radar role (Lunara-nlo).
     func upcomingAlbums(artistName: String) async throws -> [ExternalReleaseGroup] {
         guard let artistID = try await searchArtistID(name: artistName) else { return [] }
-        return try Self.parseReleaseGroups(
+        return try await upcomingAlbums(artistID: artistID)
+    }
+
+    func artistID(name: String) async throws -> String? {
+        try await searchArtistID(name: name)
+    }
+
+    func upcomingAlbums(artistID: String) async throws -> [ExternalReleaseGroup] {
+        try Self.parseReleaseGroups(
             await get("https://musicbrainz.org/ws/2/release-group", query: [
                 "artist": artistID, "type": "album", "fmt": "json", "limit": "100"
             ])
