@@ -53,3 +53,10 @@
 # Secret keys (stored in this file but prefer env vars to avoid git exposure):
 # - linear.api_key  → use LINEAR_API_KEY env var instead
 # - github.token    → use GITHUB_TOKEN env var instead
+
+# Disable the legacy jsonl->Dolt import on git pull/checkout/merge (Lunara-p7j).
+# The Dolt DB is the source of truth; stale issues.jsonl snapshots on merged
+# branches were reverting closed issues (status flap). Recovery on a fresh
+# clone is explicit via: bd bootstrap (or bd import).
+import:
+  auto: false
