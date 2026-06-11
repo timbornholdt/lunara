@@ -6,6 +6,7 @@ struct ArtistDetailView: View {
     @Environment(\.showNowPlaying) private var showNowPlaying
     @Environment(\.lastFMClient) private var lastFMClient
     @Environment(\.musicBrainzClient) private var musicBrainzClient
+    @Environment(\.ticketmasterClient) private var ticketmasterClient
     @State private var selectedAlbum: Album?
     @State private var isBioExpanded = false
 
@@ -45,6 +46,7 @@ struct ArtistDetailView: View {
         .task {
             await viewModel.loadIfNeeded()
             await viewModel.loadLastFMBioIfNeeded(using: lastFMClient)
+            await viewModel.loadConcertsIfNeeded(using: ticketmasterClient)
             await viewModel.loadEnrichmentIfNeeded(using: musicBrainzClient)
         }
     }
@@ -186,8 +188,54 @@ struct ArtistDetailView: View {
                         albumCard(for: album)
                     }
                 }
+                concertsSection
                 missingAlbumsSection
             }
+        }
+    }
+
+    /// Upcoming shows near home for this artist (Lunara-uww.6.4). Hidden when
+    /// none, when the artist doesn't tour, or when no API key is configured.
+    @ViewBuilder
+    private var concertsSection: some View {
+        if !viewModel.upcomingConcerts.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Upcoming shows")
+                    .lunaraHeading(.section, weight: .semibold)
+                    .padding(.top, 12)
+
+                ForEach(viewModel.upcomingConcerts) { event in
+                    concertRow(event)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func concertRow(_ event: ConcertEvent) -> some View {
+        let label = HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text([event.venueName, event.cityName].compactMap { $0 }.joined(separator: " · "))
+                    .font(subtitleFont())
+                    .foregroundStyle(Color.lunara(.textPrimary))
+                    .lineLimit(1)
+                Text(event.localDate)
+                    .font(subtitleFont())
+                    .foregroundStyle(Color.lunara(.textSecondary))
+            }
+            Spacer()
+            if event.url != nil {
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.lunara(.textSecondary))
+            }
+        }
+        .padding(.vertical, 6)
+
+        if let url = event.url {
+            Link(destination: url) { label }
+        } else {
+            label
         }
     }
 

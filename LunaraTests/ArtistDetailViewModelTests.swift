@@ -142,6 +142,32 @@ struct ArtistDetailViewModelTests {
         #expect(client.requests.count == 1)
     }
 
+    // MARK: - Upcoming concerts (Lunara-uww.6.4)
+
+    @Test
+    func loadConcerts_exposesEventsAndFetchesOnce() async {
+        let subject = makeSubject()
+        let client = TicketmasterClientMock()
+        client.eventsByArtistName["Test Artist"] = [
+            ConcertEvent(id: "ev-1", name: "Test Artist", localDate: "2026-07-01", venueName: "First Avenue", cityName: "Minneapolis", url: URL(string: "https://tm.example/ev-1"))
+        ]
+
+        await subject.viewModel.loadConcertsIfNeeded(using: client)
+        await subject.viewModel.loadConcertsIfNeeded(using: client)
+
+        #expect(subject.viewModel.upcomingConcerts.map(\.id) == ["ev-1"])
+        #expect(client.requests == ["Test Artist"])
+    }
+
+    @Test
+    func loadConcerts_withNilClient_staysEmpty() async {
+        let subject = makeSubject()
+
+        await subject.viewModel.loadConcertsIfNeeded(using: nil)
+
+        #expect(subject.viewModel.upcomingConcerts.isEmpty)
+    }
+
     // MARK: - Last.fm bio fallback (Lunara-uww.6.1)
 
     @Test
@@ -315,5 +341,18 @@ final class MusicBrainzClientMock: MusicBrainzClientProtocol, @unchecked Sendabl
     func artistEnrichment(name: String) async throws -> MusicBrainzArtistEnrichment? {
         requests.append(name)
         return enrichmentByArtistName[name]
+    }
+}
+
+
+// MARK: - TicketmasterClientMock
+
+final class TicketmasterClientMock: TicketmasterClientProtocol, @unchecked Sendable {
+    var eventsByArtistName: [String: [ConcertEvent]] = [:]
+    private(set) var requests: [String] = []
+
+    func upcomingEvents(artistName: String) async throws -> [ConcertEvent] {
+        requests.append(artistName)
+        return eventsByArtistName[artistName] ?? []
     }
 }

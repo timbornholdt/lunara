@@ -36,10 +36,12 @@ final class ArtistDetailViewModel {
 
     private(set) var externalLinks: MusicBrainzArtistEnrichment?
     private(set) var missingAlbums: [ExternalReleaseGroup] = []
+    private(set) var upcomingConcerts: [ConcertEvent] = []
 
     private var pendingArtworkAlbumIDs: Set<String> = []
     private var hasRequestedLastFMBio = false
     private var hasRequestedEnrichment = false
+    private var hasRequestedConcerts = false
 
     init(
         artist: Artist,
@@ -105,6 +107,14 @@ final class ArtistDetailViewModel {
             .filter { CharacterSet.alphanumerics.contains($0) }
             .map(String.init)
             .joined()
+    }
+
+    /// Fetches upcoming nearby shows once per VM (Lunara-uww.6.4). Best-effort:
+    /// failures or a missing API key just leave the section hidden.
+    func loadConcertsIfNeeded(using client: TicketmasterClientProtocol?) async {
+        guard let client, !hasRequestedConcerts else { return }
+        hasRequestedConcerts = true
+        upcomingConcerts = (try? await client.upcomingEvents(artistName: artist.name)) ?? []
     }
 
     func playAll() async {

@@ -35,6 +35,11 @@ final class AppCoordinator {
     let lastFMClient: LastFMClientProtocol
     /// MusicBrainz enrichment (artist links + external discography, Lunara-uww.6.2/6.3).
     let musicBrainzClient: MusicBrainzClientProtocol = MusicBrainzClient()
+    /// Upcoming concerts near home (Lunara-uww.6.4); nil when no API key is configured.
+    let ticketmasterClient: TicketmasterClientProtocol? = {
+        let key = TicketmasterClient.configuredAPIKey
+        return key.isEmpty ? nil : TicketmasterClient(apiKey: key)
+    }()
     let gardenClient: GardenAPIClientProtocol?
     let playbackTelemetry: PlaybackTelemetry
     private let logger = Logger(subsystem: "holdings.chinlock.lunara", category: "AppCoordinator")
