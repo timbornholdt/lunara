@@ -135,7 +135,11 @@ struct LibraryRootTabView: View {
             // tab's scroll content gets the inset automatically — a plain
             // safeAreaInset outside the TabView never propagated past the
             // floating tab bar, leaving the bar over the last row (Lunara-c5q).
-            .tabViewBottomAccessory {
+            // isEnabled drives show/hide: the system draws the glass capsule
+            // even when the content view resolves to empty (Lunara-ej0), and
+            // conditionally applying the modifier itself crashes (FB/forums
+            // thread 790913).
+            .tabViewBottomAccessory(isEnabled: nowPlayingBarViewModel.isVisible) {
                 NowPlayingBar(
                     viewModel: nowPlayingBarViewModel,
                     screenViewModel: nowPlayingScreenViewModel,
