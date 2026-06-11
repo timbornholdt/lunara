@@ -21,6 +21,9 @@ protocol PlaybackEngineProtocol: AnyObject, Observable {
     func clearPreparedNext()
     func signalBuffering()
     func skipWithFade()
+    /// Scene foreground/background transitions, so the engine can pause
+    /// UI-only work (the elapsed timer) while invisible (Lunara-n09).
+    func sceneDidChangeActivity(isActive: Bool)
 }
 
 extension PlaybackEngineProtocol {
@@ -28,5 +31,6 @@ extension PlaybackEngineProtocol {
     func clearPreparedNext() {}
     func signalBuffering() {}
     func skipWithFade() { stop() }
+    func sceneDidChangeActivity(isActive: Bool) {}
 }
 

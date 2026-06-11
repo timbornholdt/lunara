@@ -109,6 +109,50 @@ struct CrossfadeEngineTests {
         return (engine, outgoing, incoming)
     }
 
+    // MARK: - Backgrounded elapsed timer (Lunara-n09)
+
+    /// The 0.25s elapsed timer only feeds the in-app UI; while backgrounded it's
+    /// pure battery waste (the lock screen interpolates position itself), so it
+    /// stops on background and resumes on foreground.
+    @Test
+    func elapsedTimer_stopsWhileBackgroundedAndResumesOnForeground() {
+        let (engine, outgoing, _) = makeEngineWithPreparedNext()
+        _ = outgoing
+        #expect(engine.isElapsedTimerRunningForTesting)
+
+        engine.sceneDidChangeActivity(isActive: false)
+        #expect(!engine.isElapsedTimerRunningForTesting)
+
+        engine.sceneDidChangeActivity(isActive: true)
+        #expect(engine.isElapsedTimerRunningForTesting)
+    }
+
+    /// Foregrounding while paused must NOT start the timer.
+    @Test
+    func foregroundingWhilePaused_doesNotStartElapsedTimer() {
+        let (engine, _, _) = makeEngineWithPreparedNext()
+        engine.pause()
+        #expect(!engine.isElapsedTimerRunningForTesting)
+
+        engine.sceneDidChangeActivity(isActive: false)
+        engine.sceneDidChangeActivity(isActive: true)
+
+        #expect(!engine.isElapsedTimerRunningForTesting)
+    }
+
+    /// Play that begins while backgrounded doesn't arm the UI timer until foreground.
+    @Test
+    func playWhileBackgrounded_armsTimerOnlyOnForeground() {
+        let (engine, _, _) = makeEngineWithPreparedNext()
+        engine.sceneDidChangeActivity(isActive: false)
+        engine.pause()
+        engine.resume()
+        #expect(!engine.isElapsedTimerRunningForTesting)
+
+        engine.sceneDidChangeActivity(isActive: true)
+        #expect(engine.isElapsedTimerRunningForTesting)
+    }
+
     // MARK: - Dead next-buffer health check (Lunara-uww.3.8)
 
     /// A staged next track whose source died (file evicted, resolve race) must not
