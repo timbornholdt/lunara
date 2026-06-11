@@ -13,12 +13,14 @@ struct DownsampledThumbnail: View {
     @State private var image: UIImage?
 
     var body: some View {
+        // No inner flexible frame: inside a SquareArtworkView the image must not
+        // drive the container's layout — fill is contained by the caller's
+        // square + clip (Lunara-jou).
         ZStack {
             if let image {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ProgressView()
             }

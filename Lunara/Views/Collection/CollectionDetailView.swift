@@ -5,6 +5,10 @@ struct CollectionDetailView: View {
     @State private var viewModel: CollectionDetailViewModel
     @Environment(\.showNowPlaying) private var showNowPlaying
     @State private var selectedAlbum: Album?
+    /// Delay-gates the loading skeleton: collectionAlbums is offline-first SQLite
+    /// and usually returns in well under 200ms, so the common path renders the real
+    /// grid directly with no loading UI at all (Lunara-uwc).
+    @State private var showLoadingPlaceholder = false
 
     private let columns = [
         GridItem(.adaptive(minimum: 140, maximum: 220), spacing: 16)
@@ -19,6 +23,8 @@ struct CollectionDetailView: View {
             VStack(alignment: .leading, spacing: 20) {
                 headerSection
                 albumsSection
+                    // Group-opacity crossfade skeleton → grid (no per-cell pops).
+                    .animation(.easeInOut(duration: 0.3), value: viewModel.loadingState)
                 collectionSyncButton
             }
             .padding(.horizontal, 16)
@@ -120,11 +126,13 @@ struct CollectionDetailView: View {
     private var albumsSection: some View {
         switch viewModel.loadingState {
         case .idle, .loading:
-            VStack {
-                Spacer()
-                ProgressView("Loading albums...")
-                Spacer()
-            }
+            skeletonGrid
+                .opacity(showLoadingPlaceholder ? 1 : 0)
+                .task {
+                    try? await Task.sleep(nanoseconds: 200_000_000)
+                    guard !Task.isCancelled else { return }
+                    showLoadingPlaceholder = true
+                }
         case .error(let message):
             VStack(spacing: 16) {
                 Spacer()
@@ -149,6 +157,20 @@ struct CollectionDetailView: View {
                 }
             }
         }
+    }
+
+    /// Static placeholder cards in the SAME grid geometry as the loaded grid, so
+    /// the header and the button below it don't jump when content arrives. Sized
+    /// by the collection's known album count, capped at one screenful.
+    private var skeletonGrid: some View {
+        LazyVGrid(columns: columns, spacing: 20) {
+            ForEach(0..<min(max(viewModel.collection.albumCount, 1), 8), id: \.self) { _ in
+                LunaraSkeleton()
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Loading albums")
+        .animation(.easeInOut(duration: 0.2), value: showLoadingPlaceholder)
     }
 
     private func albumCard(for album: Album) -> some View {
@@ -193,15 +215,12 @@ struct CollectionDetailView: View {
     private func albumArtworkView(for album: Album) -> some View {
         let thumbnailURL = viewModel.albumThumbnailURL(for: album.plexID)
 
-        ZStack {
-            Color.lunara(.backgroundBase)
-
+        SquareArtworkView {
             if let thumbnailURL {
                 AsyncImage(url: thumbnailURL) { image in
                     image
                         .resizable()
                         .scaledToFill()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } placeholder: {
                     ProgressView()
                 }
@@ -211,9 +230,6 @@ struct CollectionDetailView: View {
                     .foregroundStyle(Color.lunara(.textSecondary))
             }
         }
-        .frame(maxWidth: .infinity)
-        .aspectRatio(1, contentMode: .fit)
-        .clipped()
         .task {
             viewModel.loadAlbumThumbnailIfNeeded(for: album)
         }
