@@ -59,6 +59,47 @@ struct LibraryStoreTests {
         #expect(try await store.artistMBID(name: "Sloan") == "mb-2")
     }
 
+    // MARK: - Artist enrichment cache (Lunara-ya7)
+
+    @Test
+    func artistEnrichmentCache_bioAndEnrichmentPersistIndependently() async throws {
+        let store = try LibraryStore.inMemory()
+        #expect(try await store.cachedArtistEnrichment(name: "Sloan") == nil)
+
+        let enrichment = MusicBrainzArtistEnrichment(
+            artistID: "mb-1",
+            wikipediaURL: URL(string: "https://en.wikipedia.org/wiki/Sloan"),
+            homepageURL: nil,
+            albums: [ExternalReleaseGroup(id: "rg-1", title: "Smeared", firstReleaseYear: 1992, firstReleaseDate: "1992-08-01")]
+        )
+        try await store.saveArtistEnrichment(enrichment, name: "Sloan")
+        var entry = try #require(try await store.cachedArtistEnrichment(name: "Sloan"))
+        #expect(entry.enrichment == enrichment)
+        #expect(entry.lastFMBio == nil)
+        #expect(abs(entry.fetchedAt.timeIntervalSinceNow) < 10)
+
+        // Bio saves don't clobber the enrichment or freshen its fetchedAt.
+        let enrichedAt = entry.fetchedAt
+        try await store.saveArtistLastFMBio("the bio", name: "Sloan")
+        entry = try #require(try await store.cachedArtistEnrichment(name: "Sloan"))
+        #expect(entry.enrichment == enrichment)
+        #expect(entry.lastFMBio == "the bio")
+        #expect(entry.fetchedAt == enrichedAt)
+    }
+
+    @Test
+    func artistEnrichmentCache_bioOnlyRowStaysStaleForEnrichment() async throws {
+        let store = try LibraryStore.inMemory()
+
+        try await store.saveArtistLastFMBio("bio first", name: "NoMB")
+        let entry = try #require(try await store.cachedArtistEnrichment(name: "NoMB"))
+
+        #expect(entry.enrichment == nil)
+        #expect(entry.lastFMBio == "bio first")
+        // fetchedAt is epoch so an enrichment refresh still triggers.
+        #expect(entry.fetchedAt < Date(timeIntervalSinceNow: -365 * 24 * 3600))
+    }
+
     private func makeRatedAlbum(id: String, artist: String, rating: Int?) -> Album {
         Album(
             plexID: id, title: "Album \(id)", artistName: artist, year: nil,

@@ -99,10 +99,20 @@ protocol LibraryRepoProtocol: AnyObject {
     func authenticatedArtworkURL(for rawValue: String?) async throws -> URL?
     func authenticatedThumbnailURL(for rawValue: String?) async throws -> URL?
     func fetchLoudnessLevels(trackID: String) async throws -> [Float]?
+
+    // Artist enrichment cache (Lunara-ya7). Requirements for dynamic dispatch;
+    // no-op defaults below keep doubles small.
+    func cachedArtistEnrichment(name: String) async throws -> ArtistEnrichmentCacheEntry?
+    func saveArtistEnrichment(_ enrichment: MusicBrainzArtistEnrichment, name: String) async throws
+    func saveArtistLastFMBio(_ bio: String, name: String) async throws
 }
 
 extension LibraryRepoProtocol {
     func fetchLoudnessLevels(trackID: String) async throws -> [Float]? { nil }
+
+    func cachedArtistEnrichment(name: String) async throws -> ArtistEnrichmentCacheEntry? { nil }
+    func saveArtistEnrichment(_ enrichment: MusicBrainzArtistEnrichment, name: String) async throws { }
+    func saveArtistLastFMBio(_ bio: String, name: String) async throws { }
 
     func refreshCollectionAlbums(collectionID: String) async throws -> [Album] {
         try await collectionAlbums(collectionID: collectionID)

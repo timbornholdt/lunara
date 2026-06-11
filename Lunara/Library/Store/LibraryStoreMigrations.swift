@@ -329,6 +329,20 @@ enum LibraryStoreMigrations {
             }
         }
 
+        // Artist-page enrichment cache: MusicBrainz links + discography and the
+        // Last.fm bio, served stale-while-revalidate (Lunara-ya7).
+        migrator.registerMigration("v14_artist_enrichment") { db in
+            try db.create(table: "artist_enrichment") { table in
+                table.column("artistName", .text).primaryKey()
+                table.column("mbid", .text)
+                table.column("wikipediaURL", .text)
+                table.column("homepageURL", .text)
+                table.column("lastFMBio", .text)
+                table.column("albumsJSON", .text).notNull().defaults(to: "[]")
+                table.column("fetchedAt", .datetime).notNull()
+            }
+        }
+
         return migrator
     }
 }

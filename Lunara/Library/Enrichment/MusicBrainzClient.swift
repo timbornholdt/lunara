@@ -15,7 +15,8 @@ struct MusicBrainzArtistEnrichment: Equatable, Sendable {
 }
 
 /// One MusicBrainz release group (an "album" across all its editions).
-struct ExternalReleaseGroup: Equatable, Sendable, Identifiable {
+/// Codable so the enrichment cache can persist discographies (Lunara-ya7).
+struct ExternalReleaseGroup: Equatable, Sendable, Identifiable, Codable {
     let id: String
     let title: String
     let firstReleaseYear: Int?

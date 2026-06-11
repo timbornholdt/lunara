@@ -163,6 +163,85 @@ struct ArtistDetailViewModelTests {
         #expect(subject.viewModel.missingAlbums.map(\.id) == ["rg-new", "rg-old", "rg-unknown"])
     }
 
+    // MARK: - Enrichment cache (Lunara-ya7)
+
+    @Test
+    func loadEnrichment_servesFreshCacheWithoutNetwork() async {
+        let subject = makeSubject()
+        await subject.viewModel.loadIfNeeded()
+        subject.library.cachedEnrichmentByName["Test Artist"] = ArtistEnrichmentCacheEntry(
+            enrichment: MusicBrainzArtistEnrichment(
+                artistID: "mbid-cached", wikipediaURL: URL(string: "https://en.wikipedia.org/wiki/Test"), homepageURL: nil,
+                albums: [ExternalReleaseGroup(id: "rg-cached", title: "Cached Album", firstReleaseYear: 2020)]
+            ),
+            lastFMBio: nil,
+            fetchedAt: Date()
+        )
+        let client = MusicBrainzClientMock()
+
+        await subject.viewModel.loadEnrichmentIfNeeded(using: client)
+
+        #expect(subject.viewModel.externalLinks?.artistID == "mbid-cached")
+        #expect(subject.viewModel.missingAlbums.map(\.id) == ["rg-cached"])
+        #expect(client.requests.isEmpty)
+    }
+
+    @Test
+    func loadEnrichment_staleCacheShowsInstantlyThenRefreshesAndSaves() async {
+        let subject = makeSubject()
+        await subject.viewModel.loadIfNeeded()
+        subject.library.cachedEnrichmentByName["Test Artist"] = ArtistEnrichmentCacheEntry(
+            enrichment: MusicBrainzArtistEnrichment(artistID: "mbid-old", wikipediaURL: nil, homepageURL: nil, albums: []),
+            lastFMBio: nil,
+            fetchedAt: Date(timeIntervalSinceNow: -30 * 24 * 3600)
+        )
+        let client = MusicBrainzClientMock()
+        client.enrichmentByArtistName["Test Artist"] = MusicBrainzArtistEnrichment(
+            artistID: "mbid-fresh", wikipediaURL: nil, homepageURL: nil,
+            albums: [ExternalReleaseGroup(id: "rg-fresh", title: "Fresh", firstReleaseYear: 2026)]
+        )
+
+        await subject.viewModel.loadEnrichmentIfNeeded(using: client)
+
+        #expect(client.requests == ["Test Artist"])
+        #expect(subject.viewModel.externalLinks?.artistID == "mbid-fresh")
+        #expect(subject.library.savedEnrichmentByName["Test Artist"]?.artistID == "mbid-fresh")
+    }
+
+    @Test
+    func loadEnrichment_firstFetchPersistsToCache() async {
+        let subject = makeSubject()
+        await subject.viewModel.loadIfNeeded()
+        let client = MusicBrainzClientMock()
+        client.enrichmentByArtistName["Test Artist"] = MusicBrainzArtistEnrichment(
+            artistID: "mbid-1", wikipediaURL: nil, homepageURL: nil, albums: []
+        )
+
+        await subject.viewModel.loadEnrichmentIfNeeded(using: client)
+
+        #expect(subject.library.savedEnrichmentByName["Test Artist"]?.artistID == "mbid-1")
+    }
+
+    @Test
+    func loadLastFMBio_servesCachedBioWithoutNetworkAndSavesFetches() async {
+        // Cached bio: no network call.
+        let cachedSubject = makeSubject(artistSummary: nil)
+        cachedSubject.library.cachedEnrichmentByName["Test Artist"] = ArtistEnrichmentCacheEntry(
+            enrichment: nil, lastFMBio: "cached bio", fetchedAt: Date()
+        )
+        let cachedClient = LastFMClientMock()
+        await cachedSubject.viewModel.loadLastFMBioIfNeeded(using: cachedClient)
+        #expect(cachedSubject.viewModel.displayBio == "cached bio")
+        #expect(cachedClient.artistBioRequests.isEmpty)
+
+        // No cache: fetch persists.
+        let fetchSubject = makeSubject(artistSummary: nil)
+        let fetchClient = LastFMClientMock()
+        fetchClient.artistBioByName["Test Artist"] = "fresh bio"
+        await fetchSubject.viewModel.loadLastFMBioIfNeeded(using: fetchClient)
+        #expect(fetchSubject.library.savedBiosByName["Test Artist"] == "fresh bio")
+    }
+
     // MARK: - Upcoming concerts (Lunara-uww.6.4)
 
     @Test
@@ -280,6 +359,20 @@ struct ArtistDetailViewModelTests {
 private final class ArtistDetailRepoMock: LibraryRepoProtocol {
     var queriedAlbumsByFilter: [AlbumQueryFilter: [Album]] = [:]
     var queryAlbumsError: LibraryError?
+
+    // Enrichment cache (Lunara-ya7)
+    var cachedEnrichmentByName: [String: ArtistEnrichmentCacheEntry] = [:]
+    private(set) var savedEnrichmentByName: [String: MusicBrainzArtistEnrichment] = [:]
+    private(set) var savedBiosByName: [String: String] = [:]
+    func cachedArtistEnrichment(name: String) async throws -> ArtistEnrichmentCacheEntry? {
+        cachedEnrichmentByName[name]
+    }
+    func saveArtistEnrichment(_ enrichment: MusicBrainzArtistEnrichment, name: String) async throws {
+        savedEnrichmentByName[name] = enrichment
+    }
+    func saveArtistLastFMBio(_ bio: String, name: String) async throws {
+        savedBiosByName[name] = bio
+    }
 
     func albums(page: LibraryPage) async throws -> [Album] { [] }
     func album(id: String) async throws -> Album? { nil }

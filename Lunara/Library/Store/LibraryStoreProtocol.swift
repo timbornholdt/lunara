@@ -291,11 +291,21 @@ protocol LibraryStoreProtocol: AnyObject {
     /// Collection-membership writeback after a remote fetch (Lunara-wd4).
     /// Requirement for dynamic dispatch; no-op default for doubles.
     func replaceAlbumIDs(_ albumIDs: [String], forCollectionID collectionID: String) async throws
+
+    // Artist enrichment cache (Lunara-ya7). Requirements for dynamic dispatch;
+    // no-op defaults below keep doubles small.
+    func cachedArtistEnrichment(name: String) async throws -> ArtistEnrichmentCacheEntry?
+    func saveArtistEnrichment(_ enrichment: MusicBrainzArtistEnrichment, name: String) async throws
+    func saveArtistLastFMBio(_ bio: String, name: String) async throws
 }
 
 extension LibraryStoreProtocol {
     func loudnessLevels(forTrack trackID: String) async throws -> [Float]? { nil }
     func setLoudnessLevels(_ levels: [Float], forTrack trackID: String) async throws { }
+
+    func cachedArtistEnrichment(name: String) async throws -> ArtistEnrichmentCacheEntry? { nil }
+    func saveArtistEnrichment(_ enrichment: MusicBrainzArtistEnrichment, name: String) async throws { }
+    func saveArtistLastFMBio(_ bio: String, name: String) async throws { }
 
     func fetchTracks(forAlbums albumIDs: [String]) async throws -> [Track] {
         var tracks: [Track] = []

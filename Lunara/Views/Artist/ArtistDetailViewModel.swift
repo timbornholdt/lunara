@@ -69,27 +69,56 @@ final class ArtistDetailViewModel {
         await loadArtistArtwork()
     }
 
-    /// Fetches the Last.fm bio once, and only for artists whose Plex summary is
-    /// blank — Plex's own text always wins (Lunara-uww.6.1). The client comes in
-    /// per call (from the view's environment) so the VM's init chain stays untouched.
+    /// Enrichment older than this re-fetches on the next page visit; younger is
+    /// served from the cache alone (Lunara-ya7). Bios never expire.
+    static let enrichmentTTL: TimeInterval = 7 * 24 * 3600
+
+    /// Resolves the Last.fm bio once, and only for artists whose Plex summary
+    /// is blank — Plex's own text always wins (Lunara-uww.6.1). Cached bios
+    /// serve without a network call (Lunara-ya7).
     func loadLastFMBioIfNeeded(using client: LastFMClientProtocol?) async {
-        guard let client, !hasRequestedLastFMBio else { return }
+        guard !hasRequestedLastFMBio else { return }
         guard displayBio == nil else { return }
         hasRequestedLastFMBio = true
+
+        if let cachedBio = (try? await library.cachedArtistEnrichment(name: artist.name))??.lastFMBio {
+            lastFMBio = cachedBio
+            return
+        }
+
+        guard let client else { return }
         lastFMBio = try? await client.getArtistBio(artist: artist.name)
+        if let lastFMBio {
+            try? await library.saveArtistLastFMBio(lastFMBio, name: artist.name)
+        }
     }
 
-    /// Fetches MusicBrainz links + studio discography once per VM, then derives
-    /// the release groups missing from the library by normalized-title match
-    /// (Lunara-uww.6.2 / 6.3). Call after `loadIfNeeded` so the loaded albums
-    /// are available to match against.
+    /// MusicBrainz links + studio discography, cache-first: the persisted copy
+    /// renders instantly (and offline), then a fetch refreshes it when older
+    /// than `enrichmentTTL` (Lunara-ya7). Call after `loadIfNeeded` so the
+    /// loaded albums are available to match against (Lunara-uww.6.2 / 6.3).
     func loadEnrichmentIfNeeded(using client: MusicBrainzClientProtocol?) async {
-        guard let client, !hasRequestedEnrichment else { return }
+        guard !hasRequestedEnrichment else { return }
         hasRequestedEnrichment = true
+
+        let cached = try? await library.cachedArtistEnrichment(name: artist.name)
+        if let cachedEnrichment = cached?.enrichment {
+            apply(cachedEnrichment)
+        }
+
+        let isFresh = cached.flatMap { entry in
+            entry.enrichment == nil ? nil : entry.fetchedAt
+        }.map { Date().timeIntervalSince($0) < Self.enrichmentTTL } ?? false
+        guard !isFresh, let client else { return }
 
         guard let enrichment = ((try? await client.artistEnrichment(name: artist.name)) ?? nil) else {
             return
         }
+        apply(enrichment)
+        try? await library.saveArtistEnrichment(enrichment, name: artist.name)
+    }
+
+    private func apply(_ enrichment: MusicBrainzArtistEnrichment) {
         externalLinks = enrichment
 
         let libraryTitles = Set(albums.map { Self.normalizedTitle($0.title) })

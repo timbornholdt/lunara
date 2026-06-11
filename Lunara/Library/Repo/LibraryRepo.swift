@@ -317,6 +317,20 @@ final class LibraryRepo: LibraryRepoProtocol {
         return levels
     }
 
+    // MARK: - Artist enrichment cache (Lunara-ya7)
+
+    func cachedArtistEnrichment(name: String) async throws -> ArtistEnrichmentCacheEntry? {
+        try await store.cachedArtistEnrichment(name: name)
+    }
+
+    func saveArtistEnrichment(_ enrichment: MusicBrainzArtistEnrichment, name: String) async throws {
+        try await store.saveArtistEnrichment(enrichment, name: name)
+    }
+
+    func saveArtistLastFMBio(_ bio: String, name: String) async throws {
+        try await store.saveArtistLastFMBio(bio, name: name)
+    }
+
     /// Bounded memoization in front of the store: contours are ~512B, but a
     /// multi-thousand-track session shouldn't grow the dictionary forever.
     private func rememberLoudness(_ levels: [Float]?, forTrack trackID: String) {
