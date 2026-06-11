@@ -197,6 +197,72 @@ struct DownloadManagerTests {
 
     // MARK: - Helpers
 
+    // MARK: - Sync reconciliation safety (mass-removal bug)
+
+    /// An empty membership list is a failed/raced fetch, never a signal to
+    /// remove every downloaded album.
+    @Test
+    func syncCollection_emptyMembership_removesNothing() async {
+        let subject = makeSubject()
+        subject.offlineStore.offlineAlbumIDs = ["a1", "a2"]
+        subject.offlineStore.albumCollectionMapping = ["a1": ["col-1"], "a2": ["col-1"]]
+
+        await subject.manager.syncCollection("col-1", albums: [], library: subject.library)
+
+        #expect(subject.offlineStore.deletedAlbumIDs.isEmpty)
+    }
+
+    /// Albums the junction doesn't tie to THIS collection — manual downloads,
+    /// other collections' albums, or rows lost to a refresh race — are never
+    /// this sync's to delete.
+    @Test
+    func syncCollection_neverRemovesAlbumsItDoesNotOwn() async {
+        let subject = makeSubject()
+        let albumA1 = makeAlbum(id: "a1")
+        let trackA1 = makeTrack(id: "t1", albumID: "a1")
+        subject.library.tracksByAlbumID["a1"] = [trackA1]
+        subject.offlineStore.offlineAlbumIDs = ["a1", "indie", "other"]
+        subject.offlineStore.offlineTracksByAlbumID["a1"] = [
+            OfflineTrack(trackID: "t1", albumID: "a1", filename: "t1.mp3", downloadedAt: Date(), fileSizeBytes: 1)
+        ]
+        // "indie" was downloaded by hand (no collection membership);
+        // "other" belongs to a different, unsynced collection.
+        subject.offlineStore.albumCollectionMapping = ["a1": ["col-1"], "other": ["col-2"]]
+
+        await subject.manager.syncCollection("col-1", albums: [albumA1], library: subject.library)
+
+        #expect(subject.offlineStore.deletedAlbumIDs.isEmpty)
+    }
+
+    /// A partially-downloaded album resumes (downloadAlbum skips tracks already
+    /// on disk) instead of being skipped forever because it has "some" tracks.
+    @Test
+    func syncCollection_resumesPartiallyDownloadedAlbums() async throws {
+        let subject = makeSubject()
+        let album = makeAlbum(id: "a1")
+        let done = makeTrack(id: "t1", albumID: "a1")
+        let missing = makeTrack(id: "t2", albumID: "a1")
+        subject.library.tracksByAlbumID["a1"] = [done, missing]
+        let source = subject.offlineDir.appendingPathComponent("t2-src.mp3")
+        try Data("audio".utf8).write(to: source)
+        subject.library.streamURLByTrackID["t2"] = source
+
+        // t1 is already offline; t2 never finished.
+        let existing = subject.offlineDir.appendingPathComponent("t1.mp3")
+        try Data("t1".utf8).write(to: existing)
+        subject.offlineStore.offlineAlbumIDs = ["a1"]
+        subject.offlineStore.localFileURLsByTrackID["t1"] = existing
+        subject.offlineStore.offlineTracksByAlbumID["a1"] = [
+            OfflineTrack(trackID: "t1", albumID: "a1", filename: "t1.mp3", downloadedAt: Date(), fileSizeBytes: 2)
+        ]
+        subject.offlineStore.albumCollectionMapping = ["a1": ["col-1"]]
+
+        await subject.manager.syncCollection("col-1", albums: [album], library: subject.library)
+
+        #expect(subject.offlineStore.savedOfflineTracks.map(\.trackID) == ["t2"])
+        #expect(subject.offlineStore.deletedAlbumIDs.isEmpty)
+    }
+
     // MARK: - Orphaned files + atomicity (Lunara-uww.3.7)
 
     /// A file written to disk whose metadata save then fails must be deleted

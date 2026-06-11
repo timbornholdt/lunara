@@ -102,27 +102,46 @@ final class DownloadManager: DownloadManagerProtocol {
         // Mark as synced
         try? await offlineStore.addSyncedCollection(collectionID)
 
+        // An empty membership list for a synced collection is a failed or raced
+        // fetch (the launch refresh rewrites the junction table this reads)
+        // until proven otherwise — NEVER a remove-everything signal. This guard
+        // is what stops a bad read from deleting an entire library (Lunara-5dh).
+        guard !albums.isEmpty else {
+            logger.warning("syncCollection: '\(collectionID, privacy: .public)' returned no albums — skipping reconciliation")
+            return
+        }
+
         // Get currently downloaded album IDs
         let downloadedAlbumIDs = Set((try? await offlineStore.allOfflineAlbumIDs()) ?? [])
         let currentAlbumIDs = Set(albums.map(\.plexID))
 
-        // Download new albums
+        // Download missing albums, and RESUME partial ones — only a complete
+        // album is skipped; downloadAlbum itself skips tracks already on disk
+        // (Lunara-5dh).
         for album in albums {
-            guard !downloadedAlbumIDs.contains(album.plexID) else { continue }
             do {
                 let tracks = try await library.tracks(forAlbum: album.plexID)
                 guard !tracks.isEmpty else { continue }
+                if downloadedAlbumIDs.contains(album.plexID),
+                   let status = try? await offlineStore.offlineStatus(forAlbum: album.plexID, totalTrackCount: tracks.count),
+                   case .downloaded = status {
+                    continue
+                }
                 await downloadAlbum(album, tracks: tracks)
             } catch {
                 logger.warning("syncCollection: failed to load tracks for album '\(album.plexID, privacy: .public)': \(error.localizedDescription, privacy: .public)")
             }
         }
 
-        // Remove stale albums (downloaded but no longer in collection)
-        let staleAlbumIDs = downloadedAlbumIDs.subtracting(currentAlbumIDs)
-        for albumID in staleAlbumIDs {
-            // Check if album belongs to another synced collection
+        // Stale = the junction ties the album to THIS collection but the fresh
+        // membership no longer includes it. Albums the junction does NOT tie to
+        // this collection — manual downloads, other collections' albums, or
+        // junction rows lost to a refresh race — are never this sync's to
+        // delete, so junction emptiness fails SAFE (Lunara-5dh).
+        let staleCandidates = downloadedAlbumIDs.subtracting(currentAlbumIDs)
+        for albumID in staleCandidates {
             let albumCollections = (try? await offlineStore.collectionIDs(forAlbum: albumID)) ?? []
+            guard albumCollections.contains(collectionID) else { continue }
             let syncedIDs = Set((try? await offlineStore.syncedCollectionIDs()) ?? [])
             let otherSyncedCollections = Set(albumCollections).intersection(syncedIDs).subtracting([collectionID])
             if otherSyncedCollections.isEmpty {
