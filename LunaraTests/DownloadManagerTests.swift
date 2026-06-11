@@ -195,6 +195,49 @@ struct DownloadManagerTests {
         #expect(received.contains(["a1"]))
     }
 
+    // MARK: - Sync state change signal (Lunara-5xu)
+
+    @Test
+    func syncCollection_bumpsSyncStateVersion() async {
+        let subject = makeSubject()
+        let album = makeAlbum(id: "a1")
+        let track = makeTrack(id: "t1", albumID: "a1")
+        subject.library.tracksByAlbumID["a1"] = [track]
+        subject.library.streamURLByTrackID["t1"] = URL(string: "https://example.com/t1.flac")!
+        let before = subject.manager.syncStateVersion
+
+        await subject.manager.syncCollection("col-1", albums: [album], library: subject.library)
+
+        #expect(subject.manager.syncStateVersion > before)
+    }
+
+    @Test
+    func unsyncCollection_bumpsSyncStateVersion() async {
+        let subject = makeSubject()
+        let album = makeAlbum(id: "a1")
+        let track = makeTrack(id: "t1", albumID: "a1")
+        subject.library.tracksByAlbumID["a1"] = [track]
+        subject.library.streamURLByTrackID["t1"] = URL(string: "https://example.com/t1.flac")!
+        await subject.manager.syncCollection("col-1", albums: [album], library: subject.library)
+        let before = subject.manager.syncStateVersion
+
+        await subject.manager.unsyncCollection("col-1", library: subject.library)
+
+        #expect(subject.manager.syncStateVersion > before)
+    }
+
+    /// The empty-membership guard skips reconciliation but still persists the
+    /// sync marker, so observers must still hear about it.
+    @Test
+    func syncCollection_emptyAlbums_stillBumpsSyncStateVersion() async {
+        let subject = makeSubject()
+        let before = subject.manager.syncStateVersion
+
+        await subject.manager.syncCollection("col-1", albums: [], library: subject.library)
+
+        #expect(subject.manager.syncStateVersion > before)
+    }
+
     // MARK: - Helpers
 
     // MARK: - Sync reconciliation safety (mass-removal bug)
