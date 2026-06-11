@@ -24,7 +24,12 @@ final class MockOfflineStore: OfflineStoreProtocol, @unchecked Sendable {
         }
     }
 
+    var saveOfflineTrackError: Error?
+
     func saveOfflineTrack(_ offlineTrack: OfflineTrack) async throws {
+        if let saveOfflineTrackError {
+            throw saveOfflineTrackError
+        }
         savedOfflineTracks.append(offlineTrack)
         offlineTracksByAlbumID[offlineTrack.albumID, default: []].append(offlineTrack)
     }
