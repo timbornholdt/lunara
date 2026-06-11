@@ -23,6 +23,9 @@ struct LibraryGridView: View {
     var body: some View {
         NavigationStack {
             content
+                // Loading/error/no-results branches hug their text otherwise,
+                // shrinking the linen background to a column (Lunara-2sp).
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
                 .navigationBarTitleDisplayMode(.inline)
