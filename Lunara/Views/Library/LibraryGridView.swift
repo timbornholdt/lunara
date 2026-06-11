@@ -46,6 +46,24 @@ struct LibraryGridView: View {
                         }
                         .disabled(viewModel.albums.isEmpty)
                     }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Menu {
+                            ForEach(AlbumGridSort.allCases) { option in
+                                Button {
+                                    viewModel.setSort(option)
+                                } label: {
+                                    if viewModel.sort == option {
+                                        Label(option.label, systemImage: "checkmark")
+                                    } else {
+                                        Text(option.label)
+                                    }
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "arrow.up.arrow.down")
+                        }
+                        .accessibilityLabel("Sort albums")
+                    }
                 }
                 .toolbarBackground(Color.lunara(.backgroundBase), for: .navigationBar)
                 .toolbarBackground(.visible, for: .navigationBar)
@@ -152,9 +170,6 @@ struct LibraryGridView: View {
         .buttonStyle(.plain)
         .background(Color.lunara(.backgroundElevated))
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .task {
-            await viewModel.loadNextPageIfNeeded(currentItem: album)
-        }
     }
 
     @ViewBuilder
