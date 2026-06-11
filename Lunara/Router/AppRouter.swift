@@ -12,11 +12,39 @@ struct QueueReconciliationOutcome: Equatable {
 final class AppRouter {
     private let library: LibraryRepoProtocol
     private let queue: QueueManagerProtocol
+    /// Opt-in queue-build span recorder (Lunara-lz4). Nil or disabled ⇒ zero work.
+    private let telemetry: PlaybackTelemetryEmitting?
     private let logger = Logger(subsystem: "holdings.chinlock.lunara", category: "AppRouter")
 
-    init(library: LibraryRepoProtocol, queue: QueueManagerProtocol) {
+    init(
+        library: LibraryRepoProtocol,
+        queue: QueueManagerProtocol,
+        telemetry: PlaybackTelemetryEmitting? = nil
+    ) {
         self.library = library
         self.queue = queue
+        self.telemetry = telemetry
+    }
+
+    /// Times the tap→queue-built leg of a play intent and records it as a
+    /// `queueBuild` detail record, so slow starts can be split between queue
+    /// construction and track resolution/download (Lunara-lz4).
+    private func timedQueueBuild(kind: String, _ build: () async throws -> [QueueItem]) async throws -> [QueueItem] {
+        guard let telemetry, telemetry.isEnabled else {
+            return try await build()
+        }
+        let clock = ContinuousClock()
+        let start = clock.now
+        let items = try await build()
+        let duration = start.duration(to: clock.now)
+        let ms = Double(duration.components.seconds) * 1000
+            + Double(duration.components.attoseconds) / 1e15
+        telemetry.recordDetail(eventName: "queueBuild", info: [
+            "kind": kind,
+            "items": String(items.count),
+            "buildMs": String(format: "%.0f", ms)
+        ])
+        return items
     }
 
     func playAlbum(_ album: Album) async throws {
@@ -63,64 +91,66 @@ final class AppRouter {
 
     func playPlaylist(_ playlist: Playlist) async throws {
         logger.info("playPlaylist started for playlist '\(playlist.title, privacy: .public)' id '\(playlist.plexID, privacy: .public)'")
-        let items = try await allQueueItemsForPlaylist(playlist)
+        let items = try await timedQueueBuild(kind: "playPlaylist") { try await self.allQueueItemsForPlaylist(playlist) }
         queue.playNow(items)
         logger.info("playPlaylist queued \(items.count, privacy: .public) items for playlist id '\(playlist.plexID, privacy: .public)'")
     }
 
     func shufflePlaylist(_ playlist: Playlist) async throws {
         logger.info("shufflePlaylist started for playlist '\(playlist.title, privacy: .public)' id '\(playlist.plexID, privacy: .public)'")
-        let items = try await allQueueItemsForPlaylist(playlist)
+        let items = try await timedQueueBuild(kind: "shufflePlaylist") { try await self.allQueueItemsForPlaylist(playlist) }
         queue.playNow(items.shuffled())
         logger.info("shufflePlaylist queued \(items.count, privacy: .public) shuffled items for playlist id '\(playlist.plexID, privacy: .public)'")
     }
 
     func playCollection(_ collection: Collection) async throws {
         logger.info("playCollection started for collection '\(collection.title, privacy: .public)' id '\(collection.plexID, privacy: .public)'")
-        let items = try await allQueueItemsForCollection(collection)
+        let items = try await timedQueueBuild(kind: "playCollection") { try await self.allQueueItemsForCollection(collection) }
         queue.playNow(items)
         logger.info("playCollection queued \(items.count, privacy: .public) items for collection id '\(collection.plexID, privacy: .public)'")
     }
 
     func shuffleCollection(_ collection: Collection) async throws {
         logger.info("shuffleCollection started for collection '\(collection.title, privacy: .public)' id '\(collection.plexID, privacy: .public)'")
-        let items = try await allQueueItemsForCollection(collection)
+        let items = try await timedQueueBuild(kind: "shuffleCollection") { try await self.allQueueItemsForCollection(collection) }
         queue.playNow(items.shuffled())
         logger.info("shuffleCollection queued \(items.count, privacy: .public) shuffled items for collection id '\(collection.plexID, privacy: .public)'")
     }
 
     func playArtist(_ artist: Artist) async throws {
         logger.info("playArtist started for artist '\(artist.name, privacy: .public)' id '\(artist.plexID, privacy: .public)'")
-        let items = try await allQueueItemsForArtist(artist)
+        let items = try await timedQueueBuild(kind: "playArtist") { try await self.allQueueItemsForArtist(artist) }
         queue.playNow(items)
         logger.info("playArtist queued \(items.count, privacy: .public) items for artist id '\(artist.plexID, privacy: .public)'")
     }
 
     func shuffleArtist(_ artist: Artist) async throws {
         logger.info("shuffleArtist started for artist '\(artist.name, privacy: .public)' id '\(artist.plexID, privacy: .public)'")
-        let items = try await allQueueItemsForArtist(artist)
+        let items = try await timedQueueBuild(kind: "shuffleArtist") { try await self.allQueueItemsForArtist(artist) }
         queue.playNow(items.shuffled())
         logger.info("shuffleArtist queued \(items.count, privacy: .public) shuffled items for artist id '\(artist.plexID, privacy: .public)'")
     }
 
     func playAlbums(_ albums: [Album]) async throws {
         logger.info("playAlbums started for \(albums.count, privacy: .public) albums")
-        let items = try await allQueueItemsForAlbums(albums)
+        let items = try await timedQueueBuild(kind: "playAlbums") { try await self.allQueueItemsForAlbums(albums) }
         queue.playNow(items)
         logger.info("playAlbums queued \(items.count, privacy: .public) items")
     }
 
     func shuffleAlbums(_ albums: [Album]) async throws {
         logger.info("shuffleAlbums started for \(albums.count, privacy: .public) albums")
-        let items = try await allQueueItemsForAlbums(albums)
+        let items = try await timedQueueBuild(kind: "shuffleAlbums") { try await self.allQueueItemsForAlbums(albums) }
         queue.playNow(items.shuffled())
         logger.info("shuffleAlbums queued \(items.count, privacy: .public) shuffled items")
     }
 
     func shuffleAllAlbums() async throws {
         logger.info("shuffleAllAlbums started")
-        let albums = try await library.fetchAlbums()
-        let items = try await allQueueItemsForAlbums(albums)
+        let items = try await timedQueueBuild(kind: "shuffleAllAlbums") {
+            let albums = try await self.library.fetchAlbums()
+            return try await self.allQueueItemsForAlbums(albums)
+        }
         guard !items.isEmpty else {
             throw LibraryError.resourceNotFound(type: "tracks", id: "all")
         }

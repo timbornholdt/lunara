@@ -55,6 +55,11 @@ final class PlaybackTelemetry: PlaybackTelemetryEmitting {
         writer.append(eventName: event.kind.rawValue)
     }
 
+    func recordDetail(eventName: String, info: [String: String]) {
+        guard isEnabled else { return }
+        writer.append(eventName: eventName, info: info)
+    }
+
     // MARK: - Recorder-originated events
 
     func recordScenePhase(active: Bool) {
@@ -174,7 +179,7 @@ private final class TelemetryWriter: @unchecked Sendable {
         context.crossfadeEnabled = event.crossfadeEnabled
     }
 
-    func append(eventName: String) {
+    func append(eventName: String, info: [String: String]? = nil) {
         let snapshot = currentContext()
         let entry = TelemetryEntry(
             t: Date().ISO8601Format(),
@@ -185,7 +190,8 @@ private final class TelemetryWriter: @unchecked Sendable {
             state: snapshot.state,
             cf: snapshot.crossfadeEnabled,
             trackID: snapshot.trackID,
-            durS: snapshot.durationSeconds
+            durS: snapshot.durationSeconds,
+            info: info
         )
         guard var data = try? encoder.encode(entry) else { return }
         data.append(0x0A) // newline

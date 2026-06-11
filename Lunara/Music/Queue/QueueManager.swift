@@ -20,6 +20,8 @@ final class QueueManager: QueueManagerProtocol {
     private let trackCache: TrackCache?
     private let loudnessProvider: LoudnessDataProviding?
     private let resolver: PlaybackURLResolving?
+    /// Opt-in span/decision recorder (Lunara-lz4). Nil or disabled ⇒ zero work.
+    private let telemetry: PlaybackTelemetryEmitting?
     var lastPersistedElapsed: TimeInterval = 0
     var pendingSeekAfterNextPlay: TimeInterval?
     private var persistenceTask: Task<Void, Never>?
@@ -54,13 +56,15 @@ final class QueueManager: QueueManagerProtocol {
         persistence: QueueStatePersisting,
         trackCache: TrackCache? = nil,
         loudnessProvider: LoudnessDataProviding? = nil,
-        resolver: PlaybackURLResolving? = nil
+        resolver: PlaybackURLResolving? = nil,
+        telemetry: PlaybackTelemetryEmitting? = nil
     ) {
         self.engine = engine
         self.persistence = persistence
         self.trackCache = trackCache
         self.loudnessProvider = loudnessProvider
         self.resolver = resolver
+        self.telemetry = telemetry
         restorePersistedQueue()
         observeEngineState()
     }
@@ -210,18 +214,30 @@ final class QueueManager: QueueManagerProtocol {
 
         let trackCache = self.trackCache
         let allowOffline = !forceStream
+        // Span timestamps are only taken when telemetry is recording (Lunara-lz4).
+        let telemetryEnabled = telemetry?.isEnabled == true
+        let queueLength = items.count
+        let clock = ContinuousClock()
+        let tStart = clock.now
         currentPlayTask = Task { [weak self] in
             do {
                 let resolvedURL = try await resolver.resolvePlaybackURL(for: currentItem, allowOffline: allowOffline)
+                let tResolved = clock.now
 
                 // Remote URLs route through the track cache (download/cache),
                 // falling back to direct play if caching fails. Local files play directly.
                 var playURL = resolvedURL
+                var source = resolvedURL.isFileURL ? "offline" : "stream"
                 if !resolvedURL.isFileURL, let trackCache {
+                    if telemetryEnabled {
+                        source = await trackCache.cachedFile(forTrackID: currentItem.trackID) != nil
+                            ? "cached" : "downloaded"
+                    }
                     if let cached = try? await trackCache.prepare(url: resolvedURL, trackID: currentItem.trackID) {
                         playURL = cached
                     }
                 }
+                let tPrepared = clock.now
 
                 try Task.checkCancellation()
                 await MainActor.run {
@@ -230,6 +246,16 @@ final class QueueManager: QueueManagerProtocol {
                     self.lastPlayedURLWasFile = playURL.isFileURL
                     self.engine.play(url: playURL, trackID: currentItem.trackID)
                     self.isResolvingPlayback = false
+                    if telemetryEnabled {
+                        self.telemetry?.recordDetail(eventName: "playStart", info: [
+                            "trackID": currentItem.trackID,
+                            "source": source,
+                            "queueLength": String(queueLength),
+                            "resolveMs": Self.milliseconds(from: tStart, to: tResolved),
+                            "prepareMs": Self.milliseconds(from: tResolved, to: tPrepared),
+                            "totalMs": Self.milliseconds(from: tStart, to: clock.now)
+                        ])
+                    }
                     // CrossfadeEngine reports a load failure synchronously via
                     // playbackState. On failure, skip persisting/preparing a dead
                     // play (a successful persist would also clear the error we're
@@ -311,11 +337,50 @@ final class QueueManager: QueueManagerProtocol {
                         loudnessLevels: loudness
                     )
                     self.engine.prepareNext(url: prepareURL, trackID: nextItem.trackID, transition: transition)
+                    self.recordFadeDecision(
+                        transition,
+                        from: currentItem,
+                        to: nextItem,
+                        hadContour: loudness != nil
+                    )
                 }
             } catch {
                 // Resolve or cache prep failed — skip preparing the next track.
             }
         }
+    }
+
+    /// Records what the crossfade policy decided for a transition, so a "that
+    /// fade felt wrong" report can be matched to the exact inputs (Lunara-lz4).
+    private func recordFadeDecision(
+        _ transition: TransitionStyle,
+        from currentItem: QueueItem,
+        to nextItem: QueueItem,
+        hadContour: Bool
+    ) {
+        guard let telemetry, telemetry.isEnabled else { return }
+        var info: [String: String] = [
+            "from": currentItem.trackID,
+            "to": nextItem.trackID,
+            "hadContour": hadContour ? "1" : "0",
+            "trackDuration": String(format: "%.1f", engine.duration)
+        ]
+        switch transition {
+        case .gapless:
+            info["type"] = "gapless"
+        case .crossfade(let startTime, let duration):
+            info["type"] = "crossfade"
+            info["startTime"] = String(format: "%.1f", startTime)
+            info["duration"] = String(format: "%.1f", duration)
+        }
+        telemetry.recordDetail(eventName: "fadeDecision", info: info)
+    }
+
+    private static func milliseconds(from start: ContinuousClock.Instant, to end: ContinuousClock.Instant) -> String {
+        let duration = start.duration(to: end)
+        let ms = Double(duration.components.seconds) * 1000
+            + Double(duration.components.attoseconds) / 1e15
+        return String(format: "%.0f", ms)
     }
 
     func offlineAvailabilityDidChange(forAlbums changedAlbumIDs: Set<String>) {

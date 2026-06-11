@@ -204,3 +204,20 @@ final class LoudnessProviderMock: LoudnessDataProviding {
         return levelsByTrackID[trackID]
     }
 }
+
+// MARK: - TelemetryEmittingMock
+
+@MainActor
+final class TelemetryEmittingMock: PlaybackTelemetryEmitting {
+    var isEnabled = true
+    private(set) var events: [PlaybackTelemetryEvent] = []
+    private(set) var details: [(name: String, info: [String: String])] = []
+
+    func record(_ event: PlaybackTelemetryEvent) {
+        events.append(event)
+    }
+
+    func recordDetail(eventName: String, info: [String: String]) {
+        details.append((eventName, info))
+    }
+}

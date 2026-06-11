@@ -38,12 +38,35 @@ struct TelemetryEntry: Codable, Equatable {
     let cf: Bool            // crossfade enabled
     let trackID: String?
     let durS: Double?
+    /// Free-form detail fields for span/decision records (playStart, fadeDecision,
+    /// queueBuild — Lunara-lz4). Omitted entirely for plain lifecycle events.
+    var info: [String: String]?
+
+    init(
+        t: String, ev: String, footMB: Double, availMB: Double, slots: Int,
+        state: String, cf: Bool, trackID: String?, durS: Double?,
+        info: [String: String]? = nil
+    ) {
+        self.t = t
+        self.ev = ev
+        self.footMB = footMB
+        self.availMB = availMB
+        self.slots = slots
+        self.state = state
+        self.cf = cf
+        self.trackID = trackID
+        self.durS = durS
+        self.info = info
+    }
 }
 
-/// The seam the engine uses to emit telemetry. `@MainActor` because the engine
-/// is main-actor isolated and emits from its transitions.
+/// The seam the engine and queue use to emit telemetry. `@MainActor` because
+/// both are main-actor isolated and emit from their transitions.
 @MainActor
 protocol PlaybackTelemetryEmitting: AnyObject {
     var isEnabled: Bool { get }
     func record(_ event: PlaybackTelemetryEvent)
+    /// Writes one detail record (timing spans, crossfade decisions) keyed by
+    /// `eventName` with free-form `info` fields. No-op when disabled.
+    func recordDetail(eventName: String, info: [String: String])
 }

@@ -590,6 +590,85 @@ struct QueueManagerTests {
         #expect(subject.engine.seekCalls.contains(30))
     }
 
+    // MARK: - Playback telemetry spans (Lunara-lz4)
+
+    /// One `playStart` detail record per play, with the tap→audio breakdown.
+    @Test
+    func play_emitsPlayStartSpansWhenTelemetryEnabled() async throws {
+        let engine = PlaybackEngineMock()
+        let persistence = QueueStatePersistenceMock()
+        let resolver = PlaybackURLResolvingMock()
+        let telemetry = TelemetryEmittingMock()
+        let manager = QueueManager(
+            engine: engine,
+            persistence: persistence,
+            resolver: resolver,
+            telemetry: telemetry
+        )
+        let items = try makeQueueItems(count: 2)
+
+        manager.playNow(items)
+        await waitUntil { telemetry.details.contains { $0.name == "playStart" } }
+
+        let record = try #require(telemetry.details.first { $0.name == "playStart" })
+        #expect(record.info["trackID"] == items[0].trackID)
+        #expect(record.info["queueLength"] == "2")
+        #expect(record.info["source"] != nil)
+        #expect(record.info["resolveMs"] != nil)
+        #expect(record.info["prepareMs"] != nil)
+        #expect(record.info["totalMs"] != nil)
+    }
+
+    /// The crossfade decision is recorded with the chosen transition shape.
+    @Test
+    func prepareNext_emitsFadeDecisionWhenTelemetryEnabled() async throws {
+        let engine = PlaybackEngineMock()
+        let persistence = QueueStatePersistenceMock()
+        let resolver = PlaybackURLResolvingMock()
+        let telemetry = TelemetryEmittingMock()
+        let manager = QueueManager(
+            engine: engine,
+            persistence: persistence,
+            resolver: resolver,
+            telemetry: telemetry
+        )
+        engine.crossfadeEnabled = true
+        let item0 = QueueItem(trackID: "t0", streamKey: "/k/t0", albumID: "album-A")
+        let item1 = QueueItem(trackID: "t1", streamKey: "/k/t1", albumID: "album-B")
+
+        manager.playNow([item0, item1])
+        await waitUntil { telemetry.details.contains { $0.name == "fadeDecision" } }
+
+        let record = try #require(telemetry.details.first { $0.name == "fadeDecision" })
+        #expect(record.info["from"] == "t0")
+        #expect(record.info["to"] == "t1")
+        #expect(record.info["type"] == "crossfade")
+        #expect(record.info["duration"] != nil)
+        #expect(record.info["hadContour"] == "0")
+    }
+
+    /// Telemetry off ⇒ no detail records are even built.
+    @Test
+    func play_emitsNothingWhenTelemetryDisabled() async throws {
+        let engine = PlaybackEngineMock()
+        let persistence = QueueStatePersistenceMock()
+        let resolver = PlaybackURLResolvingMock()
+        let telemetry = TelemetryEmittingMock()
+        telemetry.isEnabled = false
+        let manager = QueueManager(
+            engine: engine,
+            persistence: persistence,
+            resolver: resolver,
+            telemetry: telemetry
+        )
+
+        manager.playNow(try makeQueueItems(count: 2))
+        await waitUntil { engine.playCalls.count == 1 }
+        await settleObservation()
+
+        #expect(telemetry.details.isEmpty)
+    }
+
     // MARK: - Crossfade loudness source (Lunara-9x1)
 
     /// The crossfade decision detects the fade-out at the END of the OUTGOING
