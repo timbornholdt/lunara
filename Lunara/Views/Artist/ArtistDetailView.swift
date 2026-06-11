@@ -22,6 +22,7 @@ struct ArtistDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 headerSection
+                concertsSection
                 albumsSection
             }
             .padding(.horizontal, 16)
@@ -53,67 +54,116 @@ struct ArtistDetailView: View {
 
     // MARK: - Header
 
+    /// Editorial byline header (Lunara-2z2): compact portrait beside the name,
+    /// genre, and icon actions — the page leads with reading, not a hero image.
     private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            headerArtwork
-                .frame(maxWidth: .infinity)
-                .aspectRatio(1, contentMode: .fit)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 14) {
+                headerArtwork
+                    .frame(width: 110, height: 110)
 
-            Text(viewModel.artist.name)
-                .font(titleHeadingFont())
-                .foregroundStyle(Color.lunara(.textPrimary))
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(viewModel.artist.name)
+                        .font(titleHeadingFont())
+                        .foregroundStyle(Color.lunara(.textPrimary))
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.7)
 
-            if let genre = viewModel.artist.genre {
-                Text(genre)
-                    .font(subtitleFont())
-                    .foregroundStyle(Color.lunara(.textSecondary))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(Color.lunara(.backgroundBase), in: Capsule())
-            }
-
-            if let summary = viewModel.displayBio {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(summary)
-                        .font(subtitleFont())
-                        .foregroundStyle(Color.lunara(.textSecondary))
-                        .lineLimit(isBioExpanded ? nil : 3)
-
-                    Button(isBioExpanded ? "Show less" : "Read more") {
-                        withAnimation {
-                            isBioExpanded.toggle()
-                        }
+                    if let genre = viewModel.artist.genre {
+                        Text(genre)
+                            .font(subtitleFont())
+                            .foregroundStyle(Color.lunara(.textSecondary))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(Color.lunara(.backgroundBase), in: Capsule())
                     }
-                    .font(subtitleFont())
-                    .foregroundStyle(Color.lunara(.textPrimary))
+
+                    HStack(spacing: 10) {
+                        Button {
+                            Task {
+                                await viewModel.playAll()
+                                showNowPlaying.wrappedValue = true
+                            }
+                        } label: {
+                            Image(systemName: "play.fill")
+                        }
+                        .buttonStyle(LunaraCircleButtonStyle())
+                        .accessibilityLabel("Play All")
+
+                        Button {
+                            Task {
+                                await viewModel.shuffle()
+                                showNowPlaying.wrappedValue = true
+                            }
+                        } label: {
+                            Image(systemName: "shuffle")
+                        }
+                        .buttonStyle(LunaraCircleButtonStyle(role: .secondary))
+                        .accessibilityLabel("Shuffle")
+                    }
                 }
+
+                Spacer(minLength: 0)
             }
+
+            bioSection
 
             externalLinksRow
-
-            HStack(spacing: 12) {
-                Button("Play All") {
-                    Task {
-                        await viewModel.playAll()
-                        showNowPlaying.wrappedValue = true
-                    }
-                }
-                .buttonStyle(LunaraPillButtonStyle())
-
-                Button("Shuffle") {
-                    Task {
-                        await viewModel.shuffle()
-                        showNowPlaying.wrappedValue = true
-                    }
-                }
-                .buttonStyle(LunaraPillButtonStyle(role: .secondary))
-            }
         }
         .padding(14)
         .background {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(Color.lunara(.backgroundElevated))
         }
+    }
+
+    /// Long-form bio set for READING (Lunara-2z2): primary-color serif with
+    /// generous line spacing, real paragraphs when expanded, collapsed to a
+    /// teaser by default.
+    @ViewBuilder
+    private var bioSection: some View {
+        if let bio = viewModel.displayBio {
+            VStack(alignment: .leading, spacing: 10) {
+                if isBioExpanded {
+                    ForEach(Array(Self.bioParagraphs(of: bio).enumerated()), id: \.offset) { _, paragraph in
+                        Text(paragraph)
+                            .font(bioFont())
+                            .lineSpacing(6)
+                            .foregroundStyle(Color.lunara(.textPrimary))
+                    }
+                } else {
+                    Text(bio)
+                        .font(bioFont())
+                        .lineSpacing(6)
+                        .foregroundStyle(Color.lunara(.textPrimary))
+                        .lineLimit(5)
+                }
+
+                Button(isBioExpanded ? "Show less" : "Read more") {
+                    withAnimation {
+                        isBioExpanded.toggle()
+                    }
+                }
+                .font(subtitleFont())
+                .foregroundStyle(Color.lunara(.textSecondary))
+            }
+        }
+    }
+
+    /// Splits a bio into displayable paragraphs: newline-separated, blanks dropped.
+    static func bioParagraphs(of text: String) -> [String] {
+        text
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    private func bioFont() -> Font {
+        let size: CGFloat = 15
+        if UIFont(name: "PlayfairDisplay-Regular", size: size) != nil {
+            return .custom("PlayfairDisplay-Regular", size: size, relativeTo: .body)
+        }
+        return .system(size: size, weight: .regular, design: .serif)
     }
 
     /// Outbound links from MusicBrainz enrichment (Lunara-uww.6.2).
@@ -188,7 +238,6 @@ struct ArtistDetailView: View {
                         albumCard(for: album)
                     }
                 }
-                concertsSection
                 missingAlbumsSection
             }
         }
