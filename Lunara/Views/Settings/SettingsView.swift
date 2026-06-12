@@ -13,6 +13,7 @@ struct SettingsView: View {
         NavigationStack {
             List {
 
+                playbackSection
                 lastFMSection
                 storageSection
                 syncedCollectionsSection
@@ -43,6 +44,25 @@ struct SettingsView: View {
     }
 
     // MARK: - Sections
+
+    private var playbackSection: some View {
+        Section("Playback") {
+            Toggle(
+                "Loudness Leveling",
+                isOn: Binding(
+                    get: { viewModel.isLoudnessLevelingEnabled },
+                    set: { viewModel.isLoudnessLevelingEnabled = $0 }
+                )
+            )
+            Toggle(
+                "Crossfade",
+                isOn: Binding(
+                    get: { viewModel.isCrossfadeEnabled },
+                    set: { viewModel.isCrossfadeEnabled = $0 }
+                )
+            )
+        }
+    }
 
     private var appearanceSection: some View {
         Section("Appearance") {

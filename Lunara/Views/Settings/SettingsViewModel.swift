@@ -25,6 +25,10 @@ final class SettingsViewModel {
     /// Server URL + token string for external diagnostics (Lunara-cgh); nil in
     /// contexts that shouldn't expose credentials.
     private let plexCredentialsProvider: (() async -> String?)?
+    /// Engine for live playback toggles (leveling/crossfade, Lunara-gqo);
+    /// nil in contexts without playback.
+    private let playbackEngine: PlaybackEngineProtocol?
+    private let defaults: UserDefaults
 
     private(set) var artworkByAlbumID: [String: URL] = [:]
     private var pendingArtworkAlbumIDs: Set<String> = []
@@ -40,7 +44,9 @@ final class SettingsViewModel {
         artworkPipeline: ArtworkPipelineProtocol? = nil,
         albumActions: AlbumDetailActionRouting? = nil,
         gardenClient: GardenAPIClientProtocol? = nil,
-        plexCredentialsProvider: (() async -> String?)? = nil
+        plexCredentialsProvider: (() async -> String?)? = nil,
+        playbackEngine: PlaybackEngineProtocol? = nil,
+        defaults: UserDefaults = .standard
     ) {
         self.offlineStore = offlineStore
         self.downloadManager = downloadManager
@@ -53,7 +59,30 @@ final class SettingsViewModel {
         self.albumActions = albumActions
         self.gardenClient = gardenClient
         self.plexCredentialsProvider = plexCredentialsProvider
+        self.playbackEngine = playbackEngine
+        self.defaults = defaults
         self.settings = OfflineSettings.load()
+    }
+
+    // MARK: - Playback (Lunara-gqo)
+
+    static let loudnessLevelingKey = "loudnessLevelingEnabled"
+    static let crossfadeKey = "crossfadeEnabled"
+
+    var isLoudnessLevelingEnabled: Bool {
+        get { defaults.object(forKey: Self.loudnessLevelingKey) as? Bool ?? true }
+        set {
+            defaults.set(newValue, forKey: Self.loudnessLevelingKey)
+            playbackEngine?.levelingEnabled = newValue
+        }
+    }
+
+    var isCrossfadeEnabled: Bool {
+        get { defaults.object(forKey: Self.crossfadeKey) as? Bool ?? true }
+        set {
+            defaults.set(newValue, forKey: Self.crossfadeKey)
+            playbackEngine?.crossfadeEnabled = newValue
+        }
     }
 
     // MARK: - Plex diagnostics credentials (Lunara-cgh)
