@@ -128,6 +128,44 @@ struct SettingsViewModelTests {
         #expect(await bare.plexCredentials() == nil)
     }
 
+    // MARK: - Playback toggles (Lunara-gqo)
+
+    @Test
+    func loudnessLevelingToggle_persistsAndPlumbsToEngine() throws {
+        let defaults = try makeScratchDefaults()
+        let engine = PlaybackEngineMock()
+        let vm = makeViewModel(playbackEngine: engine, defaults: defaults)
+
+        #expect(vm.isLoudnessLevelingEnabled) // default on
+
+        vm.isLoudnessLevelingEnabled = false
+        #expect(defaults.object(forKey: SettingsViewModel.loudnessLevelingKey) as? Bool == false)
+        #expect(engine.levelingEnabled == false)
+
+        vm.isLoudnessLevelingEnabled = true
+        #expect(engine.levelingEnabled)
+    }
+
+    @Test
+    func crossfadeToggle_persistsAndPlumbsToEngine() throws {
+        let defaults = try makeScratchDefaults()
+        let engine = PlaybackEngineMock()
+        let vm = makeViewModel(playbackEngine: engine, defaults: defaults)
+
+        #expect(vm.isCrossfadeEnabled) // default on
+
+        vm.isCrossfadeEnabled = false
+        #expect(defaults.object(forKey: SettingsViewModel.crossfadeKey) as? Bool == false)
+        #expect(engine.crossfadeEnabled == false)
+    }
+
+    private func makeScratchDefaults() throws -> UserDefaults {
+        let suiteName = "settings-vm-tests-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        return defaults
+    }
+
     // MARK: - Helpers
 
     private func makeViewModel(
@@ -137,7 +175,9 @@ struct SettingsViewModelTests {
         artworkPipeline: ArtworkPipelineProtocol? = nil,
         albumActions: AlbumDetailActionRouting? = nil,
         library: LibraryRepoProtocol? = nil,
-        plexCredentialsProvider: (() async -> String?)? = nil
+        plexCredentialsProvider: (() async -> String?)? = nil,
+        playbackEngine: PlaybackEngineProtocol? = nil,
+        defaults: UserDefaults = .standard
     ) -> SettingsViewModel {
         let dm = downloadManager ?? makeDownloadManager()
         return SettingsViewModel(
@@ -147,7 +187,9 @@ struct SettingsViewModelTests {
             signOutAction: signOutAction,
             artworkPipeline: artworkPipeline,
             albumActions: albumActions,
-            plexCredentialsProvider: plexCredentialsProvider
+            plexCredentialsProvider: plexCredentialsProvider,
+            playbackEngine: playbackEngine,
+            defaults: defaults
         )
     }
 

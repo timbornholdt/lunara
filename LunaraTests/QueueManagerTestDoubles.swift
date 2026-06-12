@@ -10,6 +10,7 @@ final class PlaybackEngineMock: PlaybackEngineProtocol {
     var duration: TimeInterval = 0
     var currentTrackID: String?
     var crossfadeEnabled: Bool = false
+    var levelingEnabled: Bool = true
 
     private(set) var playCalls: [(URL, String)] = []
     /// gainDB handed to the gain-aware play/prepareNext overloads (Lunara-dtv).

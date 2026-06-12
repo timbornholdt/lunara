@@ -129,8 +129,9 @@ final class AppCoordinator {
             playbackTelemetry: deps.playbackTelemetry
         )
 
-        // Apply persisted crossfade setting
+        // Apply persisted playback settings (keys owned by SettingsViewModel)
         deps.playbackEngine.crossfadeEnabled = UserDefaults.standard.object(forKey: "crossfadeEnabled") as? Bool ?? true
+        deps.playbackEngine.levelingEnabled = UserDefaults.standard.object(forKey: "loudnessLevelingEnabled") as? Bool ?? true
     }
 
     // MARK: - Actions
