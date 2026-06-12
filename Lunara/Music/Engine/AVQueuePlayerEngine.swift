@@ -62,6 +62,7 @@ final class AVQueuePlayerEngine: PlaybackEngineProtocol {
     private(set) var duration: TimeInterval = 0
     private(set) var currentTrackID: String?
     var crossfadeEnabled: Bool = false
+    var levelingEnabled: Bool = true
 
     private let audioSession: AudioSessionProtocol
     private let driver: PlaybackEngineDriver
@@ -90,6 +91,10 @@ final class AVQueuePlayerEngine: PlaybackEngineProtocol {
     }
 
     func play(url: URL, trackID: String) {
+        play(url: url, trackID: trackID, gainDB: nil)
+    }
+
+    func play(url: URL, trackID: String, gainDB: Float?) {
         do {
             try audioSession.configureForPlayback()
         } catch {
@@ -104,6 +109,12 @@ final class AVQueuePlayerEngine: PlaybackEngineProtocol {
         duration = 0
 
         transitionToBuffering()
+        // dB -> linear, attenuate-only — same clamp story as CrossfadeEngine.
+        if levelingEnabled, let gainDB {
+            driver.setVolume(powf(10.0, min(0, gainDB) / 20.0))
+        } else {
+            driver.setVolume(1.0)
+        }
         driver.play(url: url, trackID: trackID)
     }
 

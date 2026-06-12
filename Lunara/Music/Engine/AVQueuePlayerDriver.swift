@@ -14,6 +14,10 @@ protocol PlaybackEngineDriver: AnyObject {
     func resume()
     func seek(to time: TimeInterval)
     func stop()
+    /// Loudness-leveling scalar (linear, 0...1) applied to the whole player —
+    /// the driver plays one item at a time, so per-item mixing isn't needed
+    /// (Lunara-bvs).
+    func setVolume(_ volume: Float)
 }
 
 final class AVQueuePlayerDriver: PlaybackEngineDriver {
@@ -93,6 +97,10 @@ final class AVQueuePlayerDriver: PlaybackEngineDriver {
         onCurrentTrackIDChanged?(nil)
         onElapsedChanged?(0)
         onDurationChanged?(0)
+    }
+
+    func setVolume(_ volume: Float) {
+        player.volume = volume
     }
 
     private func configureObservers() {

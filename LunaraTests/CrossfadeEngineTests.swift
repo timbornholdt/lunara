@@ -15,6 +15,7 @@ struct CrossfadeEngineTests {
         var duration: TimeInterval = 200
         var elapsed: TimeInterval = 0
         var volume: Float = 1
+        var gain: Float = 1
         var isReadyForPlayback = true
         var onPlaybackComplete: (() -> Void)?
 
@@ -432,5 +433,113 @@ struct CrossfadeEngineTests {
 
         // The last intent was a user pause — stay paused.
         #expect(engine.playbackState == .paused)
+    }
+
+    // MARK: - Loudness leveling (Lunara-bvs)
+
+    /// Builds an engine mid-crossfade from "A" (gainDB A) into "B" (gainDB B).
+    private func makeLeveledEngineMidCrossfade(
+        gainA: Float?,
+        gainB: Float?,
+        fadeDuration: TimeInterval = 8
+    ) -> (engine: CrossfadeEngine, outgoing: MockPlayerSlot, incoming: MockPlayerSlot) {
+        let outgoing = MockPlayerSlot()
+        let incoming = MockPlayerSlot()
+        let slots: [MockPlayerSlot] = [outgoing, incoming]
+        var handed = 0
+        let engine = CrossfadeEngine(
+            audioSession: AudioSessionStub(),
+            slotFactory: {
+                defer { handed += 1 }
+                return slots[handed]
+            }
+        )
+        let url = URL(string: "file:///track.mp3")!
+        engine.play(url: url, trackID: "A", gainDB: gainA)
+        outgoing.elapsed = 190
+        engine.prepareNext(
+            url: url,
+            trackID: "B",
+            transition: .crossfade(startTime: 180, duration: fadeDuration),
+            gainDB: gainB
+        )
+        return (engine, outgoing, incoming)
+    }
+
+    /// -6 dB applies as 10^(-6/20) ≈ 0.501 at play time.
+    @Test
+    func play_appliesGainAsSlotVolume() {
+        let slot = MockPlayerSlot()
+        let engine = CrossfadeEngine(audioSession: AudioSessionStub(), slotFactory: { slot })
+
+        engine.play(url: URL(string: "file:///t.mp3")!, trackID: "A", gainDB: -6)
+
+        #expect(abs(slot.gain - 0.5012) < 0.001)
+        #expect(slot.volume == slot.gain)
+    }
+
+    /// The equal-power ramp multiplies each slot's own gain — leveling composes
+    /// with the fade instead of fighting it.
+    @Test
+    func updateCrossfade_composesSlotGainsIntoRamp() {
+        let (engine, outgoing, incoming) = makeLeveledEngineMidCrossfade(gainA: -6, gainB: -12)
+        #expect(engine.isCrossfading)
+
+        incoming.elapsed = 4 // halfway through the 8s fade -> angle π/4
+        engine.updateCrossfade()
+
+        let halfPower = Float(cos(Double.pi / 4))
+        #expect(abs(outgoing.volume - outgoing.gain * halfPower) < 0.0001)
+        #expect(abs(incoming.volume - incoming.gain * halfPower) < 0.0001)
+        #expect(abs(incoming.gain - 0.2512) < 0.001)
+    }
+
+    /// The promoted slot lands on its own gain, not 1.0.
+    @Test
+    func completeCrossfade_restoresPromotedSlotToItsGain() {
+        let (engine, _, incoming) = makeLeveledEngineMidCrossfade(gainA: -6, gainB: -12)
+
+        incoming.elapsed = 8
+        engine.updateCrossfade() // progress 1.0 -> completes
+
+        #expect(engine.isCrossfading == false)
+        #expect(incoming.volume == incoming.gain)
+    }
+
+    /// Leveling off => unity gain regardless of the offset handed in.
+    @Test
+    func levelingDisabled_ignoresGain() {
+        let slot = MockPlayerSlot()
+        let engine = CrossfadeEngine(audioSession: AudioSessionStub(), slotFactory: { slot })
+        engine.levelingEnabled = false
+
+        engine.play(url: URL(string: "file:///t.mp3")!, trackID: "A", gainDB: -6)
+
+        #expect(slot.gain == 1.0)
+        #expect(slot.volume == 1.0)
+    }
+
+    /// Positive gain (quiet track) clamps to unity — player volume cannot
+    /// exceed 1.0, so boost is impossible on this apply path.
+    @Test
+    func positiveGain_clampsToUnity() {
+        let slot = MockPlayerSlot()
+        let engine = CrossfadeEngine(audioSession: AudioSessionStub(), slotFactory: { slot })
+
+        engine.play(url: URL(string: "file:///t.mp3")!, trackID: "A", gainDB: 7.11)
+
+        #expect(slot.gain == 1.0)
+    }
+
+    /// The gain-less play overload stays unleveled (gain 1.0).
+    @Test
+    func play_withoutGain_usesUnity() {
+        let slot = MockPlayerSlot()
+        let engine = CrossfadeEngine(audioSession: AudioSessionStub(), slotFactory: { slot })
+
+        engine.play(url: URL(string: "file:///t.mp3")!, trackID: "A")
+
+        #expect(slot.gain == 1.0)
+        #expect(slot.volume == 1.0)
     }
 }

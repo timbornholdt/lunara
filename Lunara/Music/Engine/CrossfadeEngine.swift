@@ -44,6 +44,9 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
     private let telemetry: PlaybackTelemetryEmitting?
 
     var crossfadeEnabled: Bool = true
+    /// Loudness leveling (Lunara-bvs). Captured per track at load time, so a
+    /// toggle takes effect from the next track rather than mid-song.
+    var levelingEnabled: Bool = true
 
     init(
         audioSession: AudioSessionProtocol,
@@ -91,6 +94,10 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
     }
 
     func play(url: URL, trackID: String) {
+        play(url: url, trackID: trackID, gainDB: nil)
+    }
+
+    func play(url: URL, trackID: String, gainDB: Float?) {
         do {
             try audioSession.configureForPlayback()
         } catch {
@@ -110,7 +117,8 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
             return
         }
 
-        activeSlot.volume = 1.0
+        activeSlot.gain = linearGain(fromDB: gainDB)
+        activeSlot.volume = activeSlot.gain
         logger.debug("[CF] play: setting onPlaybackComplete for trackID=\(trackID, privacy: .public)")
         activeSlot.onPlaybackComplete = { [weak self] in
             self?.handleTrackEnded()
@@ -221,7 +229,7 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
                 step += 1
                 let progress = Double(step) / Double(fadeSteps)
                 let angle = progress * .pi / 2.0
-                self.activeSlot.volume = Float(cos(angle))
+                self.activeSlot.volume = self.activeSlot.gain * Float(cos(angle))
 
                 if step >= fadeSteps {
                     timer.invalidate()
@@ -239,6 +247,10 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
     }
 
     func prepareNext(url: URL, trackID: String, transition: TransitionStyle) {
+        prepareNext(url: url, trackID: trackID, transition: transition, gainDB: nil)
+    }
+
+    func prepareNext(url: URL, trackID: String, transition: TransitionStyle, gainDB: Float?) {
         guard crossfadeEnabled else {
             pendingTransition = nil
             pendingTrackID = nil
@@ -247,6 +259,7 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
 
         do {
             try inactiveSlot.load(url: url, trackID: trackID)
+            inactiveSlot.gain = linearGain(fromDB: gainDB)
             pendingTransition = transition
             pendingTrackID = trackID
             logger.debug("[CF] prepareNext: trackID=\(trackID, privacy: .public) transition=\(String(describing: transition), privacy: .public)")
@@ -414,8 +427,8 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
         // the crossfade (progress never reaching 1.0) if the track ended mid-fade.
         let progress = min(1.0, inactiveSlot.elapsed / crossfadeDuration)
         let angle = progress * .pi / 2.0
-        activeSlot.volume = Float(cos(angle))
-        inactiveSlot.volume = Float(sin(angle))
+        activeSlot.volume = activeSlot.gain * Float(cos(angle))
+        inactiveSlot.volume = inactiveSlot.gain * Float(sin(angle))
 
         if progress >= 1.0 {
             completeCrossfade()
@@ -437,7 +450,7 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
         activeSlot = inactiveSlot
         inactiveSlot = temp
 
-        activeSlot.volume = 1.0
+        activeSlot.volume = activeSlot.gain
         activeSlot.onPlaybackComplete = { [weak self] in
             self?.handleTrackEnded()
         }
@@ -492,7 +505,7 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
             activeSlot = inactiveSlot
             inactiveSlot = temp
 
-            activeSlot.volume = 1.0
+            activeSlot.volume = activeSlot.gain
             activeSlot.onPlaybackComplete = { [weak self] in
                 self?.handleTrackEnded()
             }
@@ -532,7 +545,7 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
             inactiveSlot.pause()
             inactiveSlot.seek(to: 0)
             inactiveSlot.volume = 0
-            activeSlot.volume = 1.0
+            activeSlot.volume = activeSlot.gain
             isCrossfading = false
         }
     }
@@ -542,6 +555,14 @@ final class CrossfadeEngine: PlaybackEngineProtocol {
         cancelActiveCrossfade()
         pendingTransition = nil
         pendingTrackID = nil
+    }
+
+    /// dB -> linear amplitude for the slot scalar. Clamped to <= 0 dB: player
+    /// volume caps at 1.0, so boosting quiet tracks is physically impossible on
+    /// this apply path — leveling pulls loud masters down instead (Lunara-bvs).
+    private func linearGain(fromDB gainDB: Float?) -> Float {
+        guard levelingEnabled, let gainDB else { return 1.0 }
+        return powf(10.0, min(0, gainDB) / 20.0)
     }
 
     private func transitionToError(_ message: String) {
