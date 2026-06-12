@@ -20,11 +20,13 @@ struct LibraryRootTabView: View {
     @State private var nowPlayingScreenViewModel: NowPlayingScreenViewModel
     @State private var showNowPlayingSheet = false
     @Environment(\.scenePhase) private var scenePhase
-    // Bumped on every return to .active: the iOS 26 bottom accessory's hosted
-    // content stops receiving touches after a scene background/foreground
-    // cycle (taps and buttons both dead). Re-identifying the content forces a
-    // rebuild, which restores touch handling (Lunara-drf).
-    @State private var accessoryRefreshToken = 0
+    // The iOS 26 bottom accessory's hosted content stops receiving touches
+    // after a scene background/foreground cycle (taps and buttons both dead).
+    // Rebuilding the SwiftUI content via .id() did NOT fix it (#148) — the rot
+    // is in the accessory's UIKit host. On every return to .active this flag
+    // briefly disables the accessory so UIKit destroys and recreates the host,
+    // restoring hit-testing (Lunara-drf attempt 2).
+    @State private var accessoryResetInFlight = false
 
     init(coordinator: AppCoordinator, tabBarTheme: LunaraTabBarTheme = .garden) {
         self.coordinator = coordinator
@@ -148,18 +150,24 @@ struct LibraryRootTabView: View {
             // even when the content view resolves to empty (Lunara-ej0), and
             // conditionally applying the modifier itself crashes (FB/forums
             // thread 790913).
-            .tabViewBottomAccessory(isEnabled: nowPlayingBarViewModel.isVisible) {
+            .tabViewBottomAccessory(
+                isEnabled: nowPlayingBarViewModel.isVisible && !accessoryResetInFlight
+            ) {
                 NowPlayingBar(
                     viewModel: nowPlayingBarViewModel,
                     screenViewModel: nowPlayingScreenViewModel,
                     showSheet: $showNowPlayingSheet
                 )
-                .id(accessoryRefreshToken)
             }
         }
         .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .active {
-                accessoryRefreshToken &+= 1
+            guard newPhase == .active else { return }
+            accessoryResetInFlight = true
+            // Re-enable in a later transaction — flipping back in the same
+            // update would coalesce and the host would never tear down.
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(50))
+                accessoryResetInFlight = false
             }
         }
         // Hosted here, NOT inside the accessory content: the accessory tears
