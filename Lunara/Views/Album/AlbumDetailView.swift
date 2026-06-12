@@ -116,6 +116,11 @@ struct AlbumDetailView: View {
                 .foregroundStyle(viewModel.palette.textSecondary)
                 .animation(.easeInOut(duration: 0.4), value: viewModel.palette)
 
+            StarRatingView(rating: viewModel.rating, tint: viewModel.palette.textPrimary) { newRating in
+                Task { await viewModel.setRating(newRating) }
+            }
+            .animation(.easeInOut(duration: 0.4), value: viewModel.palette)
+
             Button("Play Album") {
                 Task {
                     await viewModel.playAlbum()

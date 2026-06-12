@@ -178,6 +178,14 @@ final class LibraryRemoteMock: LibraryRemoteDataSource {
         removeFromPlaylistRequests.append((playlistID, playlistItemID))
         if let removeFromPlaylistError { throw removeFromPlaylistError }
     }
+
+    var writeUserRatingRequests: [(ratingKey: String, rating: Double)] = []
+    var writeUserRatingError: LibraryError?
+
+    func writeUserRating(ratingKey: String, rating: Double) async throws {
+        writeUserRatingRequests.append((ratingKey, rating))
+        if let writeUserRatingError { throw writeUserRatingError }
+    }
 }
 
 @MainActor

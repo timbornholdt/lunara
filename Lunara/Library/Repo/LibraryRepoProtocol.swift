@@ -47,6 +47,10 @@ protocol LibraryRepoProtocol: AnyObject {
     func tracks(forAlbums albumIDs: [String]) async throws -> [Track]
     func track(id: String) async throws -> Track?
     func refreshAlbumDetail(albumID: String) async throws -> AlbumDetailRefreshOutcome
+    /// Writes the user's album star rating back to Plex (0-10 scale; nil clears),
+    /// then refreshes the cached album detail and returns the refreshed album.
+    /// Online-only; throws when the remote write fails.
+    func setAlbumRating(albumID: String, rating: Int?) async throws -> Album?
     func collections() async throws -> [Collection]
     func collection(id: String) async throws -> Collection?
     /// Fetches albums belonging to a collection, querying the remote API for membership.
@@ -109,6 +113,13 @@ protocol LibraryRepoProtocol: AnyObject {
 
 extension LibraryRepoProtocol {
     func fetchLoudnessLevels(trackID: String) async throws -> [Float]? { nil }
+
+    /// Default for conformers that don't support rating writeback (test doubles,
+    /// the PlexAPIClient-as-repo fallback). LibraryRepo overrides with the real
+    /// write-through-refresh implementation.
+    func setAlbumRating(albumID: String, rating: Int?) async throws -> Album? {
+        throw LibraryError.operationFailed(reason: "Rating writeback is not supported by this library source.")
+    }
 
     func cachedArtistEnrichment(name: String) async throws -> ArtistEnrichmentCacheEntry? { nil }
     func saveArtistEnrichment(_ enrichment: MusicBrainzArtistEnrichment, name: String) async throws { }

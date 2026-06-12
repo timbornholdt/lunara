@@ -34,6 +34,7 @@ protocol LibraryRemoteDataSource: AnyObject {
     func fetchLoudnessLevels(trackID: String, sampleCount: Int) async throws -> [Float]?
     func addToPlaylist(playlistID: String, ratingKey: String) async throws
     func removeFromPlaylist(playlistID: String, playlistItemID: String) async throws
+    func writeUserRating(ratingKey: String, rating: Double) async throws
 }
 
 extension PlexAPIClient: LibraryRemoteDataSource { }
@@ -158,6 +159,13 @@ final class LibraryRepo: LibraryRepoProtocol {
         try await store.replaceTracks(remoteTracks, forAlbum: albumID)
 
         return AlbumDetailRefreshOutcome(album: remoteAlbum, tracks: remoteTracks)
+    }
+
+    func setAlbumRating(albumID: String, rating: Int?) async throws -> Album? {
+        // Plex clears a rating with -1; UI stars arrive on the 0-10 scale.
+        try await remote.writeUserRating(ratingKey: albumID, rating: rating.map(Double.init) ?? -1)
+        let outcome = try await refreshAlbumDetail(albumID: albumID)
+        return outcome.album
     }
 
     func collections() async throws -> [Collection] {
