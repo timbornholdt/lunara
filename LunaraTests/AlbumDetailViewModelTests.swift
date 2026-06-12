@@ -163,6 +163,59 @@ struct AlbumDetailViewModelTests {
         #expect(subject.actions.queueTrackLaterRequests == [track.plexID])
     }
 
+    // MARK: - setRating (Lunara-to3)
+
+    @Test
+    func setRating_writesThroughLibrary_andAdoptsRefreshedRating() async throws {
+        let subject = makeSubject()
+        subject.library.setAlbumRatingResult = Album(
+            plexID: subject.album.plexID, title: subject.album.title,
+            artistName: subject.album.artistName, year: nil, thumbURL: nil,
+            genre: nil, rating: 7, addedAt: nil, trackCount: 10, duration: 1800
+        )
+
+        await subject.viewModel.setRating(7)
+
+        #expect(subject.library.setAlbumRatingRequests.count == 1)
+        #expect(subject.library.setAlbumRatingRequests.first?.albumID == subject.album.plexID)
+        #expect(subject.library.setAlbumRatingRequests.first?.rating == 7)
+        #expect(subject.viewModel.rating == 7)
+        #expect(subject.viewModel.errorBannerState.isPresented == false)
+    }
+
+    @Test
+    func setRating_whenWriteFails_revertsRatingAndShowsBanner() async throws {
+        let subject = makeSubject()
+        subject.library.setAlbumRatingResult = Album(
+            plexID: subject.album.plexID, title: subject.album.title,
+            artistName: subject.album.artistName, year: nil, thumbURL: nil,
+            genre: nil, rating: 4, addedAt: nil, trackCount: 10, duration: 1800
+        )
+        await subject.viewModel.setRating(4)
+        subject.library.setAlbumRatingError = .timeout
+
+        await subject.viewModel.setRating(10)
+
+        #expect(subject.viewModel.rating == 4)
+        #expect(subject.viewModel.errorBannerState.isPresented)
+    }
+
+    @Test
+    func setRating_nilClearsRating() async throws {
+        let subject = makeSubject()
+        subject.library.setAlbumRatingResult = Album(
+            plexID: subject.album.plexID, title: subject.album.title,
+            artistName: subject.album.artistName, year: nil, thumbURL: nil,
+            genre: nil, rating: nil, addedAt: nil, trackCount: 10, duration: 1800
+        )
+
+        await subject.viewModel.setRating(nil)
+
+        try #require(subject.library.setAlbumRatingRequests.count == 1)
+        #expect(subject.library.setAlbumRatingRequests[0].rating == nil)
+        #expect(subject.viewModel.rating == nil)
+    }
+
     private func makeSubject(
         review: String? = "A detailed review",
         genres: [String]? = ["Ambient", "Electronic"],
@@ -250,6 +303,16 @@ private final class AlbumDetailLibraryRepoMock: LibraryRepoProtocol {
             album: albumByID[albumID],
             tracks: tracksByAlbumID[albumID] ?? []
         )
+    }
+
+    var setAlbumRatingRequests: [(albumID: String, rating: Int?)] = []
+    var setAlbumRatingResult: Album?
+    var setAlbumRatingError: LibraryError?
+
+    func setAlbumRating(albumID: String, rating: Int?) async throws -> Album? {
+        setAlbumRatingRequests.append((albumID, rating))
+        if let setAlbumRatingError { throw setAlbumRatingError }
+        return setAlbumRatingResult
     }
 
     func collections() async throws -> [Collection] { [] }

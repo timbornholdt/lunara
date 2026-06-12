@@ -110,6 +110,47 @@ final class PlexAPIClientTests: XCTestCase {
         XCTAssertNil(albums[1].rating)
     }
 
+    // MARK: - writeUserRating() Tests (Lunara-to3)
+
+    func test_writeUserRating_buildsAuthenticatedPUTRateRequest() async throws {
+        try authManager.setToken("test_token_123")
+
+        try await client.writeUserRating(ratingKey: "1001", rating: 8)
+
+        let request = try XCTUnwrap(mockSession.lastRequest)
+        XCTAssertEqual(request.httpMethod, "PUT")
+        let url = try XCTUnwrap(request.url)
+        XCTAssertEqual(url.path, "/:/rate")
+        let query = try XCTUnwrap(url.query)
+        XCTAssertTrue(query.contains("key=1001"))
+        XCTAssertTrue(query.contains("identifier=com.plexapp.plugins.library"))
+        XCTAssertTrue(query.contains("rating=8.0"))
+        XCTAssertTrue(query.contains("X-Plex-Token=test_token_123"))
+    }
+
+    func test_writeUserRating_clearUsesMinusOne() async throws {
+        try authManager.setToken("token")
+
+        try await client.writeUserRating(ratingKey: "1001", rating: -1)
+
+        let query = try XCTUnwrap(mockSession.lastRequest?.url?.query)
+        XCTAssertTrue(query.contains("rating=-1.0"))
+    }
+
+    func test_writeUserRating_non2xxResponse_throws() async throws {
+        try authManager.setToken("token")
+        mockSession.responseToReturn = HTTPURLResponse(
+            url: baseURL, statusCode: 500, httpVersion: nil, headerFields: nil
+        )
+
+        do {
+            try await client.writeUserRating(ratingKey: "1001", rating: 8)
+            XCTFail("Expected writeUserRating to throw on HTTP 500")
+        } catch {
+            // expected
+        }
+    }
+
     func test_fetchAlbums_parsesSummaryAndChildGenreTags() async throws {
         try authManager.setToken("token")
         mockSession.dataToReturn = """

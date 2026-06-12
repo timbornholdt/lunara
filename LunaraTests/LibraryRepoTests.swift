@@ -604,6 +604,48 @@ struct LibraryRepoTests {
         #expect(subject.store.setLoudnessRequests == ["t1"])
     }
 
+    // MARK: - setAlbumRating (Lunara-to3)
+
+    @Test
+    func setAlbumRating_writesRemoteRating_thenRefreshesAndPersistsAlbum() async throws {
+        let subject = makeSubject()
+        let refreshedAlbum = Album(
+            plexID: "album-1", title: "Album album-1", artistName: "Artist", year: nil,
+            thumbURL: nil, genre: nil, rating: 8, addedAt: nil, trackCount: 0, duration: 0
+        )
+        subject.remote.albumsByID["album-1"] = refreshedAlbum
+
+        let returnedAlbum = try await subject.repo.setAlbumRating(albumID: "album-1", rating: 8)
+
+        #expect(subject.remote.writeUserRatingRequests.count == 1)
+        #expect(subject.remote.writeUserRatingRequests.first?.ratingKey == "album-1")
+        #expect(subject.remote.writeUserRatingRequests.first?.rating == 8.0)
+        #expect(returnedAlbum?.rating == 8)
+        // Write-through: the refreshed album lands in the local store.
+        #expect(subject.store.albumByID["album-1"]?.rating == 8)
+    }
+
+    @Test
+    func setAlbumRating_nilRating_sendsMinusOneToClear() async throws {
+        let subject = makeSubject()
+        subject.remote.albumsByID["album-1"] = makeAlbum(id: "album-1")
+
+        _ = try await subject.repo.setAlbumRating(albumID: "album-1", rating: nil)
+
+        #expect(subject.remote.writeUserRatingRequests.first?.rating == -1)
+    }
+
+    @Test
+    func setAlbumRating_whenRemoteWriteFails_throwsWithoutRefreshing() async throws {
+        let subject = makeSubject()
+        subject.remote.writeUserRatingError = .timeout
+
+        await #expect(throws: LibraryError.self) {
+            _ = try await subject.repo.setAlbumRating(albumID: "album-1", rating: 8)
+        }
+        #expect(subject.remote.fetchAlbumRequests.isEmpty)
+    }
+
     private func makeSubject(now: Date = Date(timeIntervalSince1970: 1000)) -> (
         repo: LibraryRepo,
         remote: LibraryRemoteMock,

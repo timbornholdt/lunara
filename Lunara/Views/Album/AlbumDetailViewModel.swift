@@ -32,6 +32,10 @@ final class AlbumDetailViewModel {
     var styles: [String]
     var moods: [String]
 
+    /// User's star rating on Plex's 0-10 scale; nil = unrated. Seeded from the
+    /// cached album, updated by detail refreshes and rating writebacks.
+    var rating: Int?
+
     var tracks: [Track] = []
     var loadingState: LoadingState = .idle
     var errorBannerState = ErrorBannerState()
@@ -61,6 +65,7 @@ final class AlbumDetailViewModel {
         moods: [String] = []
     ) {
         self.album = album
+        self.rating = album.rating
         self.library = library
         self.artworkPipeline = artworkPipeline
         self.actions = actions
@@ -155,6 +160,22 @@ final class AlbumDetailViewModel {
         albumDownloadState = downloadManager.downloadState(forAlbum: album.plexID)
     }
 
+    /// Writes the user's star rating (Plex 0-10 scale; nil clears) back to Plex.
+    /// Optimistic: stars update immediately and revert if the write fails.
+    func setRating(_ newRating: Int?) async {
+        let previousRating = rating
+        rating = newRating
+        do {
+            let refreshedAlbum = try await library.setAlbumRating(albumID: album.plexID, rating: newRating)
+            if let refreshedAlbum {
+                rating = refreshedAlbum.rating
+            }
+        } catch {
+            rating = previousRating
+            errorBannerState.show(message: userFacingMessage(for: error))
+        }
+    }
+
     func submitGardenTodo(body: String) async throws {
         guard let gardenClient else {
             logger.warning("submitGardenTodo: no gardenClient configured")
@@ -244,6 +265,10 @@ final class AlbumDetailViewModel {
     }
 
     private func applyAlbumMetadata(_ refreshedAlbum: Album) {
+        // Unlike the tag fields below, nil is meaningful here: it's how the
+        // server reports an unrated album, so always mirror it.
+        rating = refreshedAlbum.rating
+
         if let refreshedReview = refreshedAlbum.review?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty {
             review = refreshedReview
         }
