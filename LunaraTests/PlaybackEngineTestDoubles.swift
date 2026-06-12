@@ -36,6 +36,12 @@ final class PlaybackEngineDriverMock: PlaybackEngineDriver {
         stopCallCount += 1
     }
 
+    private(set) var setVolumeCalls: [Float] = []
+
+    func setVolume(_ volume: Float) {
+        setVolumeCalls.append(volume)
+    }
+
     func emitTimeControlStatus(_ status: AVPlayer.TimeControlStatus) {
         onTimeControlStatusChanged?(status)
     }

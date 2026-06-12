@@ -9,6 +9,10 @@ protocol PlayerSlotProtocol: AnyObject {
     var duration: TimeInterval { get }
     var elapsed: TimeInterval { get }
     var volume: Float { get set }
+    /// Loudness-leveling scalar (linear, 0...1) for the LOADED track. Travels
+    /// with the slot through swaps; the engine composes every volume write as
+    /// gain * fadeFactor so leveling never fights the fade math (Lunara-bvs).
+    var gain: Float { get set }
     /// Whether the loaded source is still healthy enough to start playing.
     /// AVAudioPlayer plays an unlinked-but-open file as silence rather than
     /// erroring, so this re-checks the source (file existence) at fade time
@@ -28,6 +32,7 @@ final class PlayerSlot: NSObject, AVAudioPlayerDelegate, PlayerSlotProtocol {
     private var loadedURL: URL?
     private(set) var trackID: String?
     private(set) var isActive = false
+    var gain: Float = 1.0
     var onPlaybackComplete: (() -> Void)?
 
     var isReadyForPlayback: Bool {
@@ -73,6 +78,7 @@ final class PlayerSlot: NSObject, AVAudioPlayerDelegate, PlayerSlotProtocol {
         loadedURL = nil
         isActive = false
         trackID = nil
+        gain = 1.0
     }
 
     func seek(to time: TimeInterval) {

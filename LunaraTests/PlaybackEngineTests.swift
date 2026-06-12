@@ -31,6 +31,42 @@ struct PlaybackEngineTests {
         #expect(timeoutScheduler.tasks.count == 1)
     }
 
+    // MARK: - Loudness leveling (Lunara-bvs)
+
+    @Test
+    func play_withGain_setsAttenuatedDriverVolume() {
+        let driver = PlaybackEngineDriverMock()
+        let subject = AVQueuePlayerEngine(
+            audioSession: AudioSessionMock(),
+            driver: driver,
+            timeoutScheduler: TimeoutSchedulerMock(),
+            diagnosticsLogger: PlaybackDiagnosticsLoggerMock()
+        )
+
+        subject.play(url: URL(string: "https://example.com/t.mp3")!, trackID: "t1", gainDB: -6)
+
+        #expect(driver.setVolumeCalls.count == 1)
+        #expect(abs((driver.setVolumeCalls.last ?? 0) - 0.5012) < 0.001)
+    }
+
+    @Test
+    func play_withoutGainOrLevelingDisabled_usesUnityVolume() {
+        let driver = PlaybackEngineDriverMock()
+        let subject = AVQueuePlayerEngine(
+            audioSession: AudioSessionMock(),
+            driver: driver,
+            timeoutScheduler: TimeoutSchedulerMock(),
+            diagnosticsLogger: PlaybackDiagnosticsLoggerMock()
+        )
+
+        subject.play(url: URL(string: "https://example.com/t.mp3")!, trackID: "t1")
+        #expect(driver.setVolumeCalls.last == 1.0)
+
+        subject.levelingEnabled = false
+        subject.play(url: URL(string: "https://example.com/t.mp3")!, trackID: "t2", gainDB: -6)
+        #expect(driver.setVolumeCalls.last == 1.0)
+    }
+
     @Test
     func play_whenAudioSessionFails_transitionsToErrorAndSkipsDriverPlay() {
         let audioSession = AudioSessionMock()
