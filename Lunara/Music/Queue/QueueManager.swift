@@ -222,10 +222,25 @@ final class QueueManager: QueueManagerProtocol {
         let tStart = clock.now
         currentPlayTask = Task { [weak self, loudnessProvider] in
             do {
-                // Leveling gain rides the same cache chain as the contour —
-                // fetched concurrently with the resolve so it never delays
-                // play start (Lunara-dtv).
-                async let gainFetch = loudnessProvider?.fetchTrackGain(trackID: currentItem.trackID)
+                // Leveling gain rides the same cache chain as the contour,
+                // fetched concurrently with the resolve. An UNCACHED gain is a
+                // network metadata fetch, so the wait below is bounded — an
+                // offline play must never stall on the radio (Lunara-e0x). The
+                // fetch itself keeps running and backfills the store, so the
+                // track plays leveled from its next start. A polled slot, not a
+                // task-group race: awaiting Task.value is not cancellation-
+                // interruptible, so a group would wedge on a hung fetch.
+                let gainSlot: GainSlot?
+                if let loudnessProvider {
+                    let slot = GainSlot()
+                    gainSlot = slot
+                    Task {
+                        let fetched = ((try? await loudnessProvider.fetchTrackGain(trackID: currentItem.trackID)) ?? nil)?.effective
+                        await MainActor.run { slot.result = .some(fetched) }
+                    }
+                } else {
+                    gainSlot = nil
+                }
                 let resolvedURL = try await resolver.resolvePlaybackURL(for: currentItem, allowOffline: allowOffline)
                 let tResolved = clock.now
 
@@ -243,7 +258,21 @@ final class QueueManager: QueueManagerProtocol {
                     playURL = try await trackCache.prepare(url: resolvedURL, trackID: currentItem.trackID)
                 }
                 let tPrepared = clock.now
-                let gainDB = ((try? await gainFetch) ?? nil)?.effective
+                // Up to ~150ms in 25ms ticks; a cached gain lands well inside
+                // the first tick, an uncached one plays unleveled this once.
+                var gainDB: Float?
+                if let gainSlot {
+                    // A cached gain only needs a scheduling hop, not wall time —
+                    // give the slot task a turn before paying for a real sleep.
+                    await Task.yield()
+                    await Task.yield()
+                    var ticksRemaining = 6
+                    while await MainActor.run(body: { gainSlot.result }) == nil, ticksRemaining > 0 {
+                        ticksRemaining -= 1
+                        try? await Task.sleep(for: .milliseconds(25))
+                    }
+                    gainDB = await MainActor.run(body: { gainSlot.result }) ?? nil
+                }
 
                 try Task.checkCancellation()
                 await MainActor.run {
@@ -401,6 +430,13 @@ final class QueueManager: QueueManagerProtocol {
             info["duration"] = String(format: "%.1f", duration)
         }
         telemetry.recordDetail(eventName: "fadeDecision", info: info)
+    }
+
+    /// One-shot slot the bounded gain wait polls (Lunara-e0x).
+    /// `.none` = fetch still in flight; `.some(x)` = fetched (x may be nil).
+    @MainActor
+    private final class GainSlot {
+        var result: Float??
     }
 
     private static func milliseconds(from start: ContinuousClock.Instant, to end: ContinuousClock.Instant) -> String {
