@@ -730,6 +730,72 @@ struct QueueManagerTests {
         #expect(loudness.requestedTrackIDs == ["t0", "t1"])
     }
 
+    // MARK: - Loudness leveling gain handoff (Lunara-dtv)
+
+    /// The current item's gain flows from the provider to the engine's play call.
+    @Test
+    func play_passesTrackGainToEngine() async throws {
+        let engine = PlaybackEngineMock()
+        let loudness = LoudnessProviderMock()
+        loudness.gainByTrackID["t0"] = TrackGain(gain: -4.75, albumGain: -4.75)
+        let manager = QueueManager(
+            engine: engine,
+            persistence: QueueStatePersistenceMock(),
+            loudnessProvider: loudness,
+            resolver: PlaybackURLResolvingMock()
+        )
+
+        manager.playNow([QueueItem(trackID: "t0", streamKey: "/k/t0", albumID: "album-A")])
+        await waitUntil { engine.playGains.count == 1 }
+
+        #expect(engine.playGains[0] == -4.75)
+    }
+
+    /// No gain row => the engine is told nil (plays unleveled at unity).
+    @Test
+    func play_withoutGain_passesNilToEngine() async throws {
+        let engine = PlaybackEngineMock()
+        let manager = QueueManager(
+            engine: engine,
+            persistence: QueueStatePersistenceMock(),
+            loudnessProvider: LoudnessProviderMock(),
+            resolver: PlaybackURLResolvingMock()
+        )
+
+        manager.playNow([QueueItem(trackID: "t0", streamKey: "/k/t0", albumID: "album-A")])
+        await waitUntil { engine.playGains.count == 1 }
+
+        #expect(engine.playGains[0] == nil)
+    }
+
+    /// The incoming track's gain rides prepareNext, and the fadeDecision span
+    /// records the exact number applied.
+    @Test
+    func prepareNext_passesNextGain_andRecordsItOnFadeDecision() async throws {
+        let engine = PlaybackEngineMock()
+        let loudness = LoudnessProviderMock()
+        loudness.gainByTrackID["t1"] = TrackGain(gain: -12, albumGain: -12)
+        let telemetry = TelemetryEmittingMock()
+        let manager = QueueManager(
+            engine: engine,
+            persistence: QueueStatePersistenceMock(),
+            loudnessProvider: loudness,
+            resolver: PlaybackURLResolvingMock(),
+            telemetry: telemetry
+        )
+        engine.crossfadeEnabled = true
+        let item0 = QueueItem(trackID: "t0", streamKey: "/k/t0", albumID: "album-A")
+        let item1 = QueueItem(trackID: "t1", streamKey: "/k/t1", albumID: "album-B")
+
+        manager.playNow([item0, item1])
+        await waitUntil { engine.prepareNextGains.count == 1 }
+
+        #expect(engine.prepareNextGains[0] == -12)
+        await waitUntil { telemetry.details.contains { $0.name == "fadeDecision" } }
+        let record = try #require(telemetry.details.first { $0.name == "fadeDecision" })
+        #expect(record.info["gainDB"] == "-12.00")
+    }
+
     // MARK: - Offline availability change → re-resolve preloaded next (Lunara-uww.3.6)
 
     @Test
