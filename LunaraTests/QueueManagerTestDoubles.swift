@@ -12,6 +12,9 @@ final class PlaybackEngineMock: PlaybackEngineProtocol {
     var crossfadeEnabled: Bool = false
 
     private(set) var playCalls: [(URL, String)] = []
+    /// gainDB handed to the gain-aware play/prepareNext overloads (Lunara-dtv).
+    private(set) var playGains: [Float?] = []
+    private(set) var prepareNextGains: [Float?] = []
     private(set) var pauseCallCount = 0
     private(set) var resumeCallCount = 0
     private(set) var seekCalls: [TimeInterval] = []
@@ -25,6 +28,11 @@ final class PlaybackEngineMock: PlaybackEngineProtocol {
     /// `.error` and (mirroring CrossfadeEngine) does NOT set `currentTrackID`.
     /// Lets tests drive the reactive stream-recovery path.
     var playFailsForURLs: Set<URL> = []
+
+    func play(url: URL, trackID: String, gainDB: Float?) {
+        playGains.append(gainDB)
+        play(url: url, trackID: trackID)
+    }
 
     func play(url: URL, trackID: String) {
         playCalls.append((url, trackID))
@@ -66,6 +74,11 @@ final class PlaybackEngineMock: PlaybackEngineProtocol {
 
     func prepareNext(url: URL, trackID: String, transition: TransitionStyle) {
         prepareNextCalls.append((url, trackID, transition))
+    }
+
+    func prepareNext(url: URL, trackID: String, transition: TransitionStyle, gainDB: Float?) {
+        prepareNextGains.append(gainDB)
+        prepareNext(url: url, trackID: trackID, transition: transition)
     }
 
     func clearPreparedNext() {
@@ -202,6 +215,14 @@ final class LoudnessProviderMock: LoudnessDataProviding {
     func fetchLoudnessLevels(trackID: String) async throws -> [Float]? {
         requestedTrackIDs.append(trackID)
         return levelsByTrackID[trackID]
+    }
+
+    var gainByTrackID: [String: TrackGain] = [:]
+    private(set) var gainRequestedTrackIDs: [String] = []
+
+    func fetchTrackGain(trackID: String) async throws -> TrackGain? {
+        gainRequestedTrackIDs.append(trackID)
+        return gainByTrackID[trackID]
     }
 }
 

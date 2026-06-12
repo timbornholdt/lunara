@@ -10,4 +10,8 @@ final class PlexLoudnessAdapter: LoudnessDataProviding {
     func fetchLoudnessLevels(trackID: String) async throws -> [Float]? {
         try await library.fetchLoudnessLevels(trackID: trackID)
     }
+
+    func fetchTrackGain(trackID: String) async throws -> TrackGain? {
+        try await library.fetchTrackGain(trackID: trackID)
+    }
 }

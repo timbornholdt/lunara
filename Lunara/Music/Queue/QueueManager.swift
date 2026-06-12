@@ -220,8 +220,12 @@ final class QueueManager: QueueManagerProtocol {
         let queueLength = items.count
         let clock = ContinuousClock()
         let tStart = clock.now
-        currentPlayTask = Task { [weak self] in
+        currentPlayTask = Task { [weak self, loudnessProvider] in
             do {
+                // Leveling gain rides the same cache chain as the contour —
+                // fetched concurrently with the resolve so it never delays
+                // play start (Lunara-dtv).
+                async let gainFetch = loudnessProvider?.fetchTrackGain(trackID: currentItem.trackID)
                 let resolvedURL = try await resolver.resolvePlaybackURL(for: currentItem, allowOffline: allowOffline)
                 let tResolved = clock.now
 
@@ -239,13 +243,14 @@ final class QueueManager: QueueManagerProtocol {
                     playURL = try await trackCache.prepare(url: resolvedURL, trackID: currentItem.trackID)
                 }
                 let tPrepared = clock.now
+                let gainDB = ((try? await gainFetch) ?? nil)?.effective
 
                 try Task.checkCancellation()
                 await MainActor.run {
                     guard let self else { return }
                     guard self.isCurrent(item: currentItem, index: targetIndex) else { return }
                     self.lastPlayedURLWasFile = playURL.isFileURL
-                    self.engine.play(url: playURL, trackID: currentItem.trackID)
+                    self.engine.play(url: playURL, trackID: currentItem.trackID, gainDB: gainDB)
                     self.isResolvingPlayback = false
                     if telemetryEnabled {
                         self.telemetry?.recordDetail(eventName: "playStart", info: [
@@ -327,6 +332,9 @@ final class QueueManager: QueueManagerProtocol {
                 // from the store-backed cache after first fetch, so this stays cheap.
                 let loudness = try? await loudnessProvider?.fetchLoudnessLevels(trackID: currentItem.trackID)
                 let nextLoudness = try? await loudnessProvider?.fetchLoudnessLevels(trackID: nextItem.trackID)
+                // Leveling gain for the INCOMING slot (Lunara-dtv); cached
+                // alongside the contour, so usually free by this point.
+                let nextGain = try? await loudnessProvider?.fetchTrackGain(trackID: nextItem.trackID)
                 guard !Task.isCancelled else { return }
 
                 await MainActor.run {
@@ -341,13 +349,20 @@ final class QueueManager: QueueManagerProtocol {
                         nextLoudnessLevels: nextLoudness,
                         nextTrackDuration: nextItem.duration
                     )
-                    self.engine.prepareNext(url: prepareURL, trackID: nextItem.trackID, transition: transition)
+                    let nextGainDB = (nextGain ?? nil)?.effective
+                    self.engine.prepareNext(
+                        url: prepareURL,
+                        trackID: nextItem.trackID,
+                        transition: transition,
+                        gainDB: nextGainDB
+                    )
                     self.recordFadeDecision(
                         transition,
                         from: currentItem,
                         to: nextItem,
                         hadContour: loudness != nil,
-                        hadNextContour: nextLoudness != nil
+                        hadNextContour: nextLoudness != nil,
+                        nextGainDB: nextGainDB
                     )
                 }
             } catch {
@@ -363,7 +378,8 @@ final class QueueManager: QueueManagerProtocol {
         from currentItem: QueueItem,
         to nextItem: QueueItem,
         hadContour: Bool,
-        hadNextContour: Bool = false
+        hadNextContour: Bool = false,
+        nextGainDB: Float? = nil
     ) {
         guard let telemetry, telemetry.isEnabled else { return }
         var info: [String: String] = [
@@ -373,6 +389,9 @@ final class QueueManager: QueueManagerProtocol {
             "hadNextContour": hadNextContour ? "1" : "0",
             "trackDuration": String(format: "%.1f", engine.duration)
         ]
+        // Applied leveling gain for the incoming track, so device QA can match
+        // perceived volume to the exact number the engine used (Lunara-dtv).
+        info["gainDB"] = nextGainDB.map { String(format: "%.2f", $0) } ?? "none"
         switch transition {
         case .gapless:
             info["type"] = "gapless"

@@ -13,4 +13,10 @@ struct TrackGain: Equatable, Sendable {
     var isEmpty: Bool {
         gain == nil && albumGain == nil
     }
+
+    /// The dB offset the engine should apply: track gain when present, album
+    /// gain as the fallback (they're equal on current Plex servers anyway).
+    var effective: Float? {
+        gain ?? albumGain
+    }
 }
