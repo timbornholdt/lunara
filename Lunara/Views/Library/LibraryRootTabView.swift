@@ -19,6 +19,12 @@ struct LibraryRootTabView: View {
     @State private var nowPlayingBarViewModel: NowPlayingBarViewModel
     @State private var nowPlayingScreenViewModel: NowPlayingScreenViewModel
     @State private var showNowPlayingSheet = false
+    @Environment(\.scenePhase) private var scenePhase
+    // Bumped on every return to .active: the iOS 26 bottom accessory's hosted
+    // content stops receiving touches after a scene background/foreground
+    // cycle (taps and buttons both dead). Re-identifying the content forces a
+    // rebuild, which restores touch handling (Lunara-drf).
+    @State private var accessoryRefreshToken = 0
 
     init(coordinator: AppCoordinator, tabBarTheme: LunaraTabBarTheme = .garden) {
         self.coordinator = coordinator
@@ -148,6 +154,12 @@ struct LibraryRootTabView: View {
                     screenViewModel: nowPlayingScreenViewModel,
                     showSheet: $showNowPlayingSheet
                 )
+                .id(accessoryRefreshToken)
+            }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                accessoryRefreshToken &+= 1
             }
         }
         // Hosted here, NOT inside the accessory content: the accessory tears
