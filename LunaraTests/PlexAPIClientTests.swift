@@ -110,6 +110,51 @@ final class PlexAPIClientTests: XCTestCase {
         XCTAssertNil(albums[1].rating)
     }
 
+    // MARK: - fetchTrackGain() Tests (Lunara-7g3)
+
+    func test_fetchTrackGain_parsesGainAttrsFromAudioStream() async throws {
+        try authManager.setToken("token")
+        mockSession.dataToReturn = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <MediaContainer>
+            <Track ratingKey="69340" key="/library/metadata/69340" type="track" title="Intro">
+                <Media id="1">
+                    <Part id="1" key="/library/parts/1/file.mp3">
+                        <Stream id="100" streamType="1" codec="mjpeg" />
+                        <Stream id="101" streamType="2" codec="mp3" gain="-4.75" albumGain="-4.5" loudness="-16.64" />
+                    </Part>
+                </Media>
+            </Track>
+        </MediaContainer>
+        """.data(using: .utf8)!
+
+        let gain = try await client.fetchTrackGain(trackID: "69340")
+
+        XCTAssertEqual(gain, TrackGain(gain: -4.75, albumGain: -4.5))
+        let url = try XCTUnwrap(mockSession.lastRequest?.url)
+        XCTAssertEqual(url.path, "/library/metadata/69340")
+    }
+
+    func test_fetchTrackGain_unanalyzedStream_returnsNil() async throws {
+        try authManager.setToken("token")
+        mockSession.dataToReturn = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <MediaContainer>
+            <Track ratingKey="69340" type="track" title="Intro">
+                <Media id="1">
+                    <Part id="1" key="/library/parts/1/file.mp3">
+                        <Stream id="101" streamType="2" codec="mp3" />
+                    </Part>
+                </Media>
+            </Track>
+        </MediaContainer>
+        """.data(using: .utf8)!
+
+        let gain = try await client.fetchTrackGain(trackID: "69340")
+
+        XCTAssertNil(gain)
+    }
+
     // MARK: - writeUserRating() Tests (Lunara-to3)
 
     func test_writeUserRating_buildsAuthenticatedPUTRateRequest() async throws {

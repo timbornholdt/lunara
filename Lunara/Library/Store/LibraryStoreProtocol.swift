@@ -283,6 +283,10 @@ protocol LibraryStoreProtocol: AnyObject {
     func loudnessLevels(forTrack trackID: String) async throws -> [Float]?
     func setLoudnessLevels(_ levels: [Float], forTrack trackID: String) async throws
 
+    /// Persisted loudness gain offsets (Lunara-7g3), same dispatch story.
+    func trackGain(forTrack trackID: String) async throws -> TrackGain?
+    func setTrackGain(_ gain: TrackGain, forTrack trackID: String) async throws
+
     /// Batched track fetch for multi-album queue builds (Lunara-uuy). Requirement
     /// (not just an extension member) so LibraryStore's single-query version
     /// dispatches dynamically; the default below loops for doubles.
@@ -302,6 +306,9 @@ protocol LibraryStoreProtocol: AnyObject {
 extension LibraryStoreProtocol {
     func loudnessLevels(forTrack trackID: String) async throws -> [Float]? { nil }
     func setLoudnessLevels(_ levels: [Float], forTrack trackID: String) async throws { }
+
+    func trackGain(forTrack trackID: String) async throws -> TrackGain? { nil }
+    func setTrackGain(_ gain: TrackGain, forTrack trackID: String) async throws { }
 
     func cachedArtistEnrichment(name: String) async throws -> ArtistEnrichmentCacheEntry? { nil }
     func saveArtistEnrichment(_ enrichment: MusicBrainzArtistEnrichment, name: String) async throws { }

@@ -178,6 +178,56 @@ struct LibraryStoreTests {
         #expect(try await store.loudnessLevels(forTrack: "t1") == [0.2])
     }
 
+    // MARK: - Track gain persistence (Lunara-7g3)
+
+    @Test
+    func trackGain_roundTripAndMissing() async throws {
+        let store = try LibraryStore.inMemory()
+
+        #expect(try await store.trackGain(forTrack: "t1") == nil)
+
+        try await store.setTrackGain(TrackGain(gain: -4.75, albumGain: -4.75), forTrack: "t1")
+        #expect(try await store.trackGain(forTrack: "t1") == TrackGain(gain: -4.75, albumGain: -4.75))
+    }
+
+    /// The two writers share a row but must never stomp each other's columns.
+    @Test
+    func trackGain_andLevels_upsertsDoNotStompEachOther() async throws {
+        let store = try LibraryStore.inMemory()
+
+        try await store.setTrackGain(TrackGain(gain: 7.11, albumGain: 7.11), forTrack: "t1")
+        try await store.setLoudnessLevels([0.1, 0.9], forTrack: "t1")
+        #expect(try await store.trackGain(forTrack: "t1") == TrackGain(gain: 7.11, albumGain: 7.11))
+        #expect(try await store.loudnessLevels(forTrack: "t1") == [0.1, 0.9])
+
+        try await store.setTrackGain(TrackGain(gain: -2.0, albumGain: -2.5), forTrack: "t1")
+        #expect(try await store.loudnessLevels(forTrack: "t1") == [0.1, 0.9])
+        #expect(try await store.trackGain(forTrack: "t1") == TrackGain(gain: -2.0, albumGain: -2.5))
+    }
+
+    /// A gain-first row parks an empty levels placeholder that must read as
+    /// "no contour", not an empty contour.
+    @Test
+    func trackGain_writtenBeforeLevels_leavesContourMissing() async throws {
+        let store = try LibraryStore.inMemory()
+
+        try await store.setTrackGain(TrackGain(gain: -4.75, albumGain: nil), forTrack: "t1")
+
+        #expect(try await store.loudnessLevels(forTrack: "t1") == nil)
+        #expect(try await store.trackGain(forTrack: "t1") == TrackGain(gain: -4.75, albumGain: nil))
+    }
+
+    /// Rows whose gain columns are both NULL (pre-v15 contour rows) report nil
+    /// so the repo knows to fetch.
+    @Test
+    func trackGain_contourOnlyRow_returnsNil() async throws {
+        let store = try LibraryStore.inMemory()
+
+        try await store.setLoudnessLevels([0.5], forTrack: "t1")
+
+        #expect(try await store.trackGain(forTrack: "t1") == nil)
+    }
+
     @Test
     func fetchesEmptyCollectionsFromFreshStore() async throws {
         let store = try LibraryStore.inMemory()

@@ -604,6 +604,63 @@ struct LibraryRepoTests {
         #expect(subject.store.setLoudnessRequests == ["t1"])
     }
 
+    // MARK: - Track gain (Lunara-7g3)
+
+    /// Gain already in the store is served without a network call.
+    @Test
+    func fetchTrackGain_storeHitSkipsNetwork() async throws {
+        let subject = makeSubject()
+        subject.store.gainByTrackID["t1"] = TrackGain(gain: -4.75, albumGain: -4.75)
+
+        let gain = try await subject.repo.fetchTrackGain(trackID: "t1")
+
+        #expect(gain == TrackGain(gain: -4.75, albumGain: -4.75))
+        #expect(subject.remote.gainRequests.isEmpty)
+    }
+
+    /// A network fetch writes through to the store so leveling works offline.
+    @Test
+    func fetchTrackGain_networkFetchPersistsToStore() async throws {
+        let subject = makeSubject()
+        subject.remote.gainByTrackID["t1"] = TrackGain(gain: 7.11, albumGain: 7.11)
+
+        let gain = try await subject.repo.fetchTrackGain(trackID: "t1")
+
+        #expect(gain == TrackGain(gain: 7.11, albumGain: 7.11))
+        #expect(subject.remote.gainRequests == ["t1"])
+        #expect(subject.store.gainByTrackID["t1"] == TrackGain(gain: 7.11, albumGain: 7.11))
+        #expect(subject.store.setGainRequests == ["t1"])
+    }
+
+    /// Contour cached but gain missing (pre-v15 rows): the metadata fetch
+    /// runs on demand and backfills the store.
+    @Test
+    func fetchTrackGain_contourCachedWithoutGain_fetchesAndBackfills() async throws {
+        let subject = makeSubject()
+        subject.store.loudnessByTrackID["t1"] = [0.3, 0.6]
+        subject.remote.gainByTrackID["t1"] = TrackGain(gain: -2.0, albumGain: -2.0)
+
+        let gain = try await subject.repo.fetchTrackGain(trackID: "t1")
+
+        #expect(gain == TrackGain(gain: -2.0, albumGain: -2.0))
+        #expect(subject.remote.gainRequests == ["t1"])
+        #expect(subject.store.setGainRequests == ["t1"])
+    }
+
+    /// Second call is memoized — neither the store nor the network is asked again.
+    @Test
+    func fetchTrackGain_memoizesAcrossCalls() async throws {
+        let subject = makeSubject()
+        subject.remote.gainByTrackID["t1"] = TrackGain(gain: -4.75, albumGain: -4.75)
+
+        _ = try await subject.repo.fetchTrackGain(trackID: "t1")
+        subject.remote.gainByTrackID["t1"] = TrackGain(gain: 99, albumGain: 99)
+        let second = try await subject.repo.fetchTrackGain(trackID: "t1")
+
+        #expect(second == TrackGain(gain: -4.75, albumGain: -4.75))
+        #expect(subject.remote.gainRequests == ["t1"])
+    }
+
     // MARK: - setAlbumRating (Lunara-to3)
 
     @Test

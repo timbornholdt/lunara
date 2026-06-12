@@ -38,10 +38,20 @@ extension PlexAPIClient {
         return parseLoudnessLevels(from: levelsData)
     }
 
+    /// Fetches the track's loudness gain offsets from its metadata (Lunara-7g3).
+    /// The gain/albumGain attrs live on the same streamType=2 Stream element as
+    /// the stream ID; returns nil when the server hasn't analyzed the track.
+    func fetchTrackGain(trackID: String) async throws -> TrackGain? {
+        let request = try await buildRequest(path: "/library/metadata/\(trackID)", requiresAuth: true)
+        let (data, _) = try await executeLoggedRequest(request, operation: "fetchTrackGain[\(trackID)]")
+        let stream = AudioStreamIDParser().parseStream(data: data)
+        let gain = TrackGain(gain: stream.gain, albumGain: stream.albumGain)
+        return gain.isEmpty ? nil : gain
+    }
+
     /// Extracts the audio stream ID from track metadata XML.
     private func extractAudioStreamID(from data: Data) -> String? {
-        let parser = AudioStreamIDParser()
-        return parser.parse(data: data)
+        AudioStreamIDParser().parseStream(data: data).id
     }
 
     /// Parses Level elements from the levels response XML.
@@ -68,15 +78,22 @@ extension PlexAPIClient {
 
 // MARK: - XML Parsers
 
-/// Parses track metadata XML to find the audio stream ID attribute.
+/// Parses track metadata XML for the first audio stream's ID and loudness
+/// gain attrs (gain/albumGain ride the same Stream element, Lunara-7g3).
 private final class AudioStreamIDParser: NSObject, XMLParserDelegate {
-    private var streamID: String?
+    struct AudioStream {
+        var id: String?
+        var gain: Float?
+        var albumGain: Float?
+    }
 
-    func parse(data: Data) -> String? {
+    private var stream = AudioStream()
+
+    func parseStream(data: Data) -> AudioStream {
         let parser = XMLParser(data: data)
         parser.delegate = self
         parser.parse()
-        return streamID
+        return stream
     }
 
     func parser(
@@ -89,7 +106,11 @@ private final class AudioStreamIDParser: NSObject, XMLParserDelegate {
         guard elementName == "Stream",
               attributeDict["streamType"] == "2",
               let id = attributeDict["id"], !id.isEmpty else { return }
-        streamID = id
+        stream = AudioStream(
+            id: id,
+            gain: attributeDict["gain"].flatMap(Float.init),
+            albumGain: attributeDict["albumGain"].flatMap(Float.init)
+        )
         parser.abortParsing()
     }
 }
