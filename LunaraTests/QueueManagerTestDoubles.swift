@@ -220,9 +220,23 @@ final class LoudnessProviderMock: LoudnessDataProviding {
 
     var gainByTrackID: [String: TrackGain] = [:]
     private(set) var gainRequestedTrackIDs: [String] = []
+    /// When set, fetchTrackGain for this track suspends until released —
+    /// simulates an uncached gain stuck on a slow network (Lunara-e0x).
+    var gateGainForTrackID: String?
+    private var gainGateContinuation: CheckedContinuation<Void, Never>?
+
+    func releaseGainGate() {
+        let continuation = gainGateContinuation
+        gainGateContinuation = nil
+        gateGainForTrackID = nil
+        continuation?.resume()
+    }
 
     func fetchTrackGain(trackID: String) async throws -> TrackGain? {
         gainRequestedTrackIDs.append(trackID)
+        if trackID == gateGainForTrackID {
+            await withCheckedContinuation { gainGateContinuation = $0 }
+        }
         return gainByTrackID[trackID]
     }
 }

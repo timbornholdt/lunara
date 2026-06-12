@@ -748,6 +748,7 @@ struct QueueManagerTests {
         manager.playNow([QueueItem(trackID: "t0", streamKey: "/k/t0", albumID: "album-A")])
         await waitUntil { engine.playGains.count == 1 }
 
+        try #require(engine.playGains.count == 1)
         #expect(engine.playGains[0] == -4.75)
     }
 
@@ -765,7 +766,35 @@ struct QueueManagerTests {
         manager.playNow([QueueItem(trackID: "t0", streamKey: "/k/t0", albumID: "album-A")])
         await waitUntil { engine.playGains.count == 1 }
 
+        try #require(engine.playGains.count == 1)
         #expect(engine.playGains[0] == nil)
+    }
+
+    /// A gain fetch stuck on the network must never hold up play start: the
+    /// bounded wait expires and the track plays unleveled (Lunara-e0x).
+    @Test
+    func play_withWedgedGainFetch_stillStartsWithoutGain() async throws {
+        let engine = PlaybackEngineMock()
+        let loudness = LoudnessProviderMock()
+        loudness.gainByTrackID["t0"] = TrackGain(gain: -6, albumGain: -6)
+        loudness.gateGainForTrackID = "t0" // simulate slow metadata fetch
+        let manager = QueueManager(
+            engine: engine,
+            persistence: QueueStatePersistenceMock(),
+            loudnessProvider: loudness,
+            resolver: PlaybackURLResolvingMock()
+        )
+
+        manager.playNow([QueueItem(trackID: "t0", streamKey: "/k/t0", albumID: "album-A")])
+        // The bounded wait spends real wall time (up to ~150ms of 25ms ticks),
+        // so poll with real sleeps — the yield-based waitUntil gives up too fast.
+        for _ in 0..<60 where engine.playGains.isEmpty {
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        try #require(engine.playGains.count == 1)
+        #expect(engine.playGains[0] == nil) // played, unleveled
+        loudness.releaseGainGate()
     }
 
     /// The incoming track's gain rides prepareNext, and the fadeDecision span
@@ -790,6 +819,7 @@ struct QueueManagerTests {
         manager.playNow([item0, item1])
         await waitUntil { engine.prepareNextGains.count == 1 }
 
+        try #require(engine.prepareNextGains.count == 1)
         #expect(engine.prepareNextGains[0] == -12)
         await waitUntil { telemetry.details.contains { $0.name == "fadeDecision" } }
         let record = try #require(telemetry.details.first { $0.name == "fadeDecision" })
