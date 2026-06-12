@@ -103,6 +103,8 @@ protocol LibraryRepoProtocol: AnyObject {
     func authenticatedArtworkURL(for rawValue: String?) async throws -> URL?
     func authenticatedThumbnailURL(for rawValue: String?) async throws -> URL?
     func fetchLoudnessLevels(trackID: String) async throws -> [Float]?
+    /// Loudness gain offsets for the engine's leveling path (Lunara-7g3).
+    func fetchTrackGain(trackID: String) async throws -> TrackGain?
 
     // Artist enrichment cache (Lunara-ya7). Requirements for dynamic dispatch;
     // no-op defaults below keep doubles small.
@@ -113,6 +115,7 @@ protocol LibraryRepoProtocol: AnyObject {
 
 extension LibraryRepoProtocol {
     func fetchLoudnessLevels(trackID: String) async throws -> [Float]? { nil }
+    func fetchTrackGain(trackID: String) async throws -> TrackGain? { nil }
 
     /// Default for conformers that don't support rating writeback (test doubles,
     /// the PlexAPIClient-as-repo fallback). LibraryRepo overrides with the real

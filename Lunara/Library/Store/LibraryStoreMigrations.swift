@@ -343,6 +343,16 @@ enum LibraryStoreMigrations {
             }
         }
 
+        // Loudness leveling: ReplayGain-style dB offsets alongside the contour
+        // (Lunara-7g3). Nullable — gain may arrive before or after the levels
+        // blob, and either write must leave the other intact.
+        migrator.registerMigration("v15_track_gain") { db in
+            try db.alter(table: "track_loudness") { table in
+                table.add(column: "gain", .double)
+                table.add(column: "albumGain", .double)
+            }
+        }
+
         return migrator
     }
 }

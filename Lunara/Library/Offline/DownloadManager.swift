@@ -261,6 +261,8 @@ final class DownloadManager: DownloadManagerProtocol {
                 // so synced albums get contour-based crossfades offline (Lunara-ki3).
                 // Best-effort: a miss just means the default fade later.
                 _ = try? await library.fetchLoudnessLevels(trackID: track.plexID)
+                // Gain offsets ride along so leveling works offline too (Lunara-7g3).
+                _ = try? await library.fetchTrackGain(trackID: track.plexID)
 
                 albumStates[albumID] = .downloading(completedTracks: index + 1, totalTracks: totalTracks)
                 logger.info("Downloaded track \(index + 1)/\(totalTracks) for album '\(albumID, privacy: .public)'")

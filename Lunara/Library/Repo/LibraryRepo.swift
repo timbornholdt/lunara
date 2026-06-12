@@ -32,6 +32,7 @@ protocol LibraryRemoteDataSource: AnyObject {
     func authenticatedArtworkURL(for rawValue: String?) async throws -> URL?
     func authenticatedThumbnailURL(for rawValue: String?) async throws -> URL?
     func fetchLoudnessLevels(trackID: String, sampleCount: Int) async throws -> [Float]?
+    func fetchTrackGain(trackID: String) async throws -> TrackGain?
     func addToPlaylist(playlistID: String, ratingKey: String) async throws
     func removeFromPlaylist(playlistID: String, playlistItemID: String) async throws
     func writeUserRating(ratingKey: String, rating: Double) async throws
@@ -56,6 +57,7 @@ final class LibraryRepo: LibraryRepoProtocol {
     let artworkPipeline: ArtworkPipelineProtocol
     let nowProvider: () -> Date
     private var loudnessCache: [String: [Float]?] = [:]
+    private var trackGainCache: [String: TrackGain?] = [:]
 
     init(
         remote: LibraryRemoteDataSource,
@@ -325,6 +327,25 @@ final class LibraryRepo: LibraryRepoProtocol {
         return levels
     }
 
+    /// Memo -> store -> network, mirroring fetchLoudnessLevels (Lunara-7g3).
+    /// Also covers the contour-cached-but-gain-nil case: the store row exists
+    /// without gain columns, so the metadata fetch runs and backfills them.
+    func fetchTrackGain(trackID: String) async throws -> TrackGain? {
+        if let cached = trackGainCache[trackID] {
+            return cached
+        }
+        if let stored = try? await store.trackGain(forTrack: trackID), stored != nil {
+            rememberTrackGain(stored, forTrack: trackID)
+            return stored
+        }
+        let gain = try await remote.fetchTrackGain(trackID: trackID)
+        rememberTrackGain(gain, forTrack: trackID)
+        if let gain {
+            try? await store.setTrackGain(gain, forTrack: trackID)
+        }
+        return gain
+    }
+
     // MARK: - Artist enrichment cache (Lunara-ya7)
 
     func cachedArtistEnrichment(name: String) async throws -> ArtistEnrichmentCacheEntry? {
@@ -346,5 +367,12 @@ final class LibraryRepo: LibraryRepoProtocol {
             loudnessCache.removeAll(keepingCapacity: true)
         }
         loudnessCache[trackID] = levels
+    }
+
+    private func rememberTrackGain(_ gain: TrackGain?, forTrack trackID: String) {
+        if trackGainCache.count >= 512 {
+            trackGainCache.removeAll(keepingCapacity: true)
+        }
+        trackGainCache[trackID] = gain
     }
 }

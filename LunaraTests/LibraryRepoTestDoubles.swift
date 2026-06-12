@@ -169,6 +169,14 @@ final class LibraryRemoteMock: LibraryRemoteDataSource {
         return loudnessByTrackID[trackID]
     }
 
+    var gainByTrackID: [String: TrackGain] = [:]
+    private(set) var gainRequests: [String] = []
+
+    func fetchTrackGain(trackID: String) async throws -> TrackGain? {
+        gainRequests.append(trackID)
+        return gainByTrackID[trackID]
+    }
+
     func addToPlaylist(playlistID: String, ratingKey: String) async throws {
         addToPlaylistRequests.append((playlistID, ratingKey))
         if let addToPlaylistError { throw addToPlaylistError }
@@ -208,6 +216,18 @@ final class LibraryStoreMock: LibraryStoreProtocol {
     func setLoudnessLevels(_ levels: [Float], forTrack trackID: String) async throws {
         setLoudnessRequests.append(trackID)
         loudnessByTrackID[trackID] = levels
+    }
+
+    var gainByTrackID: [String: TrackGain] = [:]
+    private(set) var setGainRequests: [String] = []
+
+    func trackGain(forTrack trackID: String) async throws -> TrackGain? {
+        gainByTrackID[trackID]
+    }
+
+    func setTrackGain(_ gain: TrackGain, forTrack trackID: String) async throws {
+        setGainRequests.append(trackID)
+        gainByTrackID[trackID] = gain
     }
 
     var albumsByPage: [Int: [Album]] = [:]

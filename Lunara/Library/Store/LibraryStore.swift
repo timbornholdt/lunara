@@ -445,7 +445,9 @@ final class LibraryStore: LibraryStoreProtocol {
                 db,
                 sql: "SELECT levels FROM track_loudness WHERE trackID = ?",
                 arguments: [trackID]
-            ) else {
+            ), !data.isEmpty else {
+                // Empty blob = gain landed before the contour (levels is
+                // NOT NULL, so gain-first rows park a placeholder there).
                 return nil
             }
             return data.withUnsafeBytes { Array($0.bindMemory(to: Float.self)) }
@@ -455,6 +457,8 @@ final class LibraryStore: LibraryStoreProtocol {
     func setLoudnessLevels(_ levels: [Float], forTrack trackID: String) async throws {
         let blob = levels.withUnsafeBufferPointer { Data(buffer: $0) }
         try await dbQueue.write { db in
+            // Upsert touches only the contour columns — a row that already
+            // carries gain values must keep them (Lunara-7g3).
             try db.execute(
                 sql: """
                 INSERT INTO track_loudness (trackID, levels, fetchedAt)
@@ -462,6 +466,39 @@ final class LibraryStore: LibraryStoreProtocol {
                 ON CONFLICT(trackID) DO UPDATE SET levels = excluded.levels, fetchedAt = excluded.fetchedAt
                 """,
                 arguments: [trackID, blob, Date()]
+            )
+        }
+    }
+
+    func trackGain(forTrack trackID: String) async throws -> TrackGain? {
+        try await dbQueue.read { db in
+            guard let row = try Row.fetchOne(
+                db,
+                sql: "SELECT gain, albumGain FROM track_loudness WHERE trackID = ?",
+                arguments: [trackID]
+            ) else {
+                return nil
+            }
+            let gain = TrackGain(gain: row["gain"], albumGain: row["albumGain"])
+            return gain.isEmpty ? nil : gain
+        }
+    }
+
+    func setTrackGain(_ gain: TrackGain, forTrack trackID: String) async throws {
+        try await dbQueue.write { db in
+            // levels is NOT NULL: a gain-first insert parks an empty blob the
+            // reader treats as "no contour"; on conflict only the gain columns
+            // move so an existing contour survives (Lunara-7g3).
+            try db.execute(
+                sql: """
+                INSERT INTO track_loudness (trackID, levels, fetchedAt, gain, albumGain)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(trackID) DO UPDATE SET
+                    gain = excluded.gain,
+                    albumGain = excluded.albumGain,
+                    fetchedAt = excluded.fetchedAt
+                """,
+                arguments: [trackID, Data(), Date(), gain.gain, gain.albumGain]
             )
         }
     }
